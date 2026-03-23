@@ -1,0 +1,11 @@
+{
+	email {$ACME_EMAIL}
+}
+
+{$APP_DOMAIN} {
+	reverse_proxy dashboard-web:80
+}
+
+{$API_DOMAIN} {
+	reverse_proxy backend:8080
+}
