@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MVP Estático - Segurança Comunitária</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Fraunces:opsz,wght@9..144,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div>
+        <p class="eyebrow">Protótipo Navegável</p>
+        <h1>Segurança Comunitária</h1>
+        <p class="sidebar-copy">
+          MVP visual com simulação operacional de geolocalização, deslocamento da ronda e retorno dos moradores para casa.
+        </p>
+      </div>
+
+      <section class="nav-group">
+        <p class="nav-title">Morador</p>
+        <button class="nav-item active" data-screen="morador-home">Home</button>
+        <button class="nav-item" data-screen="morador-alerta">Alerta de Pânico</button>
+        <button class="nav-item" data-screen="morador-escolta">Solicitar Escolta</button>
+        <button class="nav-item" data-screen="morador-tracking">Acompanhar Viatura</button>
+        <button class="nav-item" data-screen="morador-historico">Ocorrência Resolvida</button>
+      </section>
+
+      <section class="nav-group">
+        <p class="nav-title">Ronda</p>
+        <button class="nav-item" data-screen="ronda-fila">Fila Operacional</button>
+        <button class="nav-item" data-screen="ronda-ocorrencia">Atendimento em Curso</button>
+        <button class="nav-item" data-screen="ronda-turno">Turno e Ponto</button>
+      </section>
+
+      <section class="nav-group">
+        <p class="nav-title">Tutor</p>
+        <button class="nav-item" data-screen="tutor-dashboard">Dashboard</button>
+        <button class="nav-item" data-screen="tutor-geofence">Geofence e Cadastros</button>
+        <button class="nav-item" data-screen="tutor-equipe">Equipe e Frota</button>
+        <button class="nav-item" data-screen="tutor-relatorios">Relatórios</button>
+      </section>
+
+      <section class="nav-group simulation-nav">
+        <p class="nav-title">Simulações</p>
+        <button class="scenario-btn active" data-scenario="alerta">Pânico em residência</button>
+        <button class="scenario-btn" data-scenario="escolta">Escolta de retorno</button>
+        <button class="scenario-btn" data-scenario="retorno">Morador indo para casa</button>
+      </section>
+    </aside>
+
+    <main class="workspace">
+      <section class="hero-panel">
+        <div>
+          <p class="eyebrow">Validação de Produto</p>
+          <h2 id="hero-title">Pânico em residência com viatura em deslocamento</h2>
+          <p class="hero-copy" id="hero-copy">
+            O morador permanece em casa enquanto a Alpha-01 é despachada da base. A Beta-02 segue em patrulha para manter cobertura territorial.
+          </p>
+        </div>
+        <div class="hero-metrics">
+          <div class="metric-card">
+            <span>ETA ativo</span>
+            <strong id="metric-eta">03 min</strong>
+          </div>
+          <div class="metric-card">
+            <span>Ronda disponível</span>
+            <strong id="metric-availability">1 livre</strong>
+          </div>
+          <div class="metric-card">
+            <span>Moradores monitorados</span>
+            <strong id="metric-residents">3</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="preview-grid">
+        <div class="device-frame">
+          <div class="device-header">
+            <span class="status-dot"></span>
+            <span id="screen-title">Home do Morador</span>
+          </div>
+
+          <div class="screen active" id="morador-home">
+            <div class="app-bar">
+              <div>
+                <p class="eyebrow">Boa noite</p>
+                <h3 id="resident-home-address">Rua das Acácias, 85</h3>
+              </div>
+              <span class="badge safe">Área protegida</span>
+            </div>
+
+            <div class="map-card gradient-a">
+              <p id="resident-home-patrol">Viatura Alpha-01</p>
+              <strong id="resident-home-eta">A 3 min do local</strong>
+              <span id="resident-home-phase">Operador: Carlos Nunes</span>
+            </div>
+
+            <div class="button-grid">
+              <button class="action danger" data-screen-target="morador-alerta">
+                <span>Pânico</span>
+                <small>Invasão ou ameaça imediata</small>
+              </button>
+              <button class="action stealth">
+                <span>Atitude Suspeita</span>
+                <small>Alerta silencioso</small>
+              </button>
+              <button class="action medical">
+                <span>Emergência Médica</span>
+                <small>Acionamento prioritário</small>
+              </button>
+              <button class="action escort" data-screen-target="morador-escolta">
+                <span>Solicitar Escolta</span>
+                <small>Compartilhamento temporário de rota</small>
+              </button>
+            </div>
+
+            <div class="info-card">
+              <p class="card-title">Resumo em tempo real</p>
+              <ul id="resident-home-summary">
+                <li>Countdown de 5 segundos antes do envio</li>
+                <li>PIN de coação habilitado</li>
+                <li>Geofence validada com margem de GPS</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="screen" id="morador-alerta">
+            <div class="app-bar">
+              <div>
+                <p class="eyebrow">Alerta crítico</p>
+                <h3>Pânico</h3>
+              </div>
+              <span class="badge alert">Alta prioridade</span>
+            </div>
+
+            <div class="countdown-card">
+              <p>Envio em</p>
+              <strong>05</strong>
+              <span>Toque em cancelar se o acionamento foi acidental.</span>
+            </div>
+
+            <div class="pin-card">
+              <p class="card-title">PIN de coação</p>
+              <div class="pin-row">
+                <span>•</span><span>•</span><span>•</span><span>•</span>
+              </div>
+              <small>Ao informar o PIN de coação, o app aparenta cancelar, mas a ronda recebe alerta silencioso.</small>
+            </div>
+
+            <div class="stack-actions">
+              <button class="primary" data-screen-target="morador-tracking">Confirmar envio</button>
+              <button class="secondary" data-screen-target="morador-home">Cancelar</button>
+            </div>
+          </div>
+
+          <div class="screen" id="morador-escolta">
+            <div class="app-bar">
+              <div>
+                <p class="eyebrow">Escolta</p>
+                <h3 id="escort-title">Solicitação manual</h3>
+              </div>
+              <span class="badge neutral" id="escort-badge">ETA estimado</span>
+            </div>
+
+            <div class="info-card">
+              <p class="card-title">Rota monitorada</p>
+              <ul id="escort-summary">
+                <li>Endereço destino: Rua das Acácias, 85</li>
+                <li>Distância atual: 1,4 km</li>
+                <li>Compartilhamento de rota: temporário</li>
+              </ul>
+            </div>
+
+            <div class="queue-card">
+              <p>Disponibilidade da ronda</p>
+              <strong id="escort-eta">Viatura Alpha-01 em 6 min</strong>
+              <span id="escort-note">Se o ETA aumentar, o sistema orienta aguardar em local seguro.</span>
+            </div>
+
+            <div class="stack-actions">
+              <button class="primary" data-screen-target="morador-tracking">Solicitar agora</button>
+              <button class="secondary" data-screen-target="morador-home">Voltar</button>
+            </div>
+          </div>
+
+          <div class="screen" id="morador-tracking">
+            <div class="app-bar">
+              <div>
+                <p class="eyebrow">Ocorrência ativa</p>
+                <h3 id="tracking-title">Acompanhar viatura</h3>
+              </div>
+              <span class="badge progress" id="tracking-badge">Em deslocamento</span>
+            </div>
+
+            <div class="map-card gradient-b">
+              <p id="tracking-patrol-label">Alpha-01 em rota</p>
+              <strong id="tracking-eta">ETA 03 min</strong>
+              <span id="tracking-last-update">Última atualização há 12 segundos</span>
+            </div>
+
+            <div class="timeline">
+              <div class="timeline-item done" id="timeline-open">Ocorrência aberta às 22:14</div>
+              <div class="timeline-item" id="timeline-accept">Ronda aceitou o chamado</div>
+              <div class="timeline-item" id="timeline-route">Viatura em deslocamento</div>
+              <div class="timeline-item" id="timeline-close">Chegada e fechamento seguro</div>
+            </div>
+
+            <div class="stack-actions">
+              <button class="primary" data-screen-target="morador-historico">Simular encerramento</button>
+              <button class="secondary" data-screen-target="morador-home">Voltar à home</button>
+            </div>
+          </div>
+
+          <div class="screen" id="morador-historico">
+            <div class="app-bar">
+              <div>
+                <p class="eyebrow">Ocorrência encerrada</p>
+                <h3>Atendimento concluído</h3>
+              </div>
+              <span class="badge safe">Resolvido</span>
+            </div>
+
+            <div class="resolution-card">
+              <p class="card-title">Resumo do atendimento</p>
+              <ul id="history-summary">
+                <li>Abertura: 22:14</li>
+                <li>Chegada da ronda: 22:19</li>
+                <li>SLA total: 5m18s</li>
+                <li>Escalonamento PM: não necessário</li>
+              </ul>
+            </div>
+
+            <div class="info-card">
+              <p class="card-title">Observação registrada</p>
+              <p id="history-note">Portão verificado, rua liberada e morador acompanhado até acesso seguro.</p>
+            </div>
+          </div>
+
+          <div class="screen" id="ronda-fila">
+            <div class="app-bar">
+              <div>
+                <p class="eyebrow">Console da ronda</p>
+                <h3>Fila operacional</h3>
+              </div>
+              <span class="badge alert" id="queue-badge">1 crítico</span>
+            </div>
+
+            <div class="incident-list" id="incident-list"></div>
+
+            <div class="info-card">
+              <p class="card-title">Motor de prioridade do MVP</p>
+              <ul id="queue-summary">
+                <li>Tipo da ocorrência</li>
+                <li>Distância até a viatura</li>
+                <li>Status atual da ronda</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="screen" id="ronda-ocorrencia">
+            <div class="app-bar">
+              <div>
+                <p class="eyebrow">Atendimento</p>
+                <h3 id="ops-title">Pânico em andamento</h3>
+              </div>
+              <span class="badge progress" id="ops-badge">Aceito</span>
+            </div>
+
+            <div class="map-card gradient-c">
+              <p id="ops-destination-label">Destino</p>
+              <strong id="ops-destination">Rua das Acácias, 85</strong>
+              <span id="ops-destination-note">Morador dentro da área protegida</span>
+            </div>
+
+            <div class="timeline">
+              <div class="timeline-item done" id="ops-step-1">Chamado recebido</div>
+              <div class="timeline-item" id="ops-step-2">Deslocamento com rota ativa</div>
+              <div class="timeline-item" id="ops-step-3">Chegada ao local</div>
+              <div class="timeline-item" id="ops-step-4">Encerramento e observação</div>
+            </div>
+
+            <div class="stack-actions">
+              <button class="primary">Marcar chegada</button>
+              <button class="secondary">Gerar mensagem Vizinhança Solidária</button>
+            </div>
+          </div>
+
+          <div class="screen" id="ronda-turno">
+            <div class="app-bar">
+              <div>
+                <p class="eyebrow">Operação de equipe</p>
+                <h3>Turno e ponto eletrônico</h3>
+              </div>
+              <span class="badge neutral" id="shift-badge">Turno ativo</span>
+            </div>
+
+            <div class="profile-card">
+              <div class="profile-head">
+                <div class="avatar-photo" id="shift-avatar">CN</div>
+                <div>
+                  <p class="card-title">Agente em serviço</p>
+                  <strong id="shift-agent-name">Carlos Nunes</strong>
+                  <small id="shift-agent-meta">Ronda noturna • CNH AB válida até 08/2027</small>
+                </div>
+              </div>
+              <ul id="shift-agent-summary">
+                <li>Foto de identificação validada</li>
+                <li>Ponto registrado às 18:00</li>
+                <li>Substituição prevista às 22:00</li>
+              </ul>
+            </div>
+
+            <div class="info-card">
+              <p class="card-title">Ponto eletrônico e troca</p>
+              <ul id="shift-clock-summary">
+                <li>Check-in por operador e dispositivo</li>
+                <li>Troca de funcionário com aceite duplo</li>
+                <li>Histórico auditável de jornada</li>
+              </ul>
+            </div>
+
+            <div class="queue-card">
+              <p>Viatura vinculada ao turno</p>
+              <strong id="shift-vehicle-name">Renault Duster • ABC1D23</strong>
+              <span id="shift-vehicle-note">Quilometragem inicial 48.215 km • atual 48.241 km</span>
+            </div>
+
+            <div class="resolution-card">
+              <p class="card-title">Controle de manutenção</p>
+              <ul id="shift-maintenance-summary">
+                <li>Próxima revisão em 785 km</li>
+                <li>Checklist diário sem pendências críticas</li>
+                <li>Pneus e óleo dentro da janela operacional</li>
+              </ul>
+            </div>
+
+            <div class="stack-actions">
+              <button class="primary">Registrar troca de funcionário</button>
+              <button class="secondary">Fechar turno com km final</button>
+            </div>
+          </div>
+
+          <div class="screen" id="tutor-dashboard">
+            <div class="app-bar">
+              <div>
+                <p class="eyebrow">Painel do tutor</p>
+                <h3 id="tutor-title">Operação do dia</h3>
+              </div>
+              <span class="badge neutral">Auditoria ativa</span>
+            </div>
+
+            <div class="stats-grid">
+              <div class="stat-box">
+                <span>Ocorrências hoje</span>
+                <strong id="dash-occurrences">18</strong>
+              </div>
+              <div class="stat-box">
+                <span>SLA médio</span>
+                <strong id="dash-sla">06m12s</strong>
+              </div>
+              <div class="stat-box">
+                <span>Escoltas</span>
+                <strong id="dash-escort">7</strong>
+              </div>
+              <div class="stat-box">
+                <span>Cancelamentos</span>
+                <strong id="dash-cancel">4</strong>
+              </div>
+            </div>
+
+            <div class="info-card">
+              <p class="card-title">Visão executiva</p>
+              <ul id="dashboard-summary">
+                <li>Rua das Acácias concentra 3 ocorrências nesta semana</li>
+                <li>Pico operacional entre 19h e 22h</li>
+                <li>Sem envio automático para o 190</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="screen" id="tutor-geofence">
+            <div class="app-bar">
+              <div>
+                <p class="eyebrow">Configuração</p>
+                <h3>Geofence e cadastros</h3>
+              </div>
+              <span class="badge safe">LGPD aplicada</span>
+            </div>
+
+            <div class="map-card gradient-d">
+              <p>Perímetro ativo</p>
+              <strong id="geofence-title">Bairro Jardim Colina</strong>
+              <span id="geofence-note">Margem de tolerância configurada para baixa precisão de GPS</span>
+            </div>
+
+            <div class="info-card">
+              <p class="card-title">Controles administrativos</p>
+              <ul id="geofence-summary">
+                <li>83 moradores ativos</li>
+                <li>2 viaturas cadastradas</li>
+                <li>MFA obrigatório para perfis administrativos</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="screen" id="tutor-equipe">
+            <div class="app-bar">
+              <div>
+                <p class="eyebrow">Gestão operacional</p>
+                <h3>Equipe e frota</h3>
+              </div>
+              <span class="badge progress">Controle ativo</span>
+            </div>
+
+            <div class="stats-grid">
+              <div class="stat-box">
+                <span>Agentes aptos</span>
+                <strong id="team-active">6</strong>
+              </div>
+              <div class="stat-box">
+                <span>Trocas hoje</span>
+                <strong id="team-handoffs">2</strong>
+              </div>
+              <div class="stat-box">
+                <span>Viaturas liberadas</span>
+                <strong id="fleet-active">2</strong>
+              </div>
+              <div class="stat-box">
+                <span>Revisões próximas</span>
+                <strong id="fleet-maint">1</strong>
+              </div>
+            </div>
+
+            <div class="profile-card">
+              <div class="profile-head">
+                <div class="avatar-photo" id="team-avatar">ML</div>
+                <div>
+                  <p class="card-title">Funcionária de entrada</p>
+                  <strong id="team-lead-name">Marina Luz</strong>
+                  <small id="team-lead-meta">Foto cadastrada • CNH AB válida até 03/2028</small>
+                </div>
+              </div>
+              <ul id="team-summary">
+                <li>Substitui Carlos Nunes às 22:00</li>
+                <li>Treinamento tático e rota noturna em dia</li>
+                <li>Assinatura digital de recebimento pendente</li>
+              </ul>
+            </div>
+
+            <div class="info-card">
+              <p class="card-title">Cadastro de frota</p>
+              <ul id="fleet-summary">
+                <li>Alpha-01 • Renault Duster • Placa ABC1D23</li>
+                <li>Quilometragem atual 48.241 km</li>
+                <li>Próxima manutenção preventiva em 785 km</li>
+              </ul>
+            </div>
+
+            <div class="queue-card">
+              <p>Status de manutenção</p>
+              <strong id="fleet-status-name">Checklist diário concluído</strong>
+              <span id="fleet-status-note">Sem bloqueio de uso, com alerta amarelo para revisão preventiva.</span>
+            </div>
+          </div>
+
+          <div class="screen" id="tutor-relatorios">
+            <div class="app-bar">
+              <div>
+                <p class="eyebrow">Relatórios</p>
+                <h3>SLA e mapa de calor</h3>
+              </div>
+              <span class="badge neutral">Base analítica</span>
+            </div>
+
+            <div class="chart-card">
+              <p class="card-title">Indicadores mensais</p>
+              <div class="bars">
+                <span style="height: 42%"></span>
+                <span style="height: 68%"></span>
+                <span style="height: 55%"></span>
+                <span style="height: 83%"></span>
+                <span style="height: 60%"></span>
+              </div>
+            </div>
+
+            <div class="resolution-card">
+              <p class="card-title">Exportação prevista</p>
+              <ul id="report-summary">
+                <li>PDF executivo mensal</li>
+                <li>Mapa de calor por rua e horário</li>
+                <li>Tempo médio por tipo de ocorrência</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <section class="ops-panel">
+          <div class="ops-header">
+            <div>
+              <p class="eyebrow">Centro operacional</p>
+              <h3 id="phase-title">Despacho da Alpha-01</h3>
+              <p class="ops-copy" id="phase-copy">
+                Viatura principal em movimento até a residência de Ana. Moradores e patrulha secundária seguem monitorados no mapa.
+              </p>
+            </div>
+            <div class="ops-controls">
+              <button class="control-btn" id="play-pause">Pausar</button>
+              <button class="control-btn" id="speed-btn">Velocidade 1x</button>
+            </div>
+          </div>
+
+          <div class="map-shell">
+            <svg id="sim-map" viewBox="0 0 720 520" role="img" aria-label="Mapa operacional do bairro">
+              <defs>
+                <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                  <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1"></path>
+                </pattern>
+              </defs>
+
+              <rect width="720" height="520" fill="url(#grid)"></rect>
+
+              <g class="roads">
+                <path d="M 40 110 L 680 110"></path>
+                <path d="M 40 210 L 680 210"></path>
+                <path d="M 40 320 L 680 320"></path>
+                <path d="M 40 420 L 680 420"></path>
+                <path d="M 120 40 L 120 470"></path>
+                <path d="M 260 40 L 260 470"></path>
+                <path d="M 420 40 L 420 470"></path>
+                <path d="M 580 40 L 580 470"></path>
+              </g>
+
+              <g class="street-labels">
+                <text x="52" y="98">Rua da Base</text>
+                <text x="52" y="198">Rua das Acácias</text>
+                <text x="52" y="308">Alameda Ipê</text>
+                <text x="52" y="408">Rua das Flores</text>
+                <text x="128" y="58">Av. Central</text>
+                <text x="268" y="58">Av. Jardim</text>
+                <text x="428" y="58">Av. Colina</text>
+                <text x="588" y="58">Av. Norte</text>
+              </g>
+
+              <polygon id="geofence-area" points="90,70 620,70 660,240 610,450 180,470 80,330" class="geofence"></polygon>
+              <g id="route-layer"></g>
+              <g id="poi-layer"></g>
+              <g id="marker-layer"></g>
+            </svg>
+          </div>
+
+          <div class="legend">
+            <span><i class="legend-chip patrol"></i>Viaturas</span>
+            <span><i class="legend-chip resident"></i>Moradores</span>
+            <span><i class="legend-chip base"></i>Base</span>
+            <span><i class="legend-chip home"></i>Residências</span>
+            <span><i class="legend-chip route"></i>Rotas monitoradas</span>
+          </div>
+
+          <div class="telemetry-grid">
+            <article class="telemetry-card">
+              <p class="eyebrow">Fase atual</p>
+              <strong id="telemetry-phase">Despacho inicial</strong>
+              <span id="telemetry-stage">Base -> ocorrência</span>
+            </article>
+            <article class="telemetry-card">
+              <p class="eyebrow">Viaturas</p>
+              <div id="unit-cards" class="entity-list"></div>
+            </article>
+            <article class="telemetry-card">
+              <p class="eyebrow">Moradores</p>
+              <div id="resident-cards" class="entity-list"></div>
+            </article>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
