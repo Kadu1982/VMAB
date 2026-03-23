@@ -1,0 +1,45 @@
+name: seguranca-comunitaria
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: seguranca-postgres
+    environment:
+      POSTGRES_DB: seguranca_comunitaria
+      POSTGRES_USER: seguranca
+      POSTGRES_PASSWORD: seguranca123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U seguranca -d seguranca_comunitaria"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    container_name: seguranca-backend
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/seguranca_comunitaria
+      DB_USERNAME: seguranca
+      DB_PASSWORD: seguranca123
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${BACKEND_PORT:-8081}:8080"
+
+  dashboard-web:
+    build:
+      context: ./dashboard-web
+    container_name: seguranca-dashboard
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+
+volumes:
+  postgres_data:

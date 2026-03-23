@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 @CrossOrigin(origins = "*")
 @RequestMapping("/api/dashboard")
 public class DashboardController {
+    // Exponibiliza o resumo operacional consumido pelo painel web e pela ronda.
 
     private final OperationsService operationsService;
 

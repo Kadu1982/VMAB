@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" role="img" aria-labelledby="title desc">
+  <title id="title">Logo VMAB</title>
+  <desc id="desc">Emblema dourado com coruja, asas e sigla VMAB.</desc>
+  <defs>
+    <linearGradient id="gold" x1="0%" x2="100%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#fff0b3" />
+      <stop offset="25%" stop-color="#d9ad52" />
+      <stop offset="55%" stop-color="#9a6d25" />
+      <stop offset="100%" stop-color="#f4d680" />
+    </linearGradient>
+  </defs>
+  <rect width="320" height="320" rx="34" fill="#050505" />
+  <g fill="none" stroke="url(#gold)" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M88 194 40 164l14-20 32 16-28-30 15-18 36 32-20-34 18-12 27 49" stroke-width="10" />
+    <path d="M232 194 280 164l-14-20-32 16 28-30-15-18-36 32 20-34-18-12-27 49" stroke-width="10" />
+    <path d="M160 44c22 0 42 14 52 34l20 2c-10-26-39-46-72-46s-62 20-72 46l20-2c10-20 30-34 52-34Z" stroke-width="7" />
+    <path d="M160 74c40 0 72 29 72 64 0 24-13 43-31 55l-12 55h-58l-12-55c-18-12-31-31-31-55 0-35 32-64 72-64Z" stroke-width="10" />
+    <path d="M136 120c-10 0-18 8-18 18s8 18 18 18 18-8 18-18-8-18-18-18Zm48 0c-10 0-18 8-18 18s8 18 18 18 18-8 18-18-8-18-18-18Z" stroke-width="7" />
+    <path d="M160 146c-8 6-13 12-13 20 0 9 6 16 13 16s13-7 13-16c0-8-5-14-13-20Z" stroke-width="7" />
+    <path d="M142 194c9 8 20 12 18 20-2 8-12 11-18 11s-16-3-18-11c-2-8 9-12 18-20Zm36 0c9 8 20 12 18 20-2 8-12 11-18 11s-16-3-18-11c-2-8 9-12 18-20Z" stroke-width="6" />
+    <path d="M112 236h96l-12 22h-72Z" stroke-width="8" />
+  </g>
+  <path fill="url(#gold)" d="M58 224h204l-22 28H80z" />
+  <text x="160" y="246" fill="#1d1407" font-family="Georgia, serif" font-size="42" font-weight="700" text-anchor="middle">V.M.A.B</text>
+</svg>

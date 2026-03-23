@@ -1,4 +1,6 @@
 export type AgentStatus = 'ACTIVE' | 'ON_DUTY' | 'OFF_DUTY' | 'BLOCKED'
+// Tipos compartilhados pelo frontend para alinhar o contrato com a API.
+export type ResidentStatus = 'ACTIVE' | 'INACTIVE'
 export type VehicleStatus = 'AVAILABLE' | 'IN_OPERATION' | 'MAINTENANCE' | 'BLOCKED'
 export type ShiftStatus = 'PLANNED' | 'ACTIVE' | 'HANDOFF' | 'CLOSED'
 export type IncidentStatus = 'OPEN' | 'DISPATCHED' | 'ON_SITE' | 'CLOSED'
@@ -13,6 +15,15 @@ export interface Agent {
   cnhExpiry: string
   status: AgentStatus
   photoUrl?: string | null
+}
+
+export interface Resident {
+  id: number
+  fullName: string
+  phoneNumber: string
+  address: string
+  referenceNote?: string | null
+  status: ResidentStatus
 }
 
 export interface Vehicle {
@@ -35,6 +46,40 @@ export interface Shift {
   scheduledEndAt: string
 }
 
+export interface PatrolRouteStop {
+  title: string
+  detail: string
+  status: string
+}
+
+export interface TelemetryTrailPoint {
+  latitude: number
+  longitude: number
+  speedKmh: number
+  accuracyMeters: number
+  recordedAt: string
+}
+
+export interface ActivePatrol {
+  shiftId: number
+  agentId: number
+  agentName: string
+  agentBadgeCode: string
+  agentPhotoUrl?: string | null
+  vehiclePlate: string
+  vehicleModel: string
+  vehicleCurrentKm: number
+  vehicleStatus: string
+  latitude: number
+  longitude: number
+  speedKmh: number
+  accuracyMeters: number
+  progressPercent: number
+  updatedAt: string
+  routeStops: PatrolRouteStop[]
+  telemetryTrail: TelemetryTrailPoint[]
+}
+
 export interface Incident {
   id: number
   type: IncidentType
@@ -48,14 +93,25 @@ export interface Incident {
 }
 
 export interface DashboardSummary {
+  totalResidents: number
   totalAgents: number
   activeAgents: number
   availableVehicles: number
   activeShifts: number
   openIncidents: number
   maintenanceAlerts: number
+  activePatrol?: ActivePatrol | null
+  residents: Resident[]
   agents: Agent[]
   vehicles: Vehicle[]
   shifts: Shift[]
   incidents: Incident[]
+}
+
+export interface ClientPortal {
+  activeShifts: number
+  openIncidents: number
+  availableVehicles: number
+  maintenanceAlerts: number
+  recentIncidents: Incident[]
 }

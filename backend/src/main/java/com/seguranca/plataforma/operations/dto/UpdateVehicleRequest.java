@@ -1,0 +1,15 @@
+package com.seguranca.plataforma.operations.dto;
+
+import com.seguranca.plataforma.operations.model.VehicleStatus;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+
+public record UpdateVehicleRequest(
+        @NotBlank String plate,
+        @NotBlank String model,
+        @Min(0) long currentKm,
+        @Min(1) long nextMaintenanceKm,
+        @NotNull VehicleStatus status
+) {
+}

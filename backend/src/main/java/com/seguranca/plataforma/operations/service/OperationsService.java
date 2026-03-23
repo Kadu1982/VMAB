@@ -1,249 +1,547 @@
 package com.seguranca.plataforma.operations.service;
 
 import com.seguranca.plataforma.operations.dto.CreateAgentRequest;
+import com.seguranca.plataforma.operations.dto.ActivePatrolResponse;
 import com.seguranca.plataforma.operations.dto.CreateIncidentRequest;
+import com.seguranca.plataforma.operations.dto.CreateResidentRequest;
 import com.seguranca.plataforma.operations.dto.CreateShiftRequest;
 import com.seguranca.plataforma.operations.dto.CreateVehicleRequest;
+import com.seguranca.plataforma.operations.dto.ClientPortalResponse;
 import com.seguranca.plataforma.operations.dto.DashboardSummaryResponse;
+import com.seguranca.plataforma.operations.dto.PatrolRouteStopResponse;
+import com.seguranca.plataforma.operations.dto.TelemetryTrailPointResponse;
+import com.seguranca.plataforma.operations.dto.UpdateAgentRequest;
+import com.seguranca.plataforma.operations.dto.UpdateIncidentRequest;
+import com.seguranca.plataforma.operations.dto.UpdateResidentRequest;
+import com.seguranca.plataforma.operations.dto.UpdateShiftRequest;
+import com.seguranca.plataforma.operations.dto.UpdateVehicleRequest;
+import com.seguranca.plataforma.operations.dto.UpsertShiftTelemetryRequest;
 import com.seguranca.plataforma.operations.model.Agent;
 import com.seguranca.plataforma.operations.model.AgentStatus;
 import com.seguranca.plataforma.operations.model.Incident;
-import com.seguranca.plataforma.operations.model.IncidentPriority;
 import com.seguranca.plataforma.operations.model.IncidentStatus;
-import com.seguranca.plataforma.operations.model.IncidentType;
+import com.seguranca.plataforma.operations.model.Resident;
+import com.seguranca.plataforma.operations.model.ResidentStatus;
 import com.seguranca.plataforma.operations.model.Shift;
 import com.seguranca.plataforma.operations.model.ShiftStatus;
+import com.seguranca.plataforma.operations.model.ShiftTelemetry;
 import com.seguranca.plataforma.operations.model.Vehicle;
 import com.seguranca.plataforma.operations.model.VehicleStatus;
+import com.seguranca.plataforma.operations.repository.AgentRepository;
+import com.seguranca.plataforma.operations.repository.IncidentRepository;
+import com.seguranca.plataforma.operations.repository.ResidentRepository;
+import com.seguranca.plataforma.operations.repository.ShiftRepository;
+import com.seguranca.plataforma.operations.repository.ShiftTelemetryRepository;
+import com.seguranca.plataforma.operations.repository.VehicleRepository;
 import jakarta.annotation.PostConstruct;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class OperationsService {
+    // Orquestra o dominio operacional: cadastros, turnos, ocorrencias, dashboard e telemetria.
 
-    private final Map<Long, Agent> agents = new LinkedHashMap<>();
-    private final Map<Long, Vehicle> vehicles = new LinkedHashMap<>();
-    private final Map<Long, Shift> shifts = new LinkedHashMap<>();
-    private final Map<Long, Incident> incidents = new LinkedHashMap<>();
+    private final AgentRepository agentRepository;
+    private final VehicleRepository vehicleRepository;
+    private final ResidentRepository residentRepository;
+    private final ShiftRepository shiftRepository;
+    private final ShiftTelemetryRepository shiftTelemetryRepository;
+    private final IncidentRepository incidentRepository;
 
-    private final AtomicLong agentSequence = new AtomicLong(0);
-    private final AtomicLong vehicleSequence = new AtomicLong(0);
-    private final AtomicLong shiftSequence = new AtomicLong(0);
-    private final AtomicLong incidentSequence = new AtomicLong(0);
+    public OperationsService(
+            AgentRepository agentRepository,
+            VehicleRepository vehicleRepository,
+            ResidentRepository residentRepository,
+            ShiftRepository shiftRepository,
+            ShiftTelemetryRepository shiftTelemetryRepository,
+            IncidentRepository incidentRepository
+    ) {
+        this.agentRepository = agentRepository;
+        this.vehicleRepository = vehicleRepository;
+        this.residentRepository = residentRepository;
+        this.shiftRepository = shiftRepository;
+        this.shiftTelemetryRepository = shiftTelemetryRepository;
+        this.incidentRepository = incidentRepository;
+    }
 
     @PostConstruct
+    @Transactional
     void seed() {
-        Agent carlos = createAgent(new CreateAgentRequest("Carlos Nunes", "ALPHA-01", "AB", LocalDate.now().plusYears(2), null), AgentStatus.ON_DUTY);
-        Agent marina = createAgent(new CreateAgentRequest("Marina Luz", "BETA-02", "AB", LocalDate.now().plusYears(3), null), AgentStatus.ACTIVE);
-        Agent joao = createAgent(new CreateAgentRequest("Joao Prado", "SUP-01", "B", LocalDate.now().plusYears(1), null), AgentStatus.OFF_DUTY);
+        // Semeia um ambiente minimo para demonstracao e testes locais.
+        if (agentRepository.count() > 0 || vehicleRepository.count() > 0 || residentRepository.count() > 0 || shiftRepository.count() > 0 || incidentRepository.count() > 0) {
+            return;
+        }
 
-        Vehicle alpha = createVehicle(new CreateVehicleRequest("ABC1D23", "Renault Duster", 48241, 49000), VehicleStatus.IN_OPERATION);
-        Vehicle beta = createVehicle(new CreateVehicleRequest("FGH4J56", "Chevrolet Spin", 61120, 62000), VehicleStatus.AVAILABLE);
+        Agent carlos = agentRepository.save(new Agent("Carlos Nunes", "ALPHA-01", "AB", LocalDate.now().plusYears(2), AgentStatus.ON_DUTY, "https://i.pravatar.cc/160?img=12"));
+        Agent marina = agentRepository.save(new Agent("Marina Luz", "BETA-02", "AB", LocalDate.now().plusYears(3), AgentStatus.ACTIVE, "https://i.pravatar.cc/160?img=32"));
+        agentRepository.save(new Agent("Joao Prado", "SUP-01", "B", LocalDate.now().plusYears(1), AgentStatus.OFF_DUTY, null));
+        Resident ana = residentRepository.save(new Resident("Ana Souza", "(11) 99888-1122", "Rua das Acacias, 85", "Casa azul com portao branco", ResidentStatus.ACTIVE));
+        Resident bruno = residentRepository.save(new Resident("Bruno Lima", "(11) 99777-6655", "Alameda Ipe, 210", "Acesso lateral pela guarita 2", ResidentStatus.ACTIVE));
 
-        Shift activeShift = new Shift(
-                shiftSequence.incrementAndGet(),
-                carlos.id(),
-                carlos.fullName(),
-                alpha.id(),
-                alpha.plate(),
+        Vehicle alpha = vehicleRepository.save(new Vehicle("ABC1D23", "Renault Duster", 48241, 49000, VehicleStatus.IN_OPERATION));
+        Vehicle beta = vehicleRepository.save(new Vehicle("FGH4J56", "Chevrolet Spin", 61120, 62000, VehicleStatus.AVAILABLE));
+
+        shiftRepository.save(new Shift(
+                carlos.getId(),
+                carlos.getFullName(),
+                alpha.getId(),
+                alpha.getPlate(),
                 ShiftStatus.ACTIVE,
                 OffsetDateTime.now().minusHours(3),
                 OffsetDateTime.now().plusHours(5)
-        );
-        Shift plannedShift = new Shift(
-                shiftSequence.incrementAndGet(),
-                marina.id(),
-                marina.fullName(),
-                beta.id(),
-                beta.plate(),
+        ));
+        shiftRepository.save(new Shift(
+                marina.getId(),
+                marina.getFullName(),
+                beta.getId(),
+                beta.getPlate(),
                 ShiftStatus.PLANNED,
                 OffsetDateTime.now().plusHours(5),
                 OffsetDateTime.now().plusHours(13)
-        );
-        shifts.put(activeShift.id(), activeShift);
-        shifts.put(plannedShift.id(), plannedShift);
+        ));
 
-        Incident panic = new Incident(
-                incidentSequence.incrementAndGet(),
-                IncidentType.PANIC,
-                IncidentPriority.HIGH,
+        incidentRepository.save(new Incident(
+                com.seguranca.plataforma.operations.model.IncidentType.PANIC,
+                com.seguranca.plataforma.operations.model.IncidentPriority.HIGH,
                 IncidentStatus.DISPATCHED,
-                "Ana Souza",
-                "Rua das Acacias, 85",
+                ana.getFullName(),
+                ana.getAddress(),
                 OffsetDateTime.now().minusMinutes(9),
-                carlos.fullName(),
-                alpha.plate()
-        );
-        Incident escort = new Incident(
-                incidentSequence.incrementAndGet(),
-                IncidentType.ESCORT,
-                IncidentPriority.MEDIUM,
+                carlos.getFullName(),
+                alpha.getPlate()
+        ));
+        incidentRepository.save(new Incident(
+                com.seguranca.plataforma.operations.model.IncidentType.ESCORT,
+                com.seguranca.plataforma.operations.model.IncidentPriority.MEDIUM,
                 IncidentStatus.OPEN,
-                "Bruno Lima",
-                "Alameda Ipe, 210",
+                bruno.getFullName(),
+                bruno.getAddress(),
                 OffsetDateTime.now().minusMinutes(3),
-                marina.fullName(),
-                beta.plate()
-        );
-        incidents.put(panic.id(), panic);
-        incidents.put(escort.id(), escort);
+                marina.getFullName(),
+                beta.getPlate()
+        ));
     }
 
+    @Transactional(readOnly = true)
     public List<Agent> listAgents() {
-        return agents.values().stream()
-                .sorted(Comparator.comparing(Agent::id))
+        return agentRepository.findAll().stream()
+                .sorted(Comparator.comparing(Agent::getId))
                 .toList();
     }
 
+    @Transactional
     public Agent addAgent(CreateAgentRequest request) {
-        return createAgent(request, AgentStatus.ACTIVE);
+        Agent agent = new Agent(
+                request.fullName(),
+                request.badgeCode(),
+                request.cnhCategory(),
+                request.cnhExpiry(),
+                AgentStatus.ACTIVE,
+                request.photoUrl()
+        );
+        return agentRepository.save(agent);
     }
 
+    @Transactional
+    public Agent updateAgent(Long id, UpdateAgentRequest request) {
+        Agent agent = getAgent(id);
+        agent.update(
+                request.fullName(),
+                request.badgeCode(),
+                request.cnhCategory(),
+                request.cnhExpiry(),
+                request.status(),
+                request.photoUrl()
+        );
+        return agentRepository.save(agent);
+    }
+
+    @Transactional
+    public void deleteAgent(Long id) {
+        Agent agent = getAgent(id);
+        agentRepository.delete(agent);
+    }
+
+    @Transactional(readOnly = true)
     public List<Vehicle> listVehicles() {
-        return vehicles.values().stream()
-                .sorted(Comparator.comparing(Vehicle::id))
+        return vehicleRepository.findAll().stream()
+                .sorted(Comparator.comparing(Vehicle::getId))
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<Resident> listResidents() {
+        return residentRepository.findAll().stream()
+                .sorted(Comparator.comparing(Resident::getId))
+                .toList();
+    }
+
+    @Transactional
+    public Resident addResident(CreateResidentRequest request) {
+        Resident resident = new Resident(
+                request.fullName(),
+                request.phoneNumber(),
+                request.address(),
+                request.referenceNote(),
+                ResidentStatus.ACTIVE
+        );
+        return residentRepository.save(resident);
+    }
+
+    @Transactional
+    public Resident updateResident(Long id, UpdateResidentRequest request) {
+        Resident resident = getResident(id);
+        resident.update(
+                request.fullName(),
+                request.phoneNumber(),
+                request.address(),
+                request.referenceNote(),
+                request.status()
+        );
+        return residentRepository.save(resident);
+    }
+
+    @Transactional
+    public void deleteResident(Long id) {
+        Resident resident = getResident(id);
+        residentRepository.delete(resident);
+    }
+
+    @Transactional
     public Vehicle addVehicle(CreateVehicleRequest request) {
-        return createVehicle(request, VehicleStatus.AVAILABLE);
+        Vehicle vehicle = new Vehicle(
+                request.plate().toUpperCase(),
+                request.model(),
+                request.currentKm(),
+                request.nextMaintenanceKm(),
+                VehicleStatus.AVAILABLE
+        );
+        return vehicleRepository.save(vehicle);
     }
 
+    @Transactional
+    public Vehicle updateVehicle(Long id, UpdateVehicleRequest request) {
+        Vehicle vehicle = getVehicle(id);
+        vehicle.update(
+                request.plate().toUpperCase(),
+                request.model(),
+                request.currentKm(),
+                request.nextMaintenanceKm(),
+                request.status()
+        );
+        return vehicleRepository.save(vehicle);
+    }
+
+    @Transactional
+    public void deleteVehicle(Long id) {
+        Vehicle vehicle = getVehicle(id);
+        vehicleRepository.delete(vehicle);
+    }
+
+    @Transactional(readOnly = true)
     public List<Shift> listShifts() {
-        return shifts.values().stream()
-                .sorted(Comparator.comparing(Shift::startedAt))
+        return shiftRepository.findAll().stream()
+                .sorted(Comparator.comparing(Shift::getStartedAt))
                 .toList();
     }
 
+    @Transactional
     public Shift addShift(CreateShiftRequest request) {
         Agent agent = getAgent(request.agentId());
         Vehicle vehicle = getVehicle(request.vehicleId());
 
         Shift shift = new Shift(
-                shiftSequence.incrementAndGet(),
-                agent.id(),
-                agent.fullName(),
-                vehicle.id(),
-                vehicle.plate(),
+                agent.getId(),
+                agent.getFullName(),
+                vehicle.getId(),
+                vehicle.getPlate(),
                 ShiftStatus.PLANNED,
                 OffsetDateTime.now(),
                 request.scheduledEndAt()
         );
-        shifts.put(shift.id(), shift);
-        return shift;
+        return shiftRepository.save(shift);
     }
 
+    @Transactional
+    public Shift updateShift(Long id, UpdateShiftRequest request) {
+        Shift shift = getShift(id);
+        Agent agent = getAgent(request.agentId());
+        Vehicle vehicle = getVehicle(request.vehicleId());
+
+        shift.update(
+                agent.getId(),
+                agent.getFullName(),
+                vehicle.getId(),
+                vehicle.getPlate(),
+                request.status(),
+                request.scheduledEndAt()
+        );
+        return shiftRepository.save(shift);
+    }
+
+    @Transactional
+    public void deleteShift(Long id) {
+        Shift shift = getShift(id);
+        shiftRepository.delete(shift);
+    }
+
+    @Transactional
+    public ShiftTelemetry upsertShiftTelemetry(Long shiftId, UpsertShiftTelemetryRequest request) {
+        // Cada sincronizacao do mobile vira um ponto historico novo para desenhar a trilha real.
+        Shift shift = getShift(shiftId);
+        OffsetDateTime recordedAt = request.recordedAt() != null ? request.recordedAt() : OffsetDateTime.now();
+
+        ShiftTelemetry telemetry = new ShiftTelemetry(
+                shift.getId(),
+                shift.getAgentId(),
+                shift.getVehicleId(),
+                request.latitude(),
+                request.longitude(),
+                request.speedKmh(),
+                request.accuracyMeters(),
+                request.headingDegrees(),
+                request.batteryLevel(),
+                recordedAt
+        );
+        return shiftTelemetryRepository.save(telemetry);
+    }
+
+    @Transactional(readOnly = true)
+    public ShiftTelemetry getShiftTelemetry(Long shiftId) {
+        getShift(shiftId);
+        return shiftTelemetryRepository.findTopByShiftIdOrderByRecordedAtDesc(shiftId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Telemetria nao encontrada para o turno"));
+    }
+
+    @Transactional(readOnly = true)
     public List<Incident> listIncidents() {
-        return incidents.values().stream()
-                .sorted(Comparator.comparing(Incident::openedAt).reversed())
+        return incidentRepository.findAll().stream()
+                .sorted(Comparator.comparing(Incident::getOpenedAt).reversed())
                 .toList();
     }
 
+    @Transactional
     public Incident addIncident(CreateIncidentRequest request) {
-        String assignedAgentName = request.assignedAgentId() == null ? null : getAgent(request.assignedAgentId()).fullName();
-        String vehiclePlate = request.vehicleId() == null ? null : getVehicle(request.vehicleId()).plate();
+        Resident resident = resolveResident(request.residentId(), request.residentName(), request.address());
+        String assignedAgentName = request.assignedAgentId() == null ? null : getAgent(request.assignedAgentId()).getFullName();
+        String vehiclePlate = request.vehicleId() == null ? null : getVehicle(request.vehicleId()).getPlate();
 
         Incident incident = new Incident(
-                incidentSequence.incrementAndGet(),
                 request.type(),
                 request.priority(),
                 IncidentStatus.OPEN,
-                request.residentName(),
-                request.address(),
+                resident != null ? resident.getFullName() : request.residentName().trim(),
+                resident != null ? resident.getAddress() : request.address().trim(),
                 OffsetDateTime.now(),
                 assignedAgentName,
                 vehiclePlate
         );
-        incidents.put(incident.id(), incident);
-        return incident;
+        return incidentRepository.save(incident);
     }
 
-    public DashboardSummaryResponse summary() {
-        List<Agent> agentList = listAgents();
-        List<Vehicle> vehicleList = listVehicles();
-        List<Shift> shiftList = listShifts();
-        List<Incident> incidentList = listIncidents();
+    @Transactional
+    public Incident updateIncident(Long id, UpdateIncidentRequest request) {
+        Incident incident = getIncident(id);
+        Resident resident = resolveResident(request.residentId(), request.residentName(), request.address());
+        String assignedAgentName = request.assignedAgentId() == null ? null : getAgent(request.assignedAgentId()).getFullName();
+        String vehiclePlate = request.vehicleId() == null ? null : getVehicle(request.vehicleId()).getPlate();
 
-        long activeAgents = agentList.stream()
-                .filter(agent -> agent.status() == AgentStatus.ACTIVE || agent.status() == AgentStatus.ON_DUTY)
+        incident.update(
+                request.type(),
+                request.priority(),
+                request.status(),
+                resident != null ? resident.getFullName() : request.residentName().trim(),
+                resident != null ? resident.getAddress() : request.address().trim(),
+                assignedAgentName,
+                vehiclePlate
+        );
+        return incidentRepository.save(incident);
+    }
+
+    @Transactional
+    public void deleteIncident(Long id) {
+        Incident incident = getIncident(id);
+        incidentRepository.delete(incident);
+    }
+
+    @Transactional(readOnly = true)
+    public DashboardSummaryResponse summary() {
+        // Consolida o estado operacional em uma unica resposta para reduzir chamadas do dashboard.
+        List<Resident> residents = listResidents();
+        List<Agent> agents = listAgents();
+        List<Vehicle> vehicles = listVehicles();
+        List<Shift> shifts = listShifts();
+        List<Incident> incidents = listIncidents();
+
+        long activeAgents = agents.stream()
+                .filter(agent -> agent.getStatus() == AgentStatus.ACTIVE || agent.getStatus() == AgentStatus.ON_DUTY)
                 .count();
-        long availableVehicles = vehicleList.stream()
-                .filter(vehicle -> vehicle.status() == VehicleStatus.AVAILABLE || vehicle.status() == VehicleStatus.IN_OPERATION)
+        long availableVehicles = vehicles.stream()
+                .filter(vehicle -> vehicle.getStatus() == VehicleStatus.AVAILABLE || vehicle.getStatus() == VehicleStatus.IN_OPERATION)
                 .count();
-        long activeShifts = shiftList.stream()
-                .filter(shift -> shift.status() == ShiftStatus.ACTIVE || shift.status() == ShiftStatus.HANDOFF)
+        long activeShifts = shifts.stream()
+                .filter(shift -> shift.getStatus() == ShiftStatus.ACTIVE || shift.getStatus() == ShiftStatus.HANDOFF)
                 .count();
-        long openIncidents = incidentList.stream()
-                .filter(incident -> incident.status() != IncidentStatus.CLOSED)
+        long openIncidents = incidents.stream()
+                .filter(incident -> incident.getStatus() != IncidentStatus.CLOSED)
                 .count();
-        long maintenanceAlerts = vehicleList.stream()
-                .filter(vehicle -> vehicle.nextMaintenanceKm() - vehicle.currentKm() <= 1000)
+        long maintenanceAlerts = vehicles.stream()
+                .filter(vehicle -> vehicle.getNextMaintenanceKm() - vehicle.getCurrentKm() <= 1000)
                 .count();
+        ActivePatrolResponse activePatrol = buildActivePatrol(agents, vehicles, shifts, incidents);
 
         return new DashboardSummaryResponse(
-                agentList.size(),
+                residents.size(),
+                agents.size(),
                 activeAgents,
                 availableVehicles,
                 activeShifts,
                 openIncidents,
                 maintenanceAlerts,
-                new ArrayList<>(agentList),
-                new ArrayList<>(vehicleList),
-                new ArrayList<>(shiftList),
-                new ArrayList<>(incidentList)
+                activePatrol,
+                residents,
+                agents,
+                vehicles,
+                shifts,
+                incidents
         );
     }
 
-    private Agent createAgent(CreateAgentRequest request, AgentStatus status) {
-        Agent agent = new Agent(
-                agentSequence.incrementAndGet(),
-                request.fullName(),
-                request.badgeCode(),
-                request.cnhCategory(),
-                request.cnhExpiry(),
-                status,
-                request.photoUrl()
-        );
-        agents.put(agent.id(), agent);
-        return agent;
-    }
+    @Transactional(readOnly = true)
+    public ClientPortalResponse clientPortal() {
+        // Entrega uma visao simplificada para o cliente sem expor cadastros administrativos.
+        List<Vehicle> vehicles = listVehicles();
+        List<Shift> shifts = listShifts();
+        List<Incident> incidents = listIncidents();
 
-    private Vehicle createVehicle(CreateVehicleRequest request, VehicleStatus status) {
-        Vehicle vehicle = new Vehicle(
-                vehicleSequence.incrementAndGet(),
-                request.plate().toUpperCase(),
-                request.model(),
-                request.currentKm(),
-                request.nextMaintenanceKm(),
-                status
+        long availableVehicles = vehicles.stream()
+                .filter(vehicle -> vehicle.getStatus() == VehicleStatus.AVAILABLE || vehicle.getStatus() == VehicleStatus.IN_OPERATION)
+                .count();
+        long activeShifts = shifts.stream()
+                .filter(shift -> shift.getStatus() == ShiftStatus.ACTIVE || shift.getStatus() == ShiftStatus.HANDOFF)
+                .count();
+        long openIncidents = incidents.stream()
+                .filter(incident -> incident.getStatus() != IncidentStatus.CLOSED)
+                .count();
+        long maintenanceAlerts = vehicles.stream()
+                .filter(vehicle -> vehicle.getNextMaintenanceKm() - vehicle.getCurrentKm() <= 1000)
+                .count();
+
+        return new ClientPortalResponse(
+                activeShifts,
+                openIncidents,
+                availableVehicles,
+                maintenanceAlerts,
+                incidents.stream().limit(5).toList()
         );
-        vehicles.put(vehicle.id(), vehicle);
-        return vehicle;
     }
 
     private Agent getAgent(Long id) {
-        Agent agent = agents.get(id);
-        if (agent == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Agente nao encontrado");
-        }
-        return agent;
+        return agentRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Agente nao encontrado"));
+    }
+
+    private Resident getResident(Long id) {
+        return residentRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Morador nao encontrado"));
     }
 
     private Vehicle getVehicle(Long id) {
-        Vehicle vehicle = vehicles.get(id);
-        if (vehicle == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Viatura nao encontrada");
+        return vehicleRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Viatura nao encontrada"));
+    }
+
+    private Shift getShift(Long id) {
+        return shiftRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Turno nao encontrado"));
+    }
+
+    private Incident getIncident(Long id) {
+        return incidentRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ocorrencia nao encontrada"));
+    }
+
+    private ActivePatrolResponse buildActivePatrol(List<Agent> agents, List<Vehicle> vehicles, List<Shift> shifts, List<Incident> incidents) {
+        // Monta o cartao e o mapa da patrulha ativa com ultimo ponto e historico de telemetria.
+        Shift activeShift = shifts.stream()
+                .filter(shift -> shift.getStatus() == ShiftStatus.ACTIVE || shift.getStatus() == ShiftStatus.HANDOFF)
+                .findFirst()
+                .orElse(null);
+
+        if (activeShift == null) {
+            return null;
         }
-        return vehicle;
+
+        Map<Long, Agent> agentsById = agents.stream().collect(java.util.stream.Collectors.toMap(Agent::getId, agent -> agent));
+        Map<Long, Vehicle> vehiclesById = vehicles.stream().collect(java.util.stream.Collectors.toMap(Vehicle::getId, vehicle -> vehicle));
+
+        Agent agent = agentsById.get(activeShift.getAgentId());
+        Vehicle vehicle = vehiclesById.get(activeShift.getVehicleId());
+        List<ShiftTelemetry> telemetryHistory = shiftTelemetryRepository.findByShiftIdOrderByRecordedAtAsc(activeShift.getId());
+        ShiftTelemetry telemetry = telemetryHistory.isEmpty() ? null : telemetryHistory.get(telemetryHistory.size() - 1);
+        Incident targetIncident = incidents.stream()
+                .filter(incident -> incident.getStatus() != IncidentStatus.CLOSED)
+                .findFirst()
+                .orElse(null);
+        int progressPercent = telemetry == null ? 0 : 100;
+        List<TelemetryTrailPointResponse> telemetryTrail = telemetryHistory.stream()
+                .map(point -> new TelemetryTrailPointResponse(
+                        point.getLatitude(),
+                        point.getLongitude(),
+                        point.getSpeedKmh(),
+                        point.getAccuracyMeters(),
+                        point.getRecordedAt()
+                ))
+                .toList();
+
+        List<PatrolRouteStopResponse> routeStops = List.of(
+                new PatrolRouteStopResponse("Base Alpha", "Saida da base operacional", telemetry == null ? "Aguardando GPS" : "Inicio confirmado"),
+                new PatrolRouteStopResponse("Corredor principal", "Rastreamento ativo via GPS do celular da viatura", telemetry == null ? "Sem sinal recente" : "Posicao recebida"),
+                new PatrolRouteStopResponse(
+                        targetIncident != null ? targetIncident.getAddress() : "Destino de ronda",
+                        targetIncident != null ? targetIncident.getResidentName() : activeShift.getAgentName(),
+                        targetIncident != null ? targetIncident.getStatus().name() : activeShift.getStatus().name()
+                )
+        );
+
+        return new ActivePatrolResponse(
+                activeShift.getId(),
+                agent != null ? agent.getId() : activeShift.getAgentId(),
+                agent != null ? agent.getFullName() : activeShift.getAgentName(),
+                agent != null ? agent.getBadgeCode() : "SEM-CRACHA",
+                agent != null ? agent.getPhotoUrl() : null,
+                vehicle != null ? vehicle.getPlate() : activeShift.getVehiclePlate(),
+                vehicle != null ? vehicle.getModel() : "Viatura em operacao",
+                vehicle != null ? vehicle.getCurrentKm() : 0,
+                vehicle != null ? vehicle.getStatus().name() : VehicleStatus.IN_OPERATION.name(),
+                telemetry != null ? telemetry.getLatitude() : -23.56390,
+                telemetry != null ? telemetry.getLongitude() : -46.65440,
+                telemetry != null ? telemetry.getSpeedKmh() : 0.0,
+                telemetry != null ? telemetry.getAccuracyMeters() : 0.0,
+                progressPercent,
+                telemetry != null ? telemetry.getRecordedAt() : OffsetDateTime.now(),
+                routeStops,
+                telemetryTrail
+        );
+    }
+
+    private Resident resolveResident(Long residentId, String residentName, String address) {
+        if (residentId != null) {
+            return getResident(residentId);
+        }
+
+        if (!StringUtils.hasText(residentName) || !StringUtils.hasText(address)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Morador e endereco sao obrigatorios quando nao houver cadastro selecionado");
+        }
+
+        return null;
     }
 }
