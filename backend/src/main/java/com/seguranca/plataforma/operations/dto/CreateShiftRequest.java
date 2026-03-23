@@ -6,6 +6,11 @@ import java.time.OffsetDateTime;
 public record CreateShiftRequest(
         @NotNull Long agentId,
         @NotNull Long vehicleId,
-        @NotNull OffsetDateTime scheduledEndAt
+        @NotNull OffsetDateTime scheduledEndAt,
+        Integer fuelLevelPercent,
+        boolean tiresChecked,
+        boolean lightsChecked,
+        boolean documentsChecked,
+        String checklistNotes
 ) {
 }

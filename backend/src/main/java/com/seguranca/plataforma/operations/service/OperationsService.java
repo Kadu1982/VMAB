@@ -100,7 +100,12 @@ public class OperationsService {
                 OffsetDateTime.now().minusHours(3),
                 OffsetDateTime.now().plusHours(5),
                 OffsetDateTime.now().minusHours(3),
-                alpha.getCurrentKm()
+                alpha.getCurrentKm(),
+                76,
+                true,
+                true,
+                true,
+                "Checklist inicial validado pela base"
         ));
         shiftRepository.save(new Shift(
                 marina.getId(),
@@ -111,7 +116,12 @@ public class OperationsService {
                 OffsetDateTime.now().plusHours(5),
                 OffsetDateTime.now().plusHours(13),
                 OffsetDateTime.now().plusHours(5),
-                beta.getCurrentKm()
+                beta.getCurrentKm(),
+                54,
+                true,
+                true,
+                false,
+                "Documentacao da viatura precisa ser revisada antes do proximo turno"
         ));
 
         incidentRepository.save(new Incident(
@@ -289,7 +299,12 @@ public class OperationsService {
                 OffsetDateTime.now(ZoneOffset.UTC),
                 request.scheduledEndAt(),
                 OffsetDateTime.now(ZoneOffset.UTC),
-                vehicle.getCurrentKm()
+                vehicle.getCurrentKm(),
+                request.fuelLevelPercent(),
+                request.tiresChecked(),
+                request.lightsChecked(),
+                request.documentsChecked(),
+                request.checklistNotes()
         );
         return shiftRepository.save(shift);
     }
@@ -305,6 +320,11 @@ public class OperationsService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Informe a quilometragem final para encerrar o turno.");
         }
 
+        if (request.status() == ShiftStatus.CLOSED && (!request.tiresChecked() || !request.lightsChecked() || !request.documentsChecked())) {
+            // Impede encerramento superficial do turno sem conferencia minima da viatura.
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Conclua o checklist minimo da viatura antes de encerrar o turno.");
+        }
+
         shift.update(
                 agent.getId(),
                 agent.getFullName(),
@@ -312,7 +332,12 @@ public class OperationsService {
                 vehicle.getPlate(),
                 request.status(),
                 request.scheduledEndAt(),
-                request.endKm()
+                request.endKm(),
+                request.fuelLevelPercent(),
+                request.tiresChecked(),
+                request.lightsChecked(),
+                request.documentsChecked(),
+                request.checklistNotes()
         );
 
         if (request.status() == ShiftStatus.CLOSED) {

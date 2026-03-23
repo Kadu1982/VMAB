@@ -70,6 +70,21 @@ public class Shift {
     @Column(name = "handoff_notes", length = 500)
     private String handoffNotes;
 
+    @Column(name = "fuel_level_percent")
+    private Integer fuelLevelPercent;
+
+    @Column(name = "tires_checked", nullable = false)
+    private boolean tiresChecked;
+
+    @Column(name = "lights_checked", nullable = false)
+    private boolean lightsChecked;
+
+    @Column(name = "documents_checked", nullable = false)
+    private boolean documentsChecked;
+
+    @Column(name = "checklist_notes", length = 500)
+    private String checklistNotes;
+
     protected Shift() {
     }
 
@@ -82,7 +97,12 @@ public class Shift {
             OffsetDateTime startedAt,
             OffsetDateTime scheduledEndAt,
             OffsetDateTime checkInAt,
-            Long startKm
+            Long startKm,
+            Integer fuelLevelPercent,
+            boolean tiresChecked,
+            boolean lightsChecked,
+            boolean documentsChecked,
+            String checklistNotes
     ) {
         this.agentId = agentId;
         this.agentName = agentName;
@@ -93,6 +113,11 @@ public class Shift {
         this.scheduledEndAt = scheduledEndAt;
         this.checkInAt = checkInAt;
         this.startKm = startKm;
+        this.fuelLevelPercent = fuelLevelPercent;
+        this.tiresChecked = tiresChecked;
+        this.lightsChecked = lightsChecked;
+        this.documentsChecked = documentsChecked;
+        this.checklistNotes = checklistNotes;
     }
 
     public Long getId() {
@@ -167,8 +192,42 @@ public class Shift {
         return handoffNotes;
     }
 
-    public void update(Long agentId, String agentName, Long vehicleId, String vehiclePlate, ShiftStatus status, OffsetDateTime scheduledEndAt, Long endKm) {
+    public Integer getFuelLevelPercent() {
+        return fuelLevelPercent;
+    }
+
+    public boolean isTiresChecked() {
+        return tiresChecked;
+    }
+
+    public boolean isLightsChecked() {
+        return lightsChecked;
+    }
+
+    public boolean isDocumentsChecked() {
+        return documentsChecked;
+    }
+
+    public String getChecklistNotes() {
+        return checklistNotes;
+    }
+
+    public void update(
+            Long agentId,
+            String agentName,
+            Long vehicleId,
+            String vehiclePlate,
+            ShiftStatus status,
+            OffsetDateTime scheduledEndAt,
+            Long endKm,
+            Integer fuelLevelPercent,
+            boolean tiresChecked,
+            boolean lightsChecked,
+            boolean documentsChecked,
+            String checklistNotes
+    ) {
         // Mantem a edicao operacional do turno sem perder o agente e a viatura vigentes.
+        // Tambem consolida o checklist minimo exigido para jornada e liberacao da viatura.
         this.agentId = agentId;
         this.agentName = agentName;
         this.vehicleId = vehicleId;
@@ -176,6 +235,11 @@ public class Shift {
         this.status = status;
         this.scheduledEndAt = scheduledEndAt;
         this.endKm = endKm;
+        this.fuelLevelPercent = fuelLevelPercent;
+        this.tiresChecked = tiresChecked;
+        this.lightsChecked = lightsChecked;
+        this.documentsChecked = documentsChecked;
+        this.checklistNotes = checklistNotes;
     }
 
     public void close(OffsetDateTime checkOutAt, Long endKm) {

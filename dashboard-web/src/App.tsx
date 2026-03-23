@@ -86,6 +86,11 @@ const initialShiftForm = {
   endKm: '',
   handoffToAgentId: '',
   handoffNotes: '',
+  fuelLevelPercent: '',
+  tiresChecked: false,
+  lightsChecked: false,
+  documentsChecked: false,
+  checklistNotes: '',
 }
 
 const initialIncidentForm = {
@@ -549,6 +554,11 @@ function App() {
       endKm: shift.endKm != null ? String(shift.endKm) : '',
       handoffToAgentId: shift.handoffToAgentId != null ? String(shift.handoffToAgentId) : '',
       handoffNotes: shift.handoffNotes ?? '',
+      fuelLevelPercent: shift.fuelLevelPercent != null ? String(shift.fuelLevelPercent) : '',
+      tiresChecked: shift.tiresChecked,
+      lightsChecked: shift.lightsChecked,
+      documentsChecked: shift.documentsChecked,
+      checklistNotes: shift.checklistNotes ?? '',
     })
   }
 
@@ -748,6 +758,11 @@ function App() {
       vehicleId: Number(shiftForm.vehicleId),
       scheduledEndAt: new Date(shiftForm.scheduledEndAt).toISOString(),
       endKm: shiftForm.endKm ? Number(shiftForm.endKm) : null,
+      fuelLevelPercent: shiftForm.fuelLevelPercent ? Number(shiftForm.fuelLevelPercent) : null,
+      tiresChecked: shiftForm.tiresChecked,
+      lightsChecked: shiftForm.lightsChecked,
+      documentsChecked: shiftForm.documentsChecked,
+      checklistNotes: shiftForm.checklistNotes || null,
     }
     const payload = editingShiftId === null ? basePayload : { ...basePayload, status: shiftForm.status }
     await saveEntity(path, method, payload, 'Nao foi possivel salvar o turno.', resetShiftForm)
@@ -1235,6 +1250,7 @@ function App() {
                     </select>
                     <input required type="datetime-local" value={shiftForm.scheduledEndAt} onChange={(event) => setShiftForm((current) => ({ ...current, scheduledEndAt: event.target.value }))} />
                     <input min="0" type="number" placeholder="KM final ao encerrar" value={shiftForm.endKm} onChange={(event) => setShiftForm((current) => ({ ...current, endKm: event.target.value }))} />
+                    <input min="0" max="100" type="number" placeholder="Combustivel (%)" value={shiftForm.fuelLevelPercent} onChange={(event) => setShiftForm((current) => ({ ...current, fuelLevelPercent: event.target.value }))} />
                     <select value={shiftForm.status} onChange={(event) => setShiftForm((current) => ({ ...current, status: event.target.value as ShiftStatus }))}>
                       {shiftStatusOptions.map((status) => <option key={status} value={status}>{translateShiftStatus(status)}</option>)}
                     </select>
@@ -1242,7 +1258,21 @@ function App() {
                       <option value="">Vigilante que assume</option>
                       {summary.agents.filter((agent) => String(agent.id) !== shiftForm.agentId).map((agent) => <option key={agent.id} value={agent.id}>{agent.fullName}</option>)}
                     </select>
+                    {/* Checklist minimo para fechar jornada e registrar a condicao da viatura no turno. */}
                     <input placeholder="Observacoes da troca de turno" value={shiftForm.handoffNotes} onChange={(event) => setShiftForm((current) => ({ ...current, handoffNotes: event.target.value }))} />
+                    <input placeholder="Observacoes do checklist" value={shiftForm.checklistNotes} onChange={(event) => setShiftForm((current) => ({ ...current, checklistNotes: event.target.value }))} />
+                    <label className="checkbox-field">
+                      <input checked={shiftForm.tiresChecked} type="checkbox" onChange={(event) => setShiftForm((current) => ({ ...current, tiresChecked: event.target.checked }))} />
+                      <span>Pneus verificados</span>
+                    </label>
+                    <label className="checkbox-field">
+                      <input checked={shiftForm.lightsChecked} type="checkbox" onChange={(event) => setShiftForm((current) => ({ ...current, lightsChecked: event.target.checked }))} />
+                      <span>Luzes verificadas</span>
+                    </label>
+                    <label className="checkbox-field">
+                      <input checked={shiftForm.documentsChecked} type="checkbox" onChange={(event) => setShiftForm((current) => ({ ...current, documentsChecked: event.target.checked }))} />
+                      <span>Documentos da viatura conferidos</span>
+                    </label>
                     <div className="button-row">
                       <button disabled={shiftSubmitDisabled} type="submit">{editingShiftId === null ? 'Cadastrar turno' : 'Salvar turno'}</button>
                       {editingShiftId !== null ? <button className="secondary-button" onClick={() => void handleShiftHandoff(editingShiftId)} type="button">Registrar troca</button> : null}
@@ -1255,7 +1285,7 @@ function App() {
                     <article className="list-row" key={shift.id}>
                       <div>
                         <strong>{shift.agentName}</strong>
-                        <small>{shift.vehiclePlate} | ponto {shift.checkInAt ? formatDate(shift.checkInAt) : formatDate(shift.startedAt)} | fim previsto {formatDate(shift.scheduledEndAt)} | troca {shift.handoffToAgentName ?? 'nao registrada'}</small>
+                        <small>{shift.vehiclePlate} | ponto {shift.checkInAt ? formatDate(shift.checkInAt) : formatDate(shift.startedAt)} | fim previsto {formatDate(shift.scheduledEndAt)} | troca {shift.handoffToAgentName ?? 'nao registrada'} | checklist {shift.documentsChecked ? 'ok' : 'pendente'}</small>
                       </div>
                       <div className="row-actions">
                         <span className={`tag ${shift.status.toLowerCase()}`}>{translateShiftStatus(shift.status)}</span>

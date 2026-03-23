@@ -9,6 +9,11 @@ public record UpdateShiftRequest(
         @NotNull Long vehicleId,
         @NotNull ShiftStatus status,
         @NotNull OffsetDateTime scheduledEndAt,
-        Long endKm
+        Long endKm,
+        Integer fuelLevelPercent,
+        boolean tiresChecked,
+        boolean lightsChecked,
+        boolean documentsChecked,
+        String checklistNotes
 ) {
 }

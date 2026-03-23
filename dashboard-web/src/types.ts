@@ -63,6 +63,11 @@ export interface Shift {
   handoffToAgentName?: string | null
   handoffAcceptedAt?: string | null
   handoffNotes?: string | null
+  fuelLevelPercent?: number | null
+  tiresChecked: boolean
+  lightsChecked: boolean
+  documentsChecked: boolean
+  checklistNotes?: string | null
 }
 
 export interface PatrolRouteStop {
