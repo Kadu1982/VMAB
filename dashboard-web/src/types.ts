@@ -6,6 +6,7 @@ export type ShiftStatus = 'PLANNED' | 'ACTIVE' | 'HANDOFF' | 'CLOSED'
 export type IncidentStatus = 'OPEN' | 'DISPATCHED' | 'ON_SITE' | 'CLOSED'
 export type IncidentType = 'PANIC' | 'SUSPICIOUS_ACTIVITY' | 'MEDICAL' | 'ESCORT'
 export type IncidentPriority = 'HIGH' | 'MEDIUM' | 'LOW'
+export type AppUserRole = 'ADMIN' | 'SUPERVISOR' | 'CLIENT' | 'RONDA'
 
 export interface Agent {
   id: number
@@ -123,4 +124,12 @@ export interface AuthSession {
   expiresAt: string
   username: string
   roles: string[]
+}
+
+export interface AppUser {
+  id: number
+  username: string
+  role: AppUserRole
+  enabled: boolean
+  createdAt: string
 }

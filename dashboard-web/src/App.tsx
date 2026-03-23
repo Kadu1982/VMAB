@@ -7,6 +7,8 @@ import logoVmab from './assets/vmab-logo.png'
 import type {
   Agent,
   AgentStatus,
+  AppUser,
+  AppUserRole,
   AuthSession,
   ClientPortal,
   DashboardSummary,
@@ -32,9 +34,16 @@ const shiftStatusOptions: ShiftStatus[] = ['PLANNED', 'ACTIVE', 'HANDOFF', 'CLOS
 const incidentTypeOptions: IncidentType[] = ['PANIC', 'SUSPICIOUS_ACTIVITY', 'MEDICAL', 'ESCORT']
 const incidentPriorityOptions: IncidentPriority[] = ['HIGH', 'MEDIUM', 'LOW']
 const incidentStatusOptions: IncidentStatus[] = ['OPEN', 'DISPATCHED', 'ON_SITE', 'CLOSED']
+const appUserRoleOptions: AppUserRole[] = ['ADMIN', 'SUPERVISOR', 'CLIENT', 'RONDA']
 
 const initialCredentials = { username: 'admin', password: 'admin123' }
 const initialSession: AuthSession | null = null
+const initialUserForm = {
+  username: '',
+  password: '',
+  role: 'SUPERVISOR' as AppUserRole,
+  enabled: true,
+}
 
 const initialAgentForm = {
   fullName: '',
@@ -92,6 +101,97 @@ function formatDateTimeLocal(value: string) {
 
 function hasAnyRole(roles: string[], allowed: string[]) {
   return roles.some((role) => allowed.includes(role))
+}
+
+function translateAgentStatus(status: AgentStatus) {
+  return {
+    ACTIVE: 'Ativo',
+    ON_DUTY: 'Em servico',
+    OFF_DUTY: 'Fora de servico',
+    BLOCKED: 'Bloqueado',
+  }[status]
+}
+
+function translateResidentStatus(status: ResidentStatus) {
+  return {
+    ACTIVE: 'Ativo',
+    INACTIVE: 'Inativo',
+  }[status]
+}
+
+function translateVehicleStatus(status: VehicleStatus) {
+  return {
+    AVAILABLE: 'Disponivel',
+    IN_OPERATION: 'Em operacao',
+    MAINTENANCE: 'Em manutencao',
+    BLOCKED: 'Bloqueada',
+  }[status]
+}
+
+function translateShiftStatus(status: ShiftStatus) {
+  return {
+    PLANNED: 'Planejado',
+    ACTIVE: 'Ativo',
+    HANDOFF: 'Troca de turno',
+    CLOSED: 'Encerrado',
+  }[status]
+}
+
+function translateIncidentType(type: IncidentType) {
+  return {
+    PANIC: 'Panico',
+    SUSPICIOUS_ACTIVITY: 'Atitude suspeita',
+    MEDICAL: 'Emergencia medica',
+    ESCORT: 'Escolta',
+  }[type]
+}
+
+function translateIncidentPriority(priority: IncidentPriority) {
+  return {
+    HIGH: 'Alta',
+    MEDIUM: 'Media',
+    LOW: 'Baixa',
+  }[priority]
+}
+
+function translateIncidentStatus(status: IncidentStatus) {
+  return {
+    OPEN: 'Aberta',
+    DISPATCHED: 'Despachada',
+    ON_SITE: 'No local',
+    CLOSED: 'Encerrada',
+  }[status]
+}
+
+function translateRole(role: AppUserRole | string) {
+  return {
+    ADMIN: 'Administrador',
+    SUPERVISOR: 'Supervisor',
+    CLIENT: 'Cliente',
+    RONDA: 'Ronda',
+    ROLE_ADMIN: 'Administrador',
+    ROLE_SUPERVISOR: 'Supervisor',
+    ROLE_CLIENT: 'Cliente',
+    ROLE_RONDA: 'Ronda',
+  }[role] ?? role
+}
+
+function translateGenericOperationalText(value: string) {
+  const lookup: Record<string, string> = {
+    OPEN: 'Aberta',
+    DISPATCHED: 'Despachada',
+    ON_SITE: 'No local',
+    CLOSED: 'Encerrada',
+    PLANNED: 'Planejado',
+    ACTIVE: 'Ativo',
+    HANDOFF: 'Troca de turno',
+    AVAILABLE: 'Disponivel',
+    IN_OPERATION: 'Em operacao',
+    MAINTENANCE: 'Em manutencao',
+    BLOCKED: 'Bloqueado',
+  }
+
+  return lookup[value] ?? value
 }
 
 function readStoredSession(): AuthSession | null {
@@ -244,6 +344,7 @@ function App() {
   // Estado da sessao, dados operacionais e formularios de manutencao do painel.
   const [summary, setSummary] = useState<DashboardSummary | null>(null)
   const [portal, setPortal] = useState<ClientPortal | null>(null)
+  const [users, setUsers] = useState<AppUser[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [session, setSession] = useState<AuthSession | null>(() => readStoredSession() ?? initialSession)
@@ -254,11 +355,13 @@ function App() {
   const [currentUsername, setCurrentUsername] = useState<string | null>(null)
   const [currentRoles, setCurrentRoles] = useState<string[]>([])
   const [agentForm, setAgentForm] = useState(initialAgentForm)
+  const [userForm, setUserForm] = useState(initialUserForm)
   const [residentForm, setResidentForm] = useState(initialResidentForm)
   const [vehicleForm, setVehicleForm] = useState(initialVehicleForm)
   const [shiftForm, setShiftForm] = useState(initialShiftForm)
   const [incidentForm, setIncidentForm] = useState(initialIncidentForm)
   const [editingAgentId, setEditingAgentId] = useState<number | null>(null)
+  const [editingUserId, setEditingUserId] = useState<number | null>(null)
   const [editingResidentId, setEditingResidentId] = useState<number | null>(null)
   const [editingVehicleId, setEditingVehicleId] = useState<number | null>(null)
   const [editingShiftId, setEditingShiftId] = useState<number | null>(null)
@@ -266,6 +369,7 @@ function App() {
   const [isPending, startTransition] = useTransition()
 
   const isClient = currentRoles.includes('ROLE_CLIENT')
+  const canManageUsers = currentRoles.includes('ROLE_ADMIN')
   const canManageCatalog = hasAnyRole(currentRoles, ['ROLE_ADMIN', 'ROLE_SUPERVISOR'])
   const canUpdateOperations = hasAnyRole(currentRoles, ['ROLE_ADMIN', 'ROLE_SUPERVISOR', 'ROLE_RONDA'])
   const canCreateOperations = hasAnyRole(currentRoles, ['ROLE_ADMIN', 'ROLE_SUPERVISOR'])
@@ -309,22 +413,30 @@ function App() {
       const me = (await meResponse.json()) as { username: string; roles: string[] }
       setCurrentUsername(me.username)
       setCurrentRoles(me.roles)
+      const adminCanManageUsers = me.roles.includes('ROLE_ADMIN')
 
       if (me.roles.includes('ROLE_CLIENT')) {
         const portalResponse = await apiFetch('/api/client/portal')
         if (!portalResponse.ok) throw new Error('Nao foi possivel carregar o portal do cliente.')
         setPortal((await portalResponse.json()) as ClientPortal)
         setSummary(null)
+        setUsers([])
       } else {
-        const summaryResponse = await apiFetch('/api/dashboard/summary')
+        const [summaryResponse, usersResponse] = await Promise.all([
+          apiFetch('/api/dashboard/summary'),
+          adminCanManageUsers ? apiFetch('/api/users') : Promise.resolve(null),
+        ])
         if (!summaryResponse.ok) throw new Error('Nao foi possivel carregar o painel operacional.')
+        if (usersResponse && !usersResponse.ok) throw new Error('Nao foi possivel carregar a gestao de usuarios.')
         setSummary((await summaryResponse.json()) as DashboardSummary)
+        setUsers(usersResponse ? ((await usersResponse.json()) as AppUser[]) : [])
         setPortal(null)
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Falha inesperada ao carregar a interface.')
       setSummary(null)
       setPortal(null)
+      setUsers([])
     } finally {
       setLoading(false)
     }
@@ -337,6 +449,11 @@ function App() {
   function resetAgentForm() {
     setAgentForm(initialAgentForm)
     setEditingAgentId(null)
+  }
+
+  function resetUserForm() {
+    setUserForm(initialUserForm)
+    setEditingUserId(null)
   }
 
   function resetResidentForm() {
@@ -368,6 +485,16 @@ function App() {
       cnhExpiry: agent.cnhExpiry,
       photoUrl: agent.photoUrl ?? '',
       status: agent.status,
+    })
+  }
+
+  function startUserEdit(user: AppUser) {
+    setEditingUserId(user.id)
+    setUserForm({
+      username: user.username,
+      password: '',
+      role: user.role,
+      enabled: user.enabled,
     })
   }
 
@@ -465,7 +592,9 @@ function App() {
     setCurrentRoles([])
     setSummary(null)
     setPortal(null)
+    setUsers([])
     resetAgentForm()
+    resetUserForm()
     resetResidentForm()
     resetVehicleForm()
     resetShiftForm()
@@ -534,6 +663,22 @@ function App() {
         : agentForm
 
     await saveEntity(path, method, payload, 'Nao foi possivel salvar o agente.', resetAgentForm)
+  }
+
+  async function handleUserSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const path = editingUserId === null ? '/api/users' : `/api/users/${editingUserId}`
+    const method = editingUserId === null ? 'POST' : 'PUT'
+    const payload = editingUserId === null
+      ? userForm
+      : {
+          username: userForm.username,
+          password: userForm.password || null,
+          role: userForm.role,
+          enabled: userForm.enabled,
+        }
+
+    await saveEntity(path, method, payload, 'Nao foi possivel salvar o usuario.', resetUserForm)
   }
 
   async function handleVehicleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -688,10 +833,10 @@ function App() {
                 {portal.recentIncidents.map((incident) => (
                   <article className="list-row" key={incident.id}>
                     <div>
-                      <strong>{incident.type} | {incident.residentName}</strong>
+                      <strong>{translateIncidentType(incident.type)} | {incident.residentName}</strong>
                       <small>{incident.address} | {incident.assignedAgentName ?? 'Sem agente'} | {incident.vehiclePlate ?? 'Sem viatura'}</small>
                     </div>
-                    <span className={`tag ${incident.priority.toLowerCase()}`}>{incident.priority}</span>
+                    <span className={`tag ${incident.priority.toLowerCase()}`}>{translateIncidentPriority(incident.priority)}</span>
                   </article>
                 ))}
               </div>
@@ -714,7 +859,7 @@ function App() {
           <span className="sidebar-label">Perfis ativos</span>
           <div className="role-list">
             {currentRoles.map((role) => (
-              <span className="role-chip" key={role}>{role}</span>
+              <span className="role-chip" key={role}>{translateRole(role)}</span>
             ))}
           </div>
         </div>
@@ -768,7 +913,7 @@ function App() {
                       <strong className="patrol-name">{summary.activePatrol.agentName}</strong>
                       <p className="patrol-meta">Vigilante em ronda • cracha {summary.activePatrol.agentBadgeCode}</p>
                       <p className="patrol-meta">Viatura {summary.activePatrol.vehiclePlate} • {summary.activePatrol.vehicleModel}</p>
-                      <p className="patrol-meta">KM atual {summary.activePatrol.vehicleCurrentKm.toLocaleString('pt-BR')} • status {summary.activePatrol.vehicleStatus}</p>
+                      <p className="patrol-meta">KM atual {summary.activePatrol.vehicleCurrentKm.toLocaleString('pt-BR')} • status {translateGenericOperationalText(summary.activePatrol.vehicleStatus)}</p>
                     </div>
                   </div>
 
@@ -815,7 +960,7 @@ function App() {
                           <article className="route-stop" key={`${stop.title}-${stop.detail}`}>
                           <strong>{stop.title}</strong>
                           <small>{stop.detail}</small>
-                          <span>{stop.status}</span>
+                            <span>{translateGenericOperationalText(stop.status)}</span>
                         </article>
                       ))}
                     </div>
@@ -836,6 +981,50 @@ function App() {
 
             <section className="content-grid">
               {/* Area transacional do painel com cadastros e operacao diaria. */}
+              {canManageUsers ? (
+                <section className="panel">
+                  <div className="panel-header">
+                    <div>
+                      <p className="eyebrow">Acesso</p>
+                      <h3>{editingUserId === null ? 'Usuarios e perfis' : 'Editar usuario'}</h3>
+                    </div>
+                  </div>
+                  <p className="panel-note">Apenas administradores podem criar, editar, ativar ou remover acessos do sistema.</p>
+                  <form className="form-grid" onSubmit={handleUserSubmit}>
+                    <input required placeholder="Nome de usuario" value={userForm.username} onChange={(event) => setUserForm((current) => ({ ...current, username: event.target.value }))} />
+                    <input required={editingUserId === null} type="password" placeholder={editingUserId === null ? 'Senha inicial' : 'Nova senha (opcional)'} value={userForm.password} onChange={(event) => setUserForm((current) => ({ ...current, password: event.target.value }))} />
+                    <select value={userForm.role} onChange={(event) => setUserForm((current) => ({ ...current, role: event.target.value as AppUserRole }))}>
+                      {appUserRoleOptions.map((role) => <option key={role} value={role}>{translateRole(role)}</option>)}
+                    </select>
+                    <label className="checkbox-field">
+                      <input checked={userForm.enabled} type="checkbox" onChange={(event) => setUserForm((current) => ({ ...current, enabled: event.target.checked }))} />
+                      <span>Usuario ativo</span>
+                    </label>
+                    <div className="button-row">
+                      <button type="submit">{editingUserId === null ? 'Cadastrar usuario' : 'Salvar usuario'}</button>
+                      {editingUserId !== null ? <button className="secondary-button" onClick={resetUserForm} type="button">Cancelar</button> : null}
+                    </div>
+                  </form>
+                  <div className="list">
+                    {users.map((user) => (
+                      <article className="list-row" key={user.id}>
+                        <div>
+                          <strong>{user.username}</strong>
+                          <small>{translateRole(user.role)} | criado em {formatDate(user.createdAt)}</small>
+                        </div>
+                        <div className="row-actions">
+                          <span className={`tag ${user.enabled ? 'active' : 'blocked'}`}>{user.enabled ? 'Ativo' : 'Bloqueado'}</span>
+                          <button className="ghost-button" onClick={() => startUserEdit(user)} type="button">Editar</button>
+                          {user.username !== 'admin' ? (
+                            <button className="ghost-button danger-button" onClick={() => void handleDelete(`/api/users/${user.id}`, 'Deseja remover este usuario?', resetUserForm)} type="button">Excluir</button>
+                          ) : null}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+
               <section className="panel">
                 <div className="panel-header">
                   <div>
@@ -852,7 +1041,7 @@ function App() {
                     <input required type="date" value={agentForm.cnhExpiry} onChange={(event) => setAgentForm((current) => ({ ...current, cnhExpiry: event.target.value }))} />
                     <input placeholder="URL da foto do vigilante" value={agentForm.photoUrl} onChange={(event) => setAgentForm((current) => ({ ...current, photoUrl: event.target.value }))} />
                     <select value={agentForm.status} onChange={(event) => setAgentForm((current) => ({ ...current, status: event.target.value as AgentStatus }))}>
-                      {agentStatusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
+                      {agentStatusOptions.map((status) => <option key={status} value={status}>{translateAgentStatus(status)}</option>)}
                     </select>
                     <div className="button-row">
                       <button type="submit">{editingAgentId === null ? 'Cadastrar agente' : 'Salvar agente'}</button>
@@ -868,7 +1057,7 @@ function App() {
                         <small>Cracha {agent.badgeCode} | CNH {agent.cnhCategory} ate {agent.cnhExpiry}</small>
                       </div>
                       <div className="row-actions">
-                        <span className={`tag ${agent.status.toLowerCase()}`}>{agent.status}</span>
+                        <span className={`tag ${agent.status.toLowerCase()}`}>{translateAgentStatus(agent.status)}</span>
                         {canManageCatalog ? <button className="ghost-button" onClick={() => startAgentEdit(agent)} type="button">Editar</button> : null}
                         {canManageCatalog ? <button className="ghost-button danger-button" onClick={() => void handleDelete(`/api/agents/${agent.id}`, 'Deseja remover este agente?', resetAgentForm)} type="button">Excluir</button> : null}
                       </div>
@@ -892,7 +1081,7 @@ function App() {
                     <input required placeholder="Endereco" value={residentForm.address} onChange={(event) => setResidentForm((current) => ({ ...current, address: event.target.value }))} />
                     <input placeholder="Observacao / referencia" value={residentForm.referenceNote} onChange={(event) => setResidentForm((current) => ({ ...current, referenceNote: event.target.value }))} />
                     <select value={residentForm.status} onChange={(event) => setResidentForm((current) => ({ ...current, status: event.target.value as ResidentStatus }))}>
-                      {residentStatusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
+                      {residentStatusOptions.map((status) => <option key={status} value={status}>{translateResidentStatus(status)}</option>)}
                     </select>
                     <div className="button-row">
                       <button type="submit">{editingResidentId === null ? 'Cadastrar morador' : 'Salvar morador'}</button>
@@ -908,7 +1097,7 @@ function App() {
                         <small>{resident.phoneNumber} | {resident.address}</small>
                       </div>
                       <div className="row-actions">
-                        <span className={`tag ${resident.status.toLowerCase()}`}>{resident.status}</span>
+                        <span className={`tag ${resident.status.toLowerCase()}`}>{translateResidentStatus(resident.status)}</span>
                         {canManageCatalog ? <button className="ghost-button" onClick={() => startResidentEdit(resident)} type="button">Editar</button> : null}
                         {canManageCatalog ? <button className="ghost-button danger-button" onClick={() => void handleDelete(`/api/residents/${resident.id}`, 'Deseja remover este morador?', resetResidentForm)} type="button">Excluir</button> : null}
                       </div>
@@ -932,7 +1121,7 @@ function App() {
                     <input required min="0" type="number" placeholder="KM atual" value={vehicleForm.currentKm} onChange={(event) => setVehicleForm((current) => ({ ...current, currentKm: event.target.value }))} />
                     <input required min="1" type="number" placeholder="Proxima manutencao" value={vehicleForm.nextMaintenanceKm} onChange={(event) => setVehicleForm((current) => ({ ...current, nextMaintenanceKm: event.target.value }))} />
                     <select value={vehicleForm.status} onChange={(event) => setVehicleForm((current) => ({ ...current, status: event.target.value as VehicleStatus }))}>
-                      {vehicleStatusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
+                      {vehicleStatusOptions.map((status) => <option key={status} value={status}>{translateVehicleStatus(status)}</option>)}
                     </select>
                     <div className="button-row">
                       <button type="submit">{editingVehicleId === null ? 'Cadastrar viatura' : 'Salvar viatura'}</button>
@@ -948,7 +1137,7 @@ function App() {
                         <small>{vehicle.plate} | {vehicle.currentKm.toLocaleString('pt-BR')} km | revisao em {vehicle.nextMaintenanceKm.toLocaleString('pt-BR')} km</small>
                       </div>
                       <div className="row-actions">
-                        <span className={`tag ${vehicle.status.toLowerCase()}`}>{vehicle.status}</span>
+                        <span className={`tag ${vehicle.status.toLowerCase()}`}>{translateVehicleStatus(vehicle.status)}</span>
                         {canManageCatalog ? <button className="ghost-button" onClick={() => startVehicleEdit(vehicle)} type="button">Editar</button> : null}
                         {canManageCatalog ? <button className="ghost-button danger-button" onClick={() => void handleDelete(`/api/vehicles/${vehicle.id}`, 'Deseja remover esta viatura?', resetVehicleForm)} type="button">Excluir</button> : null}
                       </div>
@@ -981,7 +1170,7 @@ function App() {
                     </select>
                     <input required type="datetime-local" value={shiftForm.scheduledEndAt} onChange={(event) => setShiftForm((current) => ({ ...current, scheduledEndAt: event.target.value }))} />
                     <select value={shiftForm.status} onChange={(event) => setShiftForm((current) => ({ ...current, status: event.target.value as ShiftStatus }))}>
-                      {shiftStatusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
+                      {shiftStatusOptions.map((status) => <option key={status} value={status}>{translateShiftStatus(status)}</option>)}
                     </select>
                     <div className="button-row">
                       <button disabled={shiftSubmitDisabled} type="submit">{editingShiftId === null ? 'Cadastrar turno' : 'Salvar turno'}</button>
@@ -997,7 +1186,7 @@ function App() {
                         <small>{shift.vehiclePlate} | inicio {formatDate(shift.startedAt)} | fim previsto {formatDate(shift.scheduledEndAt)}</small>
                       </div>
                       <div className="row-actions">
-                        <span className={`tag ${shift.status.toLowerCase()}`}>{shift.status}</span>
+                        <span className={`tag ${shift.status.toLowerCase()}`}>{translateShiftStatus(shift.status)}</span>
                         {canUpdateOperations ? <button className="ghost-button" onClick={() => startShiftEdit(shift)} type="button">Editar</button> : null}
                         {canCreateOperations ? <button className="ghost-button danger-button" onClick={() => void handleDelete(`/api/shifts/${shift.id}`, 'Deseja remover este turno?', resetShiftForm)} type="button">Excluir</button> : null}
                       </div>
@@ -1021,10 +1210,10 @@ function App() {
                 {canUpdateOperations ? (
                   <form className="form-grid" onSubmit={handleIncidentSubmit}>
                     <select value={incidentForm.type} onChange={(event) => setIncidentForm((current) => ({ ...current, type: event.target.value as IncidentType }))}>
-                      {incidentTypeOptions.map((type) => <option key={type} value={type}>{type}</option>)}
+                      {incidentTypeOptions.map((type) => <option key={type} value={type}>{translateIncidentType(type)}</option>)}
                     </select>
                     <select value={incidentForm.priority} onChange={(event) => setIncidentForm((current) => ({ ...current, priority: event.target.value as IncidentPriority }))}>
-                      {incidentPriorityOptions.map((priority) => <option key={priority} value={priority}>{priority}</option>)}
+                      {incidentPriorityOptions.map((priority) => <option key={priority} value={priority}>{translateIncidentPriority(priority)}</option>)}
                     </select>
                     <select value={incidentForm.residentId} onChange={(event) => handleResidentSelection(event.target.value)}>
                       <option value="">Morador avulso</option>
@@ -1041,7 +1230,7 @@ function App() {
                       {summary.vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.plate} - {vehicle.model}</option>)}
                     </select>
                     <select value={incidentForm.status} onChange={(event) => setIncidentForm((current) => ({ ...current, status: event.target.value as IncidentStatus }))}>
-                      {incidentStatusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
+                      {incidentStatusOptions.map((status) => <option key={status} value={status}>{translateIncidentStatus(status)}</option>)}
                     </select>
                     <div className="button-row">
                       <button disabled={incidentSubmitDisabled} type="submit">{editingIncidentId === null ? 'Cadastrar ocorrencia' : 'Salvar ocorrencia'}</button>
@@ -1053,11 +1242,11 @@ function App() {
                   {summary.incidents.map((incident) => (
                     <article className="list-row" key={incident.id}>
                       <div>
-                        <strong>{incident.type} | {incident.residentName}</strong>
+                        <strong>{translateIncidentType(incident.type)} | {incident.residentName}</strong>
                         <small>{incident.address} | {incident.assignedAgentName ?? 'Sem agente'} | {incident.vehiclePlate ?? 'Sem viatura'}</small>
                       </div>
                       <div className="row-actions">
-                        <span className={`tag ${incident.priority.toLowerCase()}`}>{incident.priority}</span>
+                        <span className={`tag ${incident.priority.toLowerCase()}`}>{translateIncidentPriority(incident.priority)}</span>
                         {canUpdateOperations ? <button className="ghost-button" onClick={() => startIncidentEdit(incident)} type="button">Editar</button> : null}
                         {canCreateOperations ? <button className="ghost-button danger-button" onClick={() => void handleDelete(`/api/incidents/${incident.id}`, 'Deseja remover esta ocorrencia?', resetIncidentForm)} type="button">Excluir</button> : null}
                       </div>

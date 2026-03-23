@@ -30,6 +30,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers("/api/auth/**").authenticated()
+                        .requestMatchers("/api/users/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/client/portal").hasAnyRole("CLIENT", "SUPERVISOR", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/dashboard/**").hasAnyRole("RONDA", "SUPERVISOR", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/agents/**", "/api/vehicles/**", "/api/residents/**", "/api/shifts/**", "/api/incidents/**").hasAnyRole("RONDA", "SUPERVISOR", "ADMIN")

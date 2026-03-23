@@ -92,26 +92,6 @@ const initialCredentials = {
   password: 'ronda123',
 }
 
-function encodeBase64(value: string) {
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-  let output = ''
-  let index = 0
-
-  while (index < value.length) {
-    const a = value.charCodeAt(index++)
-    const b = index < value.length ? value.charCodeAt(index++) : Number.NaN
-    const c = index < value.length ? value.charCodeAt(index++) : Number.NaN
-    const chunk = (a << 16) | ((Number.isNaN(b) ? 0 : b) << 8) | (Number.isNaN(c) ? 0 : c)
-
-    output += alphabet[(chunk >> 18) & 63]
-    output += alphabet[(chunk >> 12) & 63]
-    output += Number.isNaN(b) ? '=' : alphabet[(chunk >> 6) & 63]
-    output += Number.isNaN(c) ? '=' : alphabet[chunk & 63]
-  }
-
-  return output
-}
-
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('pt-BR', {
     dateStyle: 'short',
@@ -121,6 +101,57 @@ function formatDate(value: string) {
 
 function formatCoordinate(value: number) {
   return value.toFixed(5)
+}
+
+function translateShiftStatus(status: ShiftStatus) {
+  return {
+    PLANNED: 'Planejado',
+    ACTIVE: 'Ativo',
+    HANDOFF: 'Troca de turno',
+    CLOSED: 'Encerrado',
+  }[status]
+}
+
+function translateIncidentPriority(priority: IncidentPriority) {
+  return {
+    HIGH: 'Alta',
+    MEDIUM: 'Media',
+    LOW: 'Baixa',
+  }[priority]
+}
+
+function translateIncidentStatus(status: IncidentStatus) {
+  return {
+    OPEN: 'Aberta',
+    DISPATCHED: 'Despachada',
+    ON_SITE: 'No local',
+    CLOSED: 'Encerrada',
+  }[status]
+}
+
+function translateIncidentType(type: string) {
+  return {
+    PANIC: 'Panico',
+    SUSPICIOUS_ACTIVITY: 'Atitude suspeita',
+    MEDICAL: 'Emergencia medica',
+    ESCORT: 'Escolta',
+  }[type] ?? type
+}
+
+function translateGenericOperationalText(value: string) {
+  return {
+    OPEN: 'Aberta',
+    DISPATCHED: 'Despachada',
+    ON_SITE: 'No local',
+    CLOSED: 'Encerrada',
+    PLANNED: 'Planejado',
+    ACTIVE: 'Ativo',
+    HANDOFF: 'Troca de turno',
+    AVAILABLE: 'Disponivel',
+    IN_OPERATION: 'Em operacao',
+    MAINTENANCE: 'Em manutencao',
+    BLOCKED: 'Bloqueado',
+  }[value] ?? value
 }
 
 function normalizeApiBaseUrl(value: string) {
@@ -468,7 +499,7 @@ export default function App() {
                 <Text style={styles.sectionTitle}>{summary.activePatrol.agentName}</Text>
                 <Text style={styles.rowMeta}>Vigilante em ronda • cracha {summary.activePatrol.agentBadgeCode}</Text>
                 <Text style={styles.rowMeta}>{summary.activePatrol.vehiclePlate} • {summary.activePatrol.vehicleModel}</Text>
-                <Text style={styles.rowMeta}>KM {summary.activePatrol.vehicleCurrentKm.toLocaleString('pt-BR')} • {summary.activePatrol.vehicleStatus}</Text>
+                <Text style={styles.rowMeta}>KM {summary.activePatrol.vehicleCurrentKm.toLocaleString('pt-BR')} • {translateGenericOperationalText(summary.activePatrol.vehicleStatus)}</Text>
               </View>
             </View>
 
@@ -503,7 +534,7 @@ export default function App() {
                 <View style={styles.rowCard} key={`${stop.title}-${stop.detail}`}>
                   <Text style={styles.rowTitle}>{stop.title}</Text>
                   <Text style={styles.rowMeta}>{stop.detail}</Text>
-                  <Text style={styles.rowMeta}>{stop.status}</Text>
+                  <Text style={styles.rowMeta}>{translateGenericOperationalText(stop.status)}</Text>
                 </View>
               ))}
             </View>
@@ -540,9 +571,9 @@ export default function App() {
               <Text style={styles.sectionTitle}>Ocorrencias</Text>
               {summary.incidents.map((incident) => (
                 <View style={styles.rowCard} key={incident.id}>
-                  <Text style={styles.rowTitle}>{incident.type} | {incident.residentName}</Text>
+                  <Text style={styles.rowTitle}>{translateIncidentType(incident.type)} | {incident.residentName}</Text>
                   <Text style={styles.rowMeta}>{incident.address}</Text>
-                  <Text style={styles.rowMeta}>{incident.priority} | {incident.status} | {incident.vehiclePlate ?? 'Sem viatura'}</Text>
+                  <Text style={styles.rowMeta}>{translateIncidentPriority(incident.priority)} | {translateIncidentStatus(incident.status)} | {incident.vehiclePlate ?? 'Sem viatura'}</Text>
                 </View>
               ))}
             </View>

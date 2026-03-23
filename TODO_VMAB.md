@@ -7,7 +7,7 @@ Tabela objetiva do que ainda falta para o sistema atingir um estado forte de pro
 | ID | Bloco | Status | Prioridade | Observacao objetiva |
 |---|---|---|---|---|
 | 01 | Autenticacao com usuarios persistidos e JWT | Concluido | Alta | Entregue no backend, web e mobile. |
-| 02 | Gestao real de usuarios e perfis no painel | Pendente | Alta | Hoje os usuarios existem no banco, mas nao sao administraveis pela interface. |
+| 02 | Gestao real de usuarios e perfis no painel | Concluido | Alta | CRUD minimo entregue no backend e no painel, restrito ao perfil administrador. |
 | 03 | Recuperacao de senha, bloqueio e ciclo de sessao | Pendente | Alta | Falta fechar seguranca operacional minima. |
 | 04 | App do morador | Pendente | Alta | Ainda nao existe como app real, so como escopo e referencias. |
 | 05 | Fluxo real de alerta, panico, coacao e escolta | Pendente | Alta | Backend e UI ainda nao fecham a experiencia completa do morador. |

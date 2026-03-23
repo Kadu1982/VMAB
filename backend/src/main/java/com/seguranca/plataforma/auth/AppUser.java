@@ -37,6 +37,14 @@ public class AppUser {
     protected AppUser() {
     }
 
+    public AppUser(String username, String passwordHash, AppUserRole role, boolean enabled, OffsetDateTime createdAt) {
+        this.username = username;
+        this.passwordHash = passwordHash;
+        this.role = role;
+        this.enabled = enabled;
+        this.createdAt = createdAt;
+    }
+
     public Long getId() {
         return id;
     }
@@ -59,5 +67,15 @@ public class AppUser {
 
     public OffsetDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public void update(String username, AppUserRole role, boolean enabled) {
+        this.username = username;
+        this.role = role;
+        this.enabled = enabled;
+    }
+
+    public void updatePasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
     }
 }
