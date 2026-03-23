@@ -3,7 +3,7 @@ import type { FormEvent } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import './styles.css'
-import logoVmab from './assets/vmab-logo.svg'
+import logoVmab from './assets/vmab-logo.png'
 import type {
   Agent,
   AgentStatus,
@@ -94,8 +94,28 @@ function hasAnyRole(roles: string[], allowed: string[]) {
   return roles.some((role) => allowed.includes(role))
 }
 
-function formatCoordinate(value: number) {
-  return value.toFixed(5)
+function readStoredSession(): AuthSession | null {
+  const saved = window.localStorage.getItem(STORAGE_KEY)
+  if (!saved) return null
+
+  try {
+    const parsed = JSON.parse(saved) as Partial<AuthSession>
+    if (typeof parsed.accessToken !== 'string' || typeof parsed.username !== 'string' || !Array.isArray(parsed.roles)) {
+      window.localStorage.removeItem(STORAGE_KEY)
+      return null
+    }
+
+    return {
+      accessToken: parsed.accessToken,
+      tokenType: typeof parsed.tokenType === 'string' ? parsed.tokenType : 'Bearer',
+      expiresAt: typeof parsed.expiresAt === 'string' ? parsed.expiresAt : '',
+      username: parsed.username,
+      roles: parsed.roles,
+    }
+  } catch {
+    window.localStorage.removeItem(STORAGE_KEY)
+    return null
+  }
 }
 
 function buildGuardMarkerIcon(photoUrl: string | null | undefined, name: string) {
@@ -226,14 +246,11 @@ function App() {
   const [portal, setPortal] = useState<ClientPortal | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [session, setSession] = useState<AuthSession | null>(() => {
-    const saved = window.localStorage.getItem(STORAGE_KEY)
-    return saved ? (JSON.parse(saved) as AuthSession) : initialSession
-  })
+  const [session, setSession] = useState<AuthSession | null>(() => readStoredSession() ?? initialSession)
   const [credentials, setCredentials] = useState(() => {
     return initialCredentials
   })
-  const [authenticated, setAuthenticated] = useState(() => Boolean(window.localStorage.getItem(STORAGE_KEY)))
+  const [authenticated, setAuthenticated] = useState(() => Boolean(readStoredSession()))
   const [currentUsername, setCurrentUsername] = useState<string | null>(null)
   const [currentRoles, setCurrentRoles] = useState<string[]>([])
   const [agentForm, setAgentForm] = useState(initialAgentForm)
@@ -779,31 +796,23 @@ function App() {
                     </div>
                   </div>
 
-                  <div className="patrol-telemetry">
-                    <div className="telemetry-card">
-                      <span>Posicao GPS</span>
-                      <strong>{formatCoordinate(summary.activePatrol.latitude)}, {formatCoordinate(summary.activePatrol.longitude)}</strong>
-                      <small>Precisao aproximada de {summary.activePatrol.accuracyMeters.toFixed(0)} m</small>
+                    <div className="patrol-telemetry">
+                      <div className="telemetry-card">
+                        <span>Velocidade</span>
+                        <strong>{summary.activePatrol.speedKmh.toFixed(0)} km/h</strong>
+                        <small>Ultima atualizacao {formatDate(summary.activePatrol.updatedAt)}</small>
+                      </div>
+                      <div className="telemetry-card">
+                        <span>KM percorridos no turno</span>
+                        <strong>{summary.activePatrol.traveledKmInShift.toFixed(2)} km</strong>
+                        <small>Turno {summary.activePatrol.shiftId} com trilha GPS consolidada</small>
+                      </div>
                     </div>
-                    <div className="telemetry-card">
-                      <span>Velocidade</span>
-                      <strong>{summary.activePatrol.speedKmh.toFixed(0)} km/h</strong>
-                      <small>Ultima atualizacao {formatDate(summary.activePatrol.updatedAt)}</small>
-                    </div>
-                    <div className="telemetry-card">
-                      <span>Progresso da rota</span>
-                      <strong>{summary.activePatrol.progressPercent}%</strong>
-                      <small>Turno {summary.activePatrol.shiftId} em deslocamento monitorado</small>
-                    </div>
-                  </div>
 
-                  <div className="route-card">
-                    <div className="route-progress">
-                      <div className="route-progress-bar" style={{ width: `${summary.activePatrol.progressPercent}%` }} />
-                    </div>
-                    <div className="route-list">
-                      {summary.activePatrol.routeStops.map((stop) => (
-                        <article className="route-stop" key={`${stop.title}-${stop.detail}`}>
+                    <div className="route-card">
+                      <div className="route-list">
+                        {summary.activePatrol.routeStops.map((stop) => (
+                          <article className="route-stop" key={`${stop.title}-${stop.detail}`}>
                           <strong>{stop.title}</strong>
                           <small>{stop.detail}</small>
                           <span>{stop.status}</span>

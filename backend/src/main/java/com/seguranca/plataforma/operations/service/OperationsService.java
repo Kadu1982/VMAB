@@ -491,6 +491,7 @@ public class OperationsService {
                 .filter(incident -> incident.getStatus() != IncidentStatus.CLOSED)
                 .findFirst()
                 .orElse(null);
+        double traveledKmInShift = calculateTraveledKmInShift(telemetryHistory);
         int progressPercent = telemetry == null ? 0 : 100;
         List<TelemetryTrailPointResponse> telemetryTrail = telemetryHistory.stream()
                 .map(point -> new TelemetryTrailPointResponse(
@@ -526,11 +527,46 @@ public class OperationsService {
                 telemetry != null ? telemetry.getLongitude() : -46.65440,
                 telemetry != null ? telemetry.getSpeedKmh() : 0.0,
                 telemetry != null ? telemetry.getAccuracyMeters() : 0.0,
+                traveledKmInShift,
                 progressPercent,
                 telemetry != null ? telemetry.getRecordedAt() : OffsetDateTime.now(),
                 routeStops,
                 telemetryTrail
         );
+    }
+
+    private double calculateTraveledKmInShift(List<ShiftTelemetry> telemetryHistory) {
+        if (telemetryHistory.size() < 2) {
+            return 0.0;
+        }
+
+        double totalMeters = 0.0;
+        for (int index = 1; index < telemetryHistory.size(); index++) {
+            ShiftTelemetry previous = telemetryHistory.get(index - 1);
+            ShiftTelemetry current = telemetryHistory.get(index);
+            totalMeters += haversineMeters(
+                    previous.getLatitude(),
+                    previous.getLongitude(),
+                    current.getLatitude(),
+                    current.getLongitude()
+            );
+        }
+
+        return totalMeters / 1000.0;
+    }
+
+    private double haversineMeters(double startLat, double startLon, double endLat, double endLon) {
+        double earthRadiusMeters = 6_371_000.0;
+        double latDelta = Math.toRadians(endLat - startLat);
+        double lonDelta = Math.toRadians(endLon - startLon);
+        double originLat = Math.toRadians(startLat);
+        double destinationLat = Math.toRadians(endLat);
+
+        double a = Math.sin(latDelta / 2) * Math.sin(latDelta / 2)
+                + Math.cos(originLat) * Math.cos(destinationLat)
+                * Math.sin(lonDelta / 2) * Math.sin(lonDelta / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return earthRadiusMeters * c;
     }
 
     private Resident resolveResident(Long residentId, String residentName, String address) {

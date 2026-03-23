@@ -37,6 +37,7 @@ type ActivePatrol = {
   longitude: number
   speedKmh: number
   accuracyMeters: number
+  traveledKmInShift: number
   progressPercent: number
   updatedAt: string
   routeStops: {
@@ -292,16 +293,15 @@ export default function App() {
 
         return {
           ...current,
-          activePatrol: {
-            ...current.activePatrol,
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
-            speedKmh: Math.max(0, (location.coords.speed ?? 0) * 3.6),
-            accuracyMeters: Math.max(0, location.coords.accuracy ?? 0),
-            updatedAt: new Date(location.timestamp).toISOString(),
-            progressPercent: 100,
-          },
-        }
+            activePatrol: {
+              ...current.activePatrol,
+              latitude: location.coords.latitude,
+              longitude: location.coords.longitude,
+              speedKmh: Math.max(0, (location.coords.speed ?? 0) * 3.6),
+              accuracyMeters: Math.max(0, location.coords.accuracy ?? 0),
+              updatedAt: new Date(location.timestamp).toISOString(),
+            },
+          }
       })
     } catch (cause) {
       setTrackingStatus(cause instanceof Error ? cause.message : 'Erro ao sincronizar o GPS')

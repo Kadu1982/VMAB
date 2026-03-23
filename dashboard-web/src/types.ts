@@ -74,6 +74,7 @@ export interface ActivePatrol {
   longitude: number
   speedKmh: number
   accuracyMeters: number
+  traveledKmInShift: number
   progressPercent: number
   updatedAt: string
   routeStops: PatrolRouteStop[]

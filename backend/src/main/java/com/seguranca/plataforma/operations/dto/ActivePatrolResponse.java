@@ -18,6 +18,7 @@ public record ActivePatrolResponse(
         double longitude,
         double speedKmh,
         double accuracyMeters,
+        double traveledKmInShift,
         int progressPercent,
         OffsetDateTime updatedAt,
         List<PatrolRouteStopResponse> routeStops,
