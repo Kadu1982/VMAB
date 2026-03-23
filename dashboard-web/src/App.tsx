@@ -7,6 +7,7 @@ import logoVmab from './assets/vmab-logo.svg'
 import type {
   Agent,
   AgentStatus,
+  AuthSession,
   ClientPortal,
   DashboardSummary,
   Incident,
@@ -33,6 +34,7 @@ const incidentPriorityOptions: IncidentPriority[] = ['HIGH', 'MEDIUM', 'LOW']
 const incidentStatusOptions: IncidentStatus[] = ['OPEN', 'DISPATCHED', 'ON_SITE', 'CLOSED']
 
 const initialCredentials = { username: 'admin', password: 'admin123' }
+const initialSession: AuthSession | null = null
 
 const initialAgentForm = {
   fullName: '',
@@ -86,10 +88,6 @@ function formatDateTimeLocal(value: string) {
   const offset = date.getTimezoneOffset()
   const local = new Date(date.getTime() - offset * 60000)
   return local.toISOString().slice(0, 16)
-}
-
-function basicAuthHeader(username: string, password: string) {
-  return `Basic ${window.btoa(`${username}:${password}`)}`
 }
 
 function hasAnyRole(roles: string[], allowed: string[]) {
@@ -228,9 +226,12 @@ function App() {
   const [portal, setPortal] = useState<ClientPortal | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [credentials, setCredentials] = useState(() => {
+  const [session, setSession] = useState<AuthSession | null>(() => {
     const saved = window.localStorage.getItem(STORAGE_KEY)
-    return saved ? (JSON.parse(saved) as typeof initialCredentials) : initialCredentials
+    return saved ? (JSON.parse(saved) as AuthSession) : initialSession
+  })
+  const [credentials, setCredentials] = useState(() => {
+    return initialCredentials
   })
   const [authenticated, setAuthenticated] = useState(() => Boolean(window.localStorage.getItem(STORAGE_KEY)))
   const [currentUsername, setCurrentUsername] = useState<string | null>(null)
@@ -261,12 +262,13 @@ function App() {
       ...init,
       headers: {
         ...(init?.headers ?? {}),
-        Authorization: basicAuthHeader(credentials.username, credentials.password),
+        ...(session ? { Authorization: `Bearer ${session.accessToken}` } : {}),
       },
     })
 
     if (response.status === 401) {
       window.localStorage.removeItem(STORAGE_KEY)
+      setSession(null)
       setAuthenticated(false)
       setCurrentUsername(null)
       setCurrentRoles([])
@@ -417,17 +419,21 @@ function App() {
     setError(null)
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+        method: 'POST',
         headers: {
-          Authorization: basicAuthHeader(credentials.username, credentials.password),
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify(credentials),
       })
 
       if (!response.ok) {
         throw new Error('Login invalido. Verifique usuario e senha.')
       }
 
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(credentials))
+      const loginSession = (await response.json()) as AuthSession
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(loginSession))
+      setSession(loginSession)
       setAuthenticated(true)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Falha ao autenticar.')
@@ -436,6 +442,7 @@ function App() {
 
   function handleLogout() {
     window.localStorage.removeItem(STORAGE_KEY)
+    setSession(null)
     setAuthenticated(false)
     setCurrentUsername(null)
     setCurrentRoles([])

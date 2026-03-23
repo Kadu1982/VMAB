@@ -115,3 +115,11 @@ export interface ClientPortal {
   maintenanceAlerts: number
   recentIncidents: Incident[]
 }
+
+export interface AuthSession {
+  accessToken: string
+  tokenType: string
+  expiresAt: string
+  username: string
+  roles: string[]
+}

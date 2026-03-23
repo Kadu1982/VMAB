@@ -26,6 +26,8 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/seguranca_comunitaria
       DB_USERNAME: seguranca
       DB_PASSWORD: seguranca123
+      JWT_SECRET: vmab-local-dev-secret-change-before-production
+      JWT_EXPIRATION_HOURS: 12
     depends_on:
       postgres:
         condition: service_healthy

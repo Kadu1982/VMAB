@@ -17,6 +17,7 @@ import {
 const DEFAULT_API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? ''
 const API_URL_STORAGE_KEY = 'seguranca-api-url'
 const CREDENTIALS_STORAGE_KEY = 'seguranca-ronda-creds'
+const SESSION_STORAGE_KEY = 'seguranca-ronda-session'
 
 type ShiftStatus = 'PLANNED' | 'ACTIVE' | 'HANDOFF' | 'CLOSED'
 type IncidentPriority = 'HIGH' | 'MEDIUM' | 'LOW'
@@ -43,6 +44,14 @@ type ActivePatrol = {
     detail: string
     status: string
   }[]
+}
+
+type AuthSession = {
+  accessToken: string
+  tokenType: string
+  expiresAt: string
+  username: string
+  roles: string[]
 }
 
 type DashboardSummary = {
@@ -102,11 +111,6 @@ function encodeBase64(value: string) {
   return output
 }
 
-function authHeader(username: string, password: string) {
-  const encoded = typeof globalThis.btoa === 'function' ? globalThis.btoa(`${username}:${password}`) : encodeBase64(`${username}:${password}`)
-  return `Basic ${encoded}`
-}
-
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('pt-BR', {
     dateStyle: 'short',
@@ -125,6 +129,7 @@ function normalizeApiBaseUrl(value: string) {
 export default function App() {
   // Estado local do app da ronda: sessao, URL da API, telemetria e resumo operacional.
   const [credentials, setCredentials] = useState(initialCredentials)
+  const [session, setSession] = useState<AuthSession | null>(null)
   const [apiBaseUrl, setApiBaseUrl] = useState(DEFAULT_API_BASE_URL)
   const [authenticated, setAuthenticated] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -137,9 +142,10 @@ export default function App() {
     // Restaura URL da API e credenciais para evitar reconfiguracao a cada abertura do app.
     async function hydrateSession() {
       try {
-        const [storedApiUrl, storedCredentials] = await Promise.all([
+        const [storedApiUrl, storedCredentials, storedSession] = await Promise.all([
           AsyncStorage.getItem(API_URL_STORAGE_KEY),
           AsyncStorage.getItem(CREDENTIALS_STORAGE_KEY),
+          AsyncStorage.getItem(SESSION_STORAGE_KEY),
         ])
 
         if (storedApiUrl) {
@@ -148,6 +154,12 @@ export default function App() {
 
         if (storedCredentials) {
           setCredentials(JSON.parse(storedCredentials) as typeof initialCredentials)
+        }
+
+        if (storedSession) {
+          const parsedSession = JSON.parse(storedSession) as AuthSession
+          setSession(parsedSession)
+          setAuthenticated(true)
         }
       } catch {
         // fallback silencioso
@@ -165,8 +177,17 @@ export default function App() {
     void AsyncStorage.setItem(CREDENTIALS_STORAGE_KEY, JSON.stringify(credentials))
   }, [credentials])
 
-  async function fetchSummary() {
-    // Faz login operacional basico e carrega o resumo que alimenta a tela da ronda.
+  useEffect(() => {
+    if (session) {
+      void AsyncStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session))
+      return
+    }
+
+    void AsyncStorage.removeItem(SESSION_STORAGE_KEY)
+  }, [session])
+
+  async function fetchSummary(activeSession = session) {
+    // Carrega o resumo que alimenta a tela da ronda usando a sessao autenticada.
     setLoading(true)
     setError(null)
 
@@ -176,9 +197,13 @@ export default function App() {
         throw new Error('Informe a URL da API antes de entrar.')
       }
 
+      if (!activeSession?.accessToken) {
+        throw new Error('Sua sessao nao existe mais. Entre novamente.')
+      }
+
       const response = await fetch(`${baseUrl}/api/dashboard/summary`, {
         headers: {
-          Authorization: authHeader(credentials.username, credentials.password),
+          Authorization: `Bearer ${activeSession.accessToken}`,
         },
       })
 
@@ -190,6 +215,44 @@ export default function App() {
       setAuthenticated(true)
     } catch (cause) {
       setAuthenticated(false)
+      setSession(null)
+      setSummary(null)
+      setError(cause instanceof Error ? cause.message : 'Falha inesperada no mobile.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleLogin() {
+    // Autentica o operador da ronda e guarda o token localmente para reuso.
+    setLoading(true)
+    setError(null)
+
+    try {
+      const baseUrl = normalizeApiBaseUrl(apiBaseUrl)
+      if (!baseUrl) {
+        throw new Error('Informe a URL da API antes de entrar.')
+      }
+
+      const response = await fetch(`${baseUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(credentials),
+      })
+
+      if (!response.ok) {
+        throw new Error('Login invalido. Verifique usuario e senha.')
+      }
+
+      const nextSession = (await response.json()) as AuthSession
+      setSession(nextSession)
+      setAuthenticated(true)
+      await fetchSummary(nextSession)
+    } catch (cause) {
+      setAuthenticated(false)
+      setSession(null)
       setSummary(null)
       setError(cause instanceof Error ? cause.message : 'Falha inesperada no mobile.')
     } finally {
@@ -206,7 +269,7 @@ export default function App() {
       const response = await fetch(`${baseUrl}/api/shifts/${shiftId}/telemetry`, {
         method: 'POST',
         headers: {
-          Authorization: authHeader(credentials.username, credentials.password),
+          Authorization: session ? `Bearer ${session.accessToken}` : '',
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -342,7 +405,7 @@ export default function App() {
               value={credentials.password}
               onChangeText={(value) => setCredentials((current) => ({ ...current, password: value }))}
             />
-            <Pressable style={styles.primaryButton} onPress={() => void fetchSummary()}>
+            <Pressable style={styles.primaryButton} onPress={() => void handleLogin()}>
               <Text style={styles.primaryButtonText}>{loading ? 'Entrando...' : 'Entrar'}</Text>
             </Pressable>
           </View>
@@ -375,6 +438,7 @@ export default function App() {
             <Pressable
               style={styles.secondaryButton}
               onPress={() => {
+                setSession(null)
                 setAuthenticated(false)
                 setSummary(null)
                 setTrackingStatus('GPS inativo')
