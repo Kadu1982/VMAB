@@ -46,6 +46,7 @@ public class ShiftController {
 
     @PostMapping("/{id}/handoff")
     public Shift handoff(@PathVariable Long id, @Valid @RequestBody HandoffShiftRequest request) {
+        // Expõe a passagem de responsabilidade para o painel administrativo.
         return operationsService.handoffShift(id, request);
     }
 

@@ -13,7 +13,7 @@ Tabela objetiva do que ainda falta para o sistema atingir um estado forte de pro
 | 05 | Fluxo real de alerta, panico, coacao e escolta | Pendente | Alta | Backend e UI ainda nao fecham a experiencia completa do morador. |
 | 06 | Operacao de ronda com aceite, despacho e encerramento mais completos | Pendente | Alta | Existe base de ocorrencias, mas o fluxo ainda esta simplificado. |
 | 07 | Troca de turno com aceite duplo e trilha formal | Em andamento | Alta | Ja existe registro de passagem de responsabilidade, horario e observacao, mas o fluxo ainda precisa amadurecer. |
-| 08 | Escala, falta, atraso e cobertura | Pendente | Alta | Ainda nao existe modulo operacional de jornada completo. |
+| 08 | Escala, falta, atraso e cobertura | Em andamento | Alta | O turno agora guarda ponto basico, KM inicial/final e dados de passagem, mas a gestao de escala ainda nao existe. |
 | 09 | Quilometragem percorrida, checklist e manutencao mais profundos | Em andamento | Alta | Existe cadastro e km atual, mas falta ciclo robusto de turno, checklist e bloqueios. |
 | 10 | Relatorios executivos e prova de execucao para cliente | Pendente | Alta | Portal do cliente ainda esta superficial. |
 | 11 | Exportacao e impressao de relatorios | Pendente | Media | Falta uso comercial e operacional mais forte. |

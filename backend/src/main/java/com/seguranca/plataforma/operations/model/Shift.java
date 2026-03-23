@@ -168,6 +168,7 @@ public class Shift {
     }
 
     public void update(Long agentId, String agentName, Long vehicleId, String vehiclePlate, ShiftStatus status, OffsetDateTime scheduledEndAt, Long endKm) {
+        // Mantem a edicao operacional do turno sem perder o agente e a viatura vigentes.
         this.agentId = agentId;
         this.agentName = agentName;
         this.vehicleId = vehicleId;
@@ -178,6 +179,7 @@ public class Shift {
     }
 
     public void close(OffsetDateTime checkOutAt, Long endKm) {
+        // Consolida o encerramento do turno para jornada e controle de quilometragem.
         this.status = ShiftStatus.CLOSED;
         this.checkOutAt = checkOutAt;
         this.endKm = endKm;
@@ -191,6 +193,7 @@ public class Shift {
             OffsetDateTime handoffAcceptedAt,
             String handoffNotes
     ) {
+        // Registra a passagem formal de responsabilidade entre vigilantes no mesmo turno.
         this.handoffFromAgentId = handoffFromAgentId;
         this.handoffFromAgentName = handoffFromAgentName;
         this.handoffToAgentId = handoffToAgentId;

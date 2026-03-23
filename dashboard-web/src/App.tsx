@@ -754,6 +754,7 @@ function App() {
   }
 
   async function handleShiftHandoff(shiftId: number) {
+    // Registra no painel a troca formal de vigilante sem descartar o turno em andamento.
     if (!shiftForm.handoffToAgentId) {
       setError('Selecione o vigilante que assumira o turno.')
       return

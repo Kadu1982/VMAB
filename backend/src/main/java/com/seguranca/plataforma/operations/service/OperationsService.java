@@ -296,6 +296,7 @@ public class OperationsService {
 
     @Transactional
     public Shift updateShift(Long id, UpdateShiftRequest request) {
+        // Atualiza o turno e exige KM final quando o fluxo estiver sendo encerrado.
         Shift shift = getShift(id);
         Agent agent = getAgent(request.agentId());
         Vehicle vehicle = getVehicle(request.vehicleId());
@@ -336,6 +337,7 @@ public class OperationsService {
 
     @Transactional
     public Shift handoffShift(Long id, HandoffShiftRequest request) {
+        // Formaliza a troca de vigilante em um turno ja existente sem abrir outro registro paralelo.
         Shift shift = getShift(id);
         if (!shift.getAgentId().equals(request.fromAgentId())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O agente de origem nao corresponde ao turno atual.");
@@ -527,6 +529,7 @@ public class OperationsService {
     }
 
     private boolean hasVehicleAlert(Vehicle vehicle) {
+        // Concentra os alertas de manutencao e vencimento documental da viatura no dashboard.
         LocalDate threshold = LocalDate.now().plusDays(30);
         return vehicle.getNextMaintenanceKm() - vehicle.getCurrentKm() <= 1000
                 || (vehicle.getIpvaExpiry() != null && !vehicle.getIpvaExpiry().isAfter(threshold))
