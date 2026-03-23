@@ -51,7 +51,7 @@ export interface Shift {
   vehicleId: number
   vehiclePlate: string
   status: ShiftStatus
-  startedAt: string
+  startedAt?: string | null
   scheduledEndAt: string
   checkInAt?: string | null
   checkOutAt?: string | null

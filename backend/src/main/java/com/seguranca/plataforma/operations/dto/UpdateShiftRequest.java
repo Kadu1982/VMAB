@@ -2,6 +2,8 @@ package com.seguranca.plataforma.operations.dto;
 
 import com.seguranca.plataforma.operations.model.ShiftStatus;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import java.time.OffsetDateTime;
 
 public record UpdateShiftRequest(
@@ -10,6 +12,7 @@ public record UpdateShiftRequest(
         @NotNull ShiftStatus status,
         @NotNull OffsetDateTime scheduledEndAt,
         Long endKm,
+        @Min(0) @Max(100)
         Integer fuelLevelPercent,
         boolean tiresChecked,
         boolean lightsChecked,

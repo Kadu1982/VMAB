@@ -113,10 +113,10 @@ public class OperationsService {
                 beta.getId(),
                 beta.getPlate(),
                 ShiftStatus.PLANNED,
-                OffsetDateTime.now().plusHours(5),
+                null,
                 OffsetDateTime.now().plusHours(13),
-                OffsetDateTime.now().plusHours(5),
-                beta.getCurrentKm(),
+                null,
+                null,
                 54,
                 true,
                 true,
@@ -281,14 +281,16 @@ public class OperationsService {
     @Transactional(readOnly = true)
     public List<Shift> listShifts() {
         return shiftRepository.findAll().stream()
-                .sorted(Comparator.comparing(Shift::getStartedAt))
+                .sorted(Comparator.comparing(Shift::getStartedAt, Comparator.nullsLast(Comparator.naturalOrder())))
                 .toList();
     }
 
     @Transactional
     public Shift addShift(CreateShiftRequest request) {
+        // Um turno planejado nao pode nascer com ponto iniciado nem KM de saida preenchido.
         Agent agent = getAgent(request.agentId());
         Vehicle vehicle = getVehicle(request.vehicleId());
+        validateFuelLevelPercent(request.fuelLevelPercent());
 
         Shift shift = new Shift(
                 agent.getId(),
@@ -296,10 +298,10 @@ public class OperationsService {
                 vehicle.getId(),
                 vehicle.getPlate(),
                 ShiftStatus.PLANNED,
-                OffsetDateTime.now(ZoneOffset.UTC),
+                null,
                 request.scheduledEndAt(),
-                OffsetDateTime.now(ZoneOffset.UTC),
-                vehicle.getCurrentKm(),
+                null,
+                null,
                 request.fuelLevelPercent(),
                 request.tiresChecked(),
                 request.lightsChecked(),
@@ -315,9 +317,18 @@ public class OperationsService {
         Shift shift = getShift(id);
         Agent agent = getAgent(request.agentId());
         Vehicle vehicle = getVehicle(request.vehicleId());
+        validateFuelLevelPercent(request.fuelLevelPercent());
+
+        if (request.status() == ShiftStatus.ACTIVE || request.status() == ShiftStatus.HANDOFF || request.status() == ShiftStatus.CLOSED) {
+            activateShiftIfNeeded(shift, vehicle);
+        }
 
         if (request.status() == ShiftStatus.CLOSED && request.endKm() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Informe a quilometragem final para encerrar o turno.");
+        }
+
+        if (request.status() == ShiftStatus.CLOSED) {
+            validateClosingKm(shift, vehicle, request.endKm());
         }
 
         if (request.status() == ShiftStatus.CLOSED && (!request.tiresChecked() || !request.lightsChecked() || !request.documentsChecked())) {
@@ -369,6 +380,8 @@ public class OperationsService {
         }
 
         Agent newAgent = getAgent(request.toAgentId());
+        Vehicle vehicle = getVehicle(shift.getVehicleId());
+        activateShiftIfNeeded(shift, vehicle);
         shift.registerHandoff(
                 shift.getAgentId(),
                 shift.getAgentName(),
@@ -565,6 +578,32 @@ public class OperationsService {
     private Shift getShift(Long id) {
         return shiftRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Turno nao encontrado"));
+    }
+
+    private void validateFuelLevelPercent(Integer fuelLevelPercent) {
+        // O backend precisa validar a faixa de combustivel mesmo quando a API for chamada fora do formulario web.
+        if (fuelLevelPercent != null && (fuelLevelPercent < 0 || fuelLevelPercent > 100)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O combustivel deve estar entre 0 e 100 por cento.");
+        }
+    }
+
+    private void activateShiftIfNeeded(Shift shift, Vehicle vehicle) {
+        // Marca check-in e KM inicial apenas quando o turno efetivamente entra em operacao.
+        if (shift.getCheckInAt() == null) {
+            shift.beginOperationalTracking(OffsetDateTime.now(ZoneOffset.UTC), vehicle.getCurrentKm());
+        }
+    }
+
+    private void validateClosingKm(Shift shift, Vehicle vehicle, Long endKm) {
+        // Impede retrocesso de odometro e fechamento incoerente do turno.
+        Long startKm = shift.getStartKm();
+        if (startKm != null && endKm < startKm) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A quilometragem final nao pode ser menor que a quilometragem inicial do turno.");
+        }
+
+        if (endKm < vehicle.getCurrentKm()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A quilometragem final nao pode ser menor que a quilometragem atual da viatura.");
+        }
     }
 
     private Incident getIncident(Long id) {

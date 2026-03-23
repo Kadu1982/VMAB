@@ -384,11 +384,13 @@ function App() {
   const [editingIncidentId, setEditingIncidentId] = useState<number | null>(null)
   const [isPending, startTransition] = useTransition()
 
+  // Deriva os escopos reais do usuario para nao exibir acoes que o backend vai negar.
   const isClient = currentRoles.includes('ROLE_CLIENT')
   const canManageUsers = currentRoles.includes('ROLE_ADMIN')
   const canManageCatalog = hasAnyRole(currentRoles, ['ROLE_ADMIN', 'ROLE_SUPERVISOR'])
   const canUpdateOperations = hasAnyRole(currentRoles, ['ROLE_ADMIN', 'ROLE_SUPERVISOR', 'ROLE_RONDA'])
   const canCreateOperations = hasAnyRole(currentRoles, ['ROLE_ADMIN', 'ROLE_SUPERVISOR'])
+  const canRegisterHandoff = hasAnyRole(currentRoles, ['ROLE_ADMIN', 'ROLE_SUPERVISOR'])
 
   const shiftSubmitDisabled = !canCreateOperations && editingShiftId === null
   const incidentSubmitDisabled = !canCreateOperations && editingIncidentId === null
@@ -1275,7 +1277,7 @@ function App() {
                     </label>
                     <div className="button-row">
                       <button disabled={shiftSubmitDisabled} type="submit">{editingShiftId === null ? 'Cadastrar turno' : 'Salvar turno'}</button>
-                      {editingShiftId !== null ? <button className="secondary-button" onClick={() => void handleShiftHandoff(editingShiftId)} type="button">Registrar troca</button> : null}
+                      {editingShiftId !== null && canRegisterHandoff ? <button className="secondary-button" onClick={() => void handleShiftHandoff(editingShiftId)} type="button">Registrar troca</button> : null}
                       {editingShiftId !== null ? <button className="secondary-button" onClick={resetShiftForm} type="button">Cancelar</button> : null}
                     </div>
                   </form>
@@ -1285,7 +1287,7 @@ function App() {
                     <article className="list-row" key={shift.id}>
                       <div>
                         <strong>{shift.agentName}</strong>
-                        <small>{shift.vehiclePlate} | ponto {shift.checkInAt ? formatDate(shift.checkInAt) : formatDate(shift.startedAt)} | fim previsto {formatDate(shift.scheduledEndAt)} | troca {shift.handoffToAgentName ?? 'nao registrada'} | checklist {shift.documentsChecked ? 'ok' : 'pendente'}</small>
+                        <small>{shift.vehiclePlate} | ponto {shift.checkInAt ? formatDate(shift.checkInAt) : 'nao iniciado'} | fim previsto {formatDate(shift.scheduledEndAt)} | troca {shift.handoffToAgentName ?? 'nao registrada'} | checklist {shift.documentsChecked ? 'ok' : 'pendente'}</small>
                       </div>
                       <div className="row-actions">
                         <span className={`tag ${shift.status.toLowerCase()}`}>{translateShiftStatus(shift.status)}</span>

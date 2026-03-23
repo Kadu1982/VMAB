@@ -34,7 +34,7 @@ public class Shift {
     @Column(nullable = false)
     private ShiftStatus status;
 
-    @Column(name = "started_at", nullable = false)
+    @Column(name = "started_at")
     private OffsetDateTime startedAt;
 
     @Column(name = "scheduled_end_at", nullable = false)
@@ -240,6 +240,19 @@ public class Shift {
         this.lightsChecked = lightsChecked;
         this.documentsChecked = documentsChecked;
         this.checklistNotes = checklistNotes;
+    }
+
+    public void beginOperationalTracking(OffsetDateTime startedAt, Long startKm) {
+        // Separa o turno planejado do inicio real da jornada e evita ponto artificial no cadastro.
+        if (this.checkInAt == null) {
+            this.startedAt = startedAt;
+            this.checkInAt = startedAt;
+            this.startKm = startKm;
+        }
+
+        if (this.status == ShiftStatus.PLANNED) {
+            this.status = ShiftStatus.ACTIVE;
+        }
     }
 
     public void close(OffsetDateTime checkOutAt, Long endKm) {
