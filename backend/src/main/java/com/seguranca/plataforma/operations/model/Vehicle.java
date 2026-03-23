@@ -8,6 +8,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "vehicles")
@@ -33,15 +34,46 @@ public class Vehicle {
     @Column(nullable = false)
     private VehicleStatus status;
 
+    @Column(name = "ipva_expiry")
+    private LocalDate ipvaExpiry;
+
+    @Column(name = "licensing_expiry")
+    private LocalDate licensingExpiry;
+
+    @Column(name = "insurance_expiry")
+    private LocalDate insuranceExpiry;
+
+    @Column(name = "last_maintenance_at")
+    private LocalDate lastMaintenanceAt;
+
+    @Column(name = "maintenance_notes", length = 500)
+    private String maintenanceNotes;
+
     protected Vehicle() {
     }
 
-    public Vehicle(String plate, String model, long currentKm, long nextMaintenanceKm, VehicleStatus status) {
+    public Vehicle(
+            String plate,
+            String model,
+            long currentKm,
+            long nextMaintenanceKm,
+            VehicleStatus status,
+            LocalDate ipvaExpiry,
+            LocalDate licensingExpiry,
+            LocalDate insuranceExpiry,
+            LocalDate lastMaintenanceAt,
+            String maintenanceNotes
+    ) {
         this.plate = plate;
         this.model = model;
         this.currentKm = currentKm;
         this.nextMaintenanceKm = nextMaintenanceKm;
         this.status = status;
+        this.ipvaExpiry = ipvaExpiry;
+        this.licensingExpiry = licensingExpiry;
+        this.insuranceExpiry = insuranceExpiry;
+        this.lastMaintenanceAt = lastMaintenanceAt;
+        this.maintenanceNotes = maintenanceNotes;
     }
 
     public Long getId() {
@@ -68,11 +100,47 @@ public class Vehicle {
         return status;
     }
 
-    public void update(String plate, String model, long currentKm, long nextMaintenanceKm, VehicleStatus status) {
+    public LocalDate getIpvaExpiry() {
+        return ipvaExpiry;
+    }
+
+    public LocalDate getLicensingExpiry() {
+        return licensingExpiry;
+    }
+
+    public LocalDate getInsuranceExpiry() {
+        return insuranceExpiry;
+    }
+
+    public LocalDate getLastMaintenanceAt() {
+        return lastMaintenanceAt;
+    }
+
+    public String getMaintenanceNotes() {
+        return maintenanceNotes;
+    }
+
+    public void update(
+            String plate,
+            String model,
+            long currentKm,
+            long nextMaintenanceKm,
+            VehicleStatus status,
+            LocalDate ipvaExpiry,
+            LocalDate licensingExpiry,
+            LocalDate insuranceExpiry,
+            LocalDate lastMaintenanceAt,
+            String maintenanceNotes
+    ) {
         this.plate = plate;
         this.model = model;
         this.currentKm = currentKm;
         this.nextMaintenanceKm = nextMaintenanceKm;
         this.status = status;
+        this.ipvaExpiry = ipvaExpiry;
+        this.licensingExpiry = licensingExpiry;
+        this.insuranceExpiry = insuranceExpiry;
+        this.lastMaintenanceAt = lastMaintenanceAt;
+        this.maintenanceNotes = maintenanceNotes;
     }
 }

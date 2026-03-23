@@ -40,10 +40,50 @@ public class Shift {
     @Column(name = "scheduled_end_at", nullable = false)
     private OffsetDateTime scheduledEndAt;
 
+    @Column(name = "check_in_at")
+    private OffsetDateTime checkInAt;
+
+    @Column(name = "check_out_at")
+    private OffsetDateTime checkOutAt;
+
+    @Column(name = "start_km")
+    private Long startKm;
+
+    @Column(name = "end_km")
+    private Long endKm;
+
+    @Column(name = "handoff_from_agent_id")
+    private Long handoffFromAgentId;
+
+    @Column(name = "handoff_from_agent_name")
+    private String handoffFromAgentName;
+
+    @Column(name = "handoff_to_agent_id")
+    private Long handoffToAgentId;
+
+    @Column(name = "handoff_to_agent_name")
+    private String handoffToAgentName;
+
+    @Column(name = "handoff_accepted_at")
+    private OffsetDateTime handoffAcceptedAt;
+
+    @Column(name = "handoff_notes", length = 500)
+    private String handoffNotes;
+
     protected Shift() {
     }
 
-    public Shift(Long agentId, String agentName, Long vehicleId, String vehiclePlate, ShiftStatus status, OffsetDateTime startedAt, OffsetDateTime scheduledEndAt) {
+    public Shift(
+            Long agentId,
+            String agentName,
+            Long vehicleId,
+            String vehiclePlate,
+            ShiftStatus status,
+            OffsetDateTime startedAt,
+            OffsetDateTime scheduledEndAt,
+            OffsetDateTime checkInAt,
+            Long startKm
+    ) {
         this.agentId = agentId;
         this.agentName = agentName;
         this.vehicleId = vehicleId;
@@ -51,6 +91,8 @@ public class Shift {
         this.status = status;
         this.startedAt = startedAt;
         this.scheduledEndAt = scheduledEndAt;
+        this.checkInAt = checkInAt;
+        this.startKm = startKm;
     }
 
     public Long getId() {
@@ -85,12 +127,78 @@ public class Shift {
         return scheduledEndAt;
     }
 
-    public void update(Long agentId, String agentName, Long vehicleId, String vehiclePlate, ShiftStatus status, OffsetDateTime scheduledEndAt) {
+    public OffsetDateTime getCheckInAt() {
+        return checkInAt;
+    }
+
+    public OffsetDateTime getCheckOutAt() {
+        return checkOutAt;
+    }
+
+    public Long getStartKm() {
+        return startKm;
+    }
+
+    public Long getEndKm() {
+        return endKm;
+    }
+
+    public Long getHandoffFromAgentId() {
+        return handoffFromAgentId;
+    }
+
+    public String getHandoffFromAgentName() {
+        return handoffFromAgentName;
+    }
+
+    public Long getHandoffToAgentId() {
+        return handoffToAgentId;
+    }
+
+    public String getHandoffToAgentName() {
+        return handoffToAgentName;
+    }
+
+    public OffsetDateTime getHandoffAcceptedAt() {
+        return handoffAcceptedAt;
+    }
+
+    public String getHandoffNotes() {
+        return handoffNotes;
+    }
+
+    public void update(Long agentId, String agentName, Long vehicleId, String vehiclePlate, ShiftStatus status, OffsetDateTime scheduledEndAt, Long endKm) {
         this.agentId = agentId;
         this.agentName = agentName;
         this.vehicleId = vehicleId;
         this.vehiclePlate = vehiclePlate;
         this.status = status;
         this.scheduledEndAt = scheduledEndAt;
+        this.endKm = endKm;
+    }
+
+    public void close(OffsetDateTime checkOutAt, Long endKm) {
+        this.status = ShiftStatus.CLOSED;
+        this.checkOutAt = checkOutAt;
+        this.endKm = endKm;
+    }
+
+    public void registerHandoff(
+            Long handoffFromAgentId,
+            String handoffFromAgentName,
+            Long handoffToAgentId,
+            String handoffToAgentName,
+            OffsetDateTime handoffAcceptedAt,
+            String handoffNotes
+    ) {
+        this.handoffFromAgentId = handoffFromAgentId;
+        this.handoffFromAgentName = handoffFromAgentName;
+        this.handoffToAgentId = handoffToAgentId;
+        this.handoffToAgentName = handoffToAgentName;
+        this.handoffAcceptedAt = handoffAcceptedAt;
+        this.handoffNotes = handoffNotes;
+        this.agentId = handoffToAgentId;
+        this.agentName = handoffToAgentName;
+        this.status = ShiftStatus.HANDOFF;
     }
 }

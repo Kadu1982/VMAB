@@ -14,6 +14,9 @@ export interface Agent {
   badgeCode: string
   cnhCategory: string
   cnhExpiry: string
+  medicalExamExpiry?: string | null
+  workExamsExpiry?: string | null
+  documentNotes?: string | null
   status: AgentStatus
   photoUrl?: string | null
 }
@@ -33,6 +36,11 @@ export interface Vehicle {
   model: string
   currentKm: number
   nextMaintenanceKm: number
+  ipvaExpiry?: string | null
+  licensingExpiry?: string | null
+  insuranceExpiry?: string | null
+  lastMaintenanceAt?: string | null
+  maintenanceNotes?: string | null
   status: VehicleStatus
 }
 
@@ -45,6 +53,16 @@ export interface Shift {
   status: ShiftStatus
   startedAt: string
   scheduledEndAt: string
+  checkInAt?: string | null
+  checkOutAt?: string | null
+  startKm?: number | null
+  endKm?: number | null
+  handoffFromAgentId?: number | null
+  handoffFromAgentName?: string | null
+  handoffToAgentId?: number | null
+  handoffToAgentName?: string | null
+  handoffAcceptedAt?: string | null
+  handoffNotes?: string | null
 }
 
 export interface PatrolRouteStop {

@@ -9,6 +9,9 @@ public record CreateAgentRequest(
         @NotBlank String badgeCode,
         @NotBlank String cnhCategory,
         @NotNull LocalDate cnhExpiry,
-        String photoUrl
+        String photoUrl,
+        LocalDate medicalExamExpiry,
+        LocalDate workExamsExpiry,
+        String documentNotes
 ) {
 }

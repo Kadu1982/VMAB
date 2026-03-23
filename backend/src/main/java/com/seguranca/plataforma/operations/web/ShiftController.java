@@ -1,6 +1,7 @@
 package com.seguranca.plataforma.operations.web;
 
 import com.seguranca.plataforma.operations.dto.CreateShiftRequest;
+import com.seguranca.plataforma.operations.dto.HandoffShiftRequest;
 import com.seguranca.plataforma.operations.dto.UpdateShiftRequest;
 import com.seguranca.plataforma.operations.model.Shift;
 import com.seguranca.plataforma.operations.service.OperationsService;
@@ -41,6 +42,11 @@ public class ShiftController {
     @PutMapping("/{id}")
     public Shift update(@PathVariable Long id, @Valid @RequestBody UpdateShiftRequest request) {
         return operationsService.updateShift(id, request);
+    }
+
+    @PostMapping("/{id}/handoff")
+    public Shift handoff(@PathVariable Long id, @Valid @RequestBody HandoffShiftRequest request) {
+        return operationsService.handoffShift(id, request);
     }
 
     @DeleteMapping("/{id}")

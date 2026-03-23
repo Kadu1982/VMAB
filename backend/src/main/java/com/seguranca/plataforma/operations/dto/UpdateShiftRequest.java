@@ -8,6 +8,7 @@ public record UpdateShiftRequest(
         @NotNull Long agentId,
         @NotNull Long vehicleId,
         @NotNull ShiftStatus status,
-        @NotNull OffsetDateTime scheduledEndAt
+        @NotNull OffsetDateTime scheduledEndAt,
+        Long endKm
 ) {
 }

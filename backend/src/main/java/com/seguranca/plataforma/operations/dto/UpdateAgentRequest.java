@@ -11,6 +11,9 @@ public record UpdateAgentRequest(
         @NotBlank String cnhCategory,
         @NotNull LocalDate cnhExpiry,
         @NotNull AgentStatus status,
-        String photoUrl
+        String photoUrl,
+        LocalDate medicalExamExpiry,
+        LocalDate workExamsExpiry,
+        String documentNotes
 ) {
 }

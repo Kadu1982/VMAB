@@ -37,16 +37,38 @@ public class Agent {
     @Column(name = "photo_url")
     private String photoUrl;
 
+    @Column(name = "medical_exam_expiry")
+    private LocalDate medicalExamExpiry;
+
+    @Column(name = "work_exams_expiry")
+    private LocalDate workExamsExpiry;
+
+    @Column(name = "document_notes", length = 500)
+    private String documentNotes;
+
     protected Agent() {
     }
 
-    public Agent(String fullName, String badgeCode, String cnhCategory, LocalDate cnhExpiry, AgentStatus status, String photoUrl) {
+    public Agent(
+            String fullName,
+            String badgeCode,
+            String cnhCategory,
+            LocalDate cnhExpiry,
+            AgentStatus status,
+            String photoUrl,
+            LocalDate medicalExamExpiry,
+            LocalDate workExamsExpiry,
+            String documentNotes
+    ) {
         this.fullName = fullName;
         this.badgeCode = badgeCode;
         this.cnhCategory = cnhCategory;
         this.cnhExpiry = cnhExpiry;
         this.status = status;
         this.photoUrl = photoUrl;
+        this.medicalExamExpiry = medicalExamExpiry;
+        this.workExamsExpiry = workExamsExpiry;
+        this.documentNotes = documentNotes;
     }
 
     public Long getId() {
@@ -77,12 +99,37 @@ public class Agent {
         return photoUrl;
     }
 
-    public void update(String fullName, String badgeCode, String cnhCategory, LocalDate cnhExpiry, AgentStatus status, String photoUrl) {
+    public LocalDate getMedicalExamExpiry() {
+        return medicalExamExpiry;
+    }
+
+    public LocalDate getWorkExamsExpiry() {
+        return workExamsExpiry;
+    }
+
+    public String getDocumentNotes() {
+        return documentNotes;
+    }
+
+    public void update(
+            String fullName,
+            String badgeCode,
+            String cnhCategory,
+            LocalDate cnhExpiry,
+            AgentStatus status,
+            String photoUrl,
+            LocalDate medicalExamExpiry,
+            LocalDate workExamsExpiry,
+            String documentNotes
+    ) {
         this.fullName = fullName;
         this.badgeCode = badgeCode;
         this.cnhCategory = cnhCategory;
         this.cnhExpiry = cnhExpiry;
         this.status = status;
         this.photoUrl = photoUrl;
+        this.medicalExamExpiry = medicalExamExpiry;
+        this.workExamsExpiry = workExamsExpiry;
+        this.documentNotes = documentNotes;
     }
 }

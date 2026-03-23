@@ -51,6 +51,9 @@ const initialAgentForm = {
   cnhCategory: '',
   cnhExpiry: '',
   photoUrl: '',
+  medicalExamExpiry: '',
+  workExamsExpiry: '',
+  documentNotes: '',
   status: 'ACTIVE' as AgentStatus,
 }
 
@@ -59,6 +62,11 @@ const initialVehicleForm = {
   model: '',
   currentKm: '',
   nextMaintenanceKm: '',
+  ipvaExpiry: '',
+  licensingExpiry: '',
+  insuranceExpiry: '',
+  lastMaintenanceAt: '',
+  maintenanceNotes: '',
   status: 'AVAILABLE' as VehicleStatus,
 }
 
@@ -75,6 +83,9 @@ const initialShiftForm = {
   vehicleId: '',
   scheduledEndAt: '',
   status: 'PLANNED' as ShiftStatus,
+  endKm: '',
+  handoffToAgentId: '',
+  handoffNotes: '',
 }
 
 const initialIncidentForm = {
@@ -484,6 +495,9 @@ function App() {
       cnhCategory: agent.cnhCategory,
       cnhExpiry: agent.cnhExpiry,
       photoUrl: agent.photoUrl ?? '',
+      medicalExamExpiry: agent.medicalExamExpiry ?? '',
+      workExamsExpiry: agent.workExamsExpiry ?? '',
+      documentNotes: agent.documentNotes ?? '',
       status: agent.status,
     })
   }
@@ -505,6 +519,11 @@ function App() {
       model: vehicle.model,
       currentKm: String(vehicle.currentKm),
       nextMaintenanceKm: String(vehicle.nextMaintenanceKm),
+      ipvaExpiry: vehicle.ipvaExpiry ?? '',
+      licensingExpiry: vehicle.licensingExpiry ?? '',
+      insuranceExpiry: vehicle.insuranceExpiry ?? '',
+      lastMaintenanceAt: vehicle.lastMaintenanceAt ?? '',
+      maintenanceNotes: vehicle.maintenanceNotes ?? '',
       status: vehicle.status,
     })
   }
@@ -527,6 +546,9 @@ function App() {
       vehicleId: String(shift.vehicleId),
       scheduledEndAt: formatDateTimeLocal(shift.scheduledEndAt),
       status: shift.status,
+      endKm: shift.endKm != null ? String(shift.endKm) : '',
+      handoffToAgentId: shift.handoffToAgentId != null ? String(shift.handoffToAgentId) : '',
+      handoffNotes: shift.handoffNotes ?? '',
     })
   }
 
@@ -659,6 +681,9 @@ function App() {
             cnhCategory: agentForm.cnhCategory,
             cnhExpiry: agentForm.cnhExpiry,
             photoUrl: agentForm.photoUrl || null,
+            medicalExamExpiry: agentForm.medicalExamExpiry || null,
+            workExamsExpiry: agentForm.workExamsExpiry || null,
+            documentNotes: agentForm.documentNotes || null,
           }
         : agentForm
 
@@ -690,6 +715,11 @@ function App() {
       model: vehicleForm.model,
       currentKm: Number(vehicleForm.currentKm),
       nextMaintenanceKm: Number(vehicleForm.nextMaintenanceKm),
+      ipvaExpiry: vehicleForm.ipvaExpiry || null,
+      licensingExpiry: vehicleForm.licensingExpiry || null,
+      insuranceExpiry: vehicleForm.insuranceExpiry || null,
+      lastMaintenanceAt: vehicleForm.lastMaintenanceAt || null,
+      maintenanceNotes: vehicleForm.maintenanceNotes || null,
     }
     const payload = editingVehicleId === null ? basePayload : { ...basePayload, status: vehicleForm.status }
     await saveEntity(path, method, payload, 'Nao foi possivel salvar a viatura.', resetVehicleForm)
@@ -717,9 +747,35 @@ function App() {
       agentId: Number(shiftForm.agentId),
       vehicleId: Number(shiftForm.vehicleId),
       scheduledEndAt: new Date(shiftForm.scheduledEndAt).toISOString(),
+      endKm: shiftForm.endKm ? Number(shiftForm.endKm) : null,
     }
     const payload = editingShiftId === null ? basePayload : { ...basePayload, status: shiftForm.status }
     await saveEntity(path, method, payload, 'Nao foi possivel salvar o turno.', resetShiftForm)
+  }
+
+  async function handleShiftHandoff(shiftId: number) {
+    if (!shiftForm.handoffToAgentId) {
+      setError('Selecione o vigilante que assumira o turno.')
+      return
+    }
+
+    const currentShift = summary?.shifts.find((shift) => shift.id === shiftId)
+    if (!currentShift) {
+      setError('Turno nao encontrado para registrar a passagem.')
+      return
+    }
+
+    await saveEntity(
+      `/api/shifts/${shiftId}/handoff`,
+      'POST',
+      {
+        fromAgentId: currentShift.agentId,
+        toAgentId: Number(shiftForm.handoffToAgentId),
+        notes: shiftForm.handoffNotes || null,
+      },
+      'Nao foi possivel concluir a troca de turno.',
+      resetShiftForm,
+    )
   }
 
   async function handleIncidentSubmit(event: FormEvent<HTMLFormElement>) {
@@ -1039,7 +1095,10 @@ function App() {
                     <input required placeholder="Codigo / cracha" value={agentForm.badgeCode} onChange={(event) => setAgentForm((current) => ({ ...current, badgeCode: event.target.value }))} />
                     <input required placeholder="Categoria CNH" value={agentForm.cnhCategory} onChange={(event) => setAgentForm((current) => ({ ...current, cnhCategory: event.target.value }))} />
                     <input required type="date" value={agentForm.cnhExpiry} onChange={(event) => setAgentForm((current) => ({ ...current, cnhExpiry: event.target.value }))} />
+                    <input type="date" value={agentForm.medicalExamExpiry} onChange={(event) => setAgentForm((current) => ({ ...current, medicalExamExpiry: event.target.value }))} />
+                    <input type="date" value={agentForm.workExamsExpiry} onChange={(event) => setAgentForm((current) => ({ ...current, workExamsExpiry: event.target.value }))} />
                     <input placeholder="URL da foto do vigilante" value={agentForm.photoUrl} onChange={(event) => setAgentForm((current) => ({ ...current, photoUrl: event.target.value }))} />
+                    <input placeholder="Observacoes documentais" value={agentForm.documentNotes} onChange={(event) => setAgentForm((current) => ({ ...current, documentNotes: event.target.value }))} />
                     <select value={agentForm.status} onChange={(event) => setAgentForm((current) => ({ ...current, status: event.target.value as AgentStatus }))}>
                       {agentStatusOptions.map((status) => <option key={status} value={status}>{translateAgentStatus(status)}</option>)}
                     </select>
@@ -1054,7 +1113,7 @@ function App() {
                     <article className="list-row" key={agent.id}>
                       <div>
                         <strong>{agent.fullName}</strong>
-                        <small>Cracha {agent.badgeCode} | CNH {agent.cnhCategory} ate {agent.cnhExpiry}</small>
+                        <small>Cracha {agent.badgeCode} | CNH {agent.cnhCategory} ate {agent.cnhExpiry} | exame medico {agent.medicalExamExpiry ?? 'nao informado'}</small>
                       </div>
                       <div className="row-actions">
                         <span className={`tag ${agent.status.toLowerCase()}`}>{translateAgentStatus(agent.status)}</span>
@@ -1120,6 +1179,11 @@ function App() {
                     <input required placeholder="Modelo" value={vehicleForm.model} onChange={(event) => setVehicleForm((current) => ({ ...current, model: event.target.value }))} />
                     <input required min="0" type="number" placeholder="KM atual" value={vehicleForm.currentKm} onChange={(event) => setVehicleForm((current) => ({ ...current, currentKm: event.target.value }))} />
                     <input required min="1" type="number" placeholder="Proxima manutencao" value={vehicleForm.nextMaintenanceKm} onChange={(event) => setVehicleForm((current) => ({ ...current, nextMaintenanceKm: event.target.value }))} />
+                    <input type="date" value={vehicleForm.lastMaintenanceAt} onChange={(event) => setVehicleForm((current) => ({ ...current, lastMaintenanceAt: event.target.value }))} />
+                    <input type="date" value={vehicleForm.ipvaExpiry} onChange={(event) => setVehicleForm((current) => ({ ...current, ipvaExpiry: event.target.value }))} />
+                    <input type="date" value={vehicleForm.licensingExpiry} onChange={(event) => setVehicleForm((current) => ({ ...current, licensingExpiry: event.target.value }))} />
+                    <input type="date" value={vehicleForm.insuranceExpiry} onChange={(event) => setVehicleForm((current) => ({ ...current, insuranceExpiry: event.target.value }))} />
+                    <input placeholder="Observacoes de manutencao / documentos" value={vehicleForm.maintenanceNotes} onChange={(event) => setVehicleForm((current) => ({ ...current, maintenanceNotes: event.target.value }))} />
                     <select value={vehicleForm.status} onChange={(event) => setVehicleForm((current) => ({ ...current, status: event.target.value as VehicleStatus }))}>
                       {vehicleStatusOptions.map((status) => <option key={status} value={status}>{translateVehicleStatus(status)}</option>)}
                     </select>
@@ -1134,7 +1198,7 @@ function App() {
                     <article className="list-row" key={vehicle.id}>
                       <div>
                         <strong>{vehicle.model}</strong>
-                        <small>{vehicle.plate} | {vehicle.currentKm.toLocaleString('pt-BR')} km | revisao em {vehicle.nextMaintenanceKm.toLocaleString('pt-BR')} km</small>
+                        <small>{vehicle.plate} | {vehicle.currentKm.toLocaleString('pt-BR')} km | revisao em {vehicle.nextMaintenanceKm.toLocaleString('pt-BR')} km | IPVA {vehicle.ipvaExpiry ?? 'nao informado'}</small>
                       </div>
                       <div className="row-actions">
                         <span className={`tag ${vehicle.status.toLowerCase()}`}>{translateVehicleStatus(vehicle.status)}</span>
@@ -1169,11 +1233,18 @@ function App() {
                       {summary.vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.plate} - {vehicle.model}</option>)}
                     </select>
                     <input required type="datetime-local" value={shiftForm.scheduledEndAt} onChange={(event) => setShiftForm((current) => ({ ...current, scheduledEndAt: event.target.value }))} />
+                    <input min="0" type="number" placeholder="KM final ao encerrar" value={shiftForm.endKm} onChange={(event) => setShiftForm((current) => ({ ...current, endKm: event.target.value }))} />
                     <select value={shiftForm.status} onChange={(event) => setShiftForm((current) => ({ ...current, status: event.target.value as ShiftStatus }))}>
                       {shiftStatusOptions.map((status) => <option key={status} value={status}>{translateShiftStatus(status)}</option>)}
                     </select>
+                    <select value={shiftForm.handoffToAgentId} onChange={(event) => setShiftForm((current) => ({ ...current, handoffToAgentId: event.target.value }))}>
+                      <option value="">Vigilante que assume</option>
+                      {summary.agents.filter((agent) => String(agent.id) !== shiftForm.agentId).map((agent) => <option key={agent.id} value={agent.id}>{agent.fullName}</option>)}
+                    </select>
+                    <input placeholder="Observacoes da troca de turno" value={shiftForm.handoffNotes} onChange={(event) => setShiftForm((current) => ({ ...current, handoffNotes: event.target.value }))} />
                     <div className="button-row">
                       <button disabled={shiftSubmitDisabled} type="submit">{editingShiftId === null ? 'Cadastrar turno' : 'Salvar turno'}</button>
+                      {editingShiftId !== null ? <button className="secondary-button" onClick={() => void handleShiftHandoff(editingShiftId)} type="button">Registrar troca</button> : null}
                       {editingShiftId !== null ? <button className="secondary-button" onClick={resetShiftForm} type="button">Cancelar</button> : null}
                     </div>
                   </form>
@@ -1183,7 +1254,7 @@ function App() {
                     <article className="list-row" key={shift.id}>
                       <div>
                         <strong>{shift.agentName}</strong>
-                        <small>{shift.vehiclePlate} | inicio {formatDate(shift.startedAt)} | fim previsto {formatDate(shift.scheduledEndAt)}</small>
+                        <small>{shift.vehiclePlate} | ponto {shift.checkInAt ? formatDate(shift.checkInAt) : formatDate(shift.startedAt)} | fim previsto {formatDate(shift.scheduledEndAt)} | troca {shift.handoffToAgentName ?? 'nao registrada'}</small>
                       </div>
                       <div className="row-actions">
                         <span className={`tag ${shift.status.toLowerCase()}`}>{translateShiftStatus(shift.status)}</span>
