@@ -39,6 +39,18 @@ Se quiser manter o site atual da Hostinger no dominio raiz, deixe `@` e `www` co
 - [.env.production.example](C:\Users\G15\Documents\Segurança\.env.production.example)
 - [Caddyfile](C:\Users\G15\Documents\Segurança\infra\caddy\Caddyfile)
 
+## Observabilidade em producao
+O backend expõe endpoints uteis para verificacao operacional e monitoramento:
+- `GET /actuator/health`
+- `GET /actuator/health/readiness`
+- `GET /actuator/health/liveness`
+- `GET /actuator/info`
+- `GET /actuator/metrics`
+- `GET /actuator/prometheus`
+- `GET /actuator/loggers`
+
+Os logs ficam persistidos no container em `/app/logs/vmab.log` e carregam `X-Correlation-Id` para rastrear a mesma requisicao do navegador ou do mobile ate o backend.
+
 ## Arquivo de ambiente na VPS
 Na VPS:
 

@@ -10,6 +10,5 @@ public interface ResidentSessionRepository extends JpaRepository<ResidentSession
     Optional<ResidentSession> findByTokenHash(String tokenHash);
 
     List<ResidentSession> findByResidentIdOrderByCreatedAtDesc(Long residentId);
-
-    long deleteByExpiresAtBeforeOrRevokedAtBefore(OffsetDateTime expiresAt, OffsetDateTime revokedAt);
+    List<ResidentSession> findByExpiresAtBeforeOrRevokedAtBefore(OffsetDateTime expiresAt, OffsetDateTime revokedAt);
 }

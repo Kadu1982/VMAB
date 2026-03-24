@@ -86,8 +86,14 @@ public class RetentionMaintenanceService {
         OffsetDateTime residentSessionCutoff = now.minusDays(retentionProperties.getResidentSessionRetentionDays());
         OffsetDateTime evidenceCutoff = now.minusDays(retentionProperties.getIncidentEvidenceRetentionDays());
 
-        long removedPasswordResetTokens = passwordResetTokenRepository.deleteByExpiresAtBefore(passwordResetCutoff);
-        long removedResidentSessions = residentSessionRepository.deleteByExpiresAtBeforeOrRevokedAtBefore(residentSessionCutoff, residentSessionCutoff);
+        List<com.seguranca.plataforma.auth.PasswordResetToken> expiredPasswordResetTokens = passwordResetTokenRepository.findByExpiresAtBefore(passwordResetCutoff);
+        long removedPasswordResetTokens = expiredPasswordResetTokens.size();
+        passwordResetTokenRepository.deleteAllInBatch(expiredPasswordResetTokens);
+
+        List<com.seguranca.plataforma.operations.residentapp.model.ResidentSession> expiredResidentSessions =
+                residentSessionRepository.findByExpiresAtBeforeOrRevokedAtBefore(residentSessionCutoff, residentSessionCutoff);
+        long removedResidentSessions = expiredResidentSessions.size();
+        residentSessionRepository.deleteAllInBatch(expiredResidentSessions);
         List<IncidentEvidence> expiredEvidence = incidentEvidenceRepository.findByUploadedAtBeforeOrderByUploadedAtAsc(evidenceCutoff);
         incidentEvidenceRepository.deleteAll(expiredEvidence);
 

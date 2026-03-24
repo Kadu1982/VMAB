@@ -4,6 +4,7 @@ services:
   postgres:
     image: postgres:17-alpine
     container_name: seguranca-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_DB: seguranca_comunitaria
       POSTGRES_USER: seguranca
@@ -22,26 +23,41 @@ services:
     build:
       context: ./backend
     container_name: seguranca-backend
+    restart: unless-stopped
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/seguranca_comunitaria
       DB_USERNAME: seguranca
       DB_PASSWORD: seguranca123
       JWT_SECRET: vmab-local-dev-secret-change-before-production
       JWT_EXPIRATION_HOURS: 12
+      VMAB_LOG_DIR: /app/logs
     depends_on:
       postgres:
         condition: service_healthy
     ports:
       - "${BACKEND_PORT:-8081}:8080"
+    # O healthcheck valida a API ja pronta, nao apenas a porta aberta.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health/readiness >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    # Os logs sao persistidos fora do container para auditoria local e depuracao.
+    volumes:
+      - backend_logs:/app/logs
 
   dashboard-web:
     build:
       context: ./dashboard-web
     container_name: seguranca-dashboard
+    restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     ports:
       - "3000:80"
 
 volumes:
   postgres_data:
+  backend_logs:

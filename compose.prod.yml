@@ -47,9 +47,20 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION_HOURS: ${JWT_EXPIRATION_HOURS:-12}
+      VMAB_LOG_DIR: /app/logs
     depends_on:
       postgres:
         condition: service_healthy
+    # Em producao, o proxy e a orquestracao precisam saber quando a API realmente ficou pronta.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health/readiness >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    # Os logs ficam persistidos para auditoria e suporte na VPS.
+    volumes:
+      - backend_logs:/app/logs
 
   dashboard-web:
     build:
@@ -57,9 +68,11 @@ services:
     container_name: seguranca-dashboard
     restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
 volumes:
   postgres_data:
   caddy_data:
   caddy_config:
+  backend_logs:
