@@ -24,6 +24,7 @@ import com.seguranca.plataforma.operations.model.IncidentStatus;
 import com.seguranca.plataforma.operations.model.Resident;
 import com.seguranca.plataforma.operations.model.ResidentStatus;
 import com.seguranca.plataforma.operations.model.Shift;
+import com.seguranca.plataforma.operations.model.ShiftAttendanceStatus;
 import com.seguranca.plataforma.operations.model.ShiftStatus;
 import com.seguranca.plataforma.operations.model.ShiftTelemetry;
 import com.seguranca.plataforma.operations.model.Vehicle;
@@ -91,12 +92,13 @@ public class OperationsService {
         Vehicle alpha = vehicleRepository.save(new Vehicle("ABC1D23", "Renault Duster", 48241, 49000, VehicleStatus.IN_OPERATION, LocalDate.now().plusMonths(7), LocalDate.now().plusMonths(7), LocalDate.now().plusMonths(10), LocalDate.now().minusMonths(2), "Manutencao preventiva realizada na ultima troca de oleo"));
         Vehicle beta = vehicleRepository.save(new Vehicle("FGH4J56", "Chevrolet Spin", 61120, 62000, VehicleStatus.AVAILABLE, LocalDate.now().plusMonths(2), LocalDate.now().plusMonths(2), LocalDate.now().plusMonths(6), LocalDate.now().minusMonths(1), "Verificar desgaste de pneus no proximo ciclo"));
 
-        shiftRepository.save(new Shift(
+        Shift activeSeedShift = new Shift(
                 carlos.getId(),
                 carlos.getFullName(),
                 alpha.getId(),
                 alpha.getPlate(),
                 ShiftStatus.ACTIVE,
+                OffsetDateTime.now().minusHours(3),
                 OffsetDateTime.now().minusHours(3),
                 OffsetDateTime.now().plusHours(5),
                 OffsetDateTime.now().minusHours(3),
@@ -106,14 +108,18 @@ public class OperationsService {
                 true,
                 true,
                 "Checklist inicial validado pela base"
-        ));
-        shiftRepository.save(new Shift(
+        );
+        applyAttendanceState(activeSeedShift, null, null, "Turno iniciado dentro do horario previsto");
+        shiftRepository.save(activeSeedShift);
+
+        Shift plannedSeedShift = new Shift(
                 marina.getId(),
                 marina.getFullName(),
                 beta.getId(),
                 beta.getPlate(),
                 ShiftStatus.PLANNED,
                 null,
+                OffsetDateTime.now().plusHours(5),
                 OffsetDateTime.now().plusHours(13),
                 null,
                 null,
@@ -122,7 +128,9 @@ public class OperationsService {
                 true,
                 false,
                 "Documentacao da viatura precisa ser revisada antes do proximo turno"
-        ));
+        );
+        applyAttendanceState(plannedSeedShift, ShiftAttendanceStatus.PENDING, null, "Aguardando apresentacao da equipe de cobertura");
+        shiftRepository.save(plannedSeedShift);
 
         incidentRepository.save(new Incident(
                 com.seguranca.plataforma.operations.model.IncidentType.PANIC,
@@ -281,7 +289,7 @@ public class OperationsService {
     @Transactional(readOnly = true)
     public List<Shift> listShifts() {
         return shiftRepository.findAll().stream()
-                .sorted(Comparator.comparing(Shift::getStartedAt, Comparator.nullsLast(Comparator.naturalOrder())))
+                .sorted(Comparator.comparing(Shift::getScheduledStartAt))
                 .toList();
     }
 
@@ -291,6 +299,9 @@ public class OperationsService {
         Agent agent = getAgent(request.agentId());
         Vehicle vehicle = getVehicle(request.vehicleId());
         validateFuelLevelPercent(request.fuelLevelPercent());
+        validateShiftSchedule(request.scheduledStartAt(), request.scheduledEndAt());
+        validateAttendanceConsistency(request.attendanceStatus(), request.coverageForAgentId());
+        Agent coveredAgent = resolveCoveredAgent(request.attendanceStatus(), request.coverageForAgentId());
 
         Shift shift = new Shift(
                 agent.getId(),
@@ -299,6 +310,7 @@ public class OperationsService {
                 vehicle.getPlate(),
                 ShiftStatus.PLANNED,
                 null,
+                request.scheduledStartAt(),
                 request.scheduledEndAt(),
                 null,
                 null,
@@ -308,6 +320,7 @@ public class OperationsService {
                 request.documentsChecked(),
                 request.checklistNotes()
         );
+        applyAttendanceState(shift, request.attendanceStatus(), coveredAgent, request.attendanceNotes());
         return shiftRepository.save(shift);
     }
 
@@ -318,6 +331,14 @@ public class OperationsService {
         Agent agent = getAgent(request.agentId());
         Vehicle vehicle = getVehicle(request.vehicleId());
         validateFuelLevelPercent(request.fuelLevelPercent());
+        validateShiftSchedule(request.scheduledStartAt(), request.scheduledEndAt());
+        validateAttendanceConsistency(request.attendanceStatus(), request.coverageForAgentId());
+        Agent coveredAgent = resolveCoveredAgent(request.attendanceStatus(), request.coverageForAgentId());
+
+        if (request.attendanceStatus() == ShiftAttendanceStatus.ABSENT
+                && (request.status() == ShiftStatus.ACTIVE || request.status() == ShiftStatus.HANDOFF || request.status() == ShiftStatus.CLOSED)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Um turno marcado como falta nao pode entrar em operacao sem cobertura.");
+        }
 
         if (request.status() == ShiftStatus.ACTIVE || request.status() == ShiftStatus.HANDOFF || request.status() == ShiftStatus.CLOSED) {
             activateShiftIfNeeded(shift, vehicle);
@@ -342,6 +363,7 @@ public class OperationsService {
                 vehicle.getId(),
                 vehicle.getPlate(),
                 request.status(),
+                request.scheduledStartAt(),
                 request.scheduledEndAt(),
                 request.endKm(),
                 request.fuelLevelPercent(),
@@ -350,6 +372,7 @@ public class OperationsService {
                 request.documentsChecked(),
                 request.checklistNotes()
         );
+        applyAttendanceState(shift, request.attendanceStatus(), coveredAgent, request.attendanceNotes());
 
         if (request.status() == ShiftStatus.CLOSED) {
             shift.close(OffsetDateTime.now(ZoneOffset.UTC), request.endKm());
@@ -587,6 +610,24 @@ public class OperationsService {
         }
     }
 
+    private void validateShiftSchedule(OffsetDateTime scheduledStartAt, OffsetDateTime scheduledEndAt) {
+        // Garante uma janela de escala coerente antes de persistir o turno.
+        if (!scheduledEndAt.isAfter(scheduledStartAt)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O fim previsto do turno deve ser posterior ao inicio previsto.");
+        }
+    }
+
+    private void validateAttendanceConsistency(ShiftAttendanceStatus attendanceStatus, Long coverageForAgentId) {
+        // Impede estados de escala contraditorios, como cobertura sem vigilante ausente.
+        if (attendanceStatus == ShiftAttendanceStatus.COVERED && coverageForAgentId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selecione o vigilante coberto quando o turno estiver marcado como cobertura.");
+        }
+
+        if (attendanceStatus != ShiftAttendanceStatus.COVERED && coverageForAgentId != null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O vigilante coberto so pode ser informado quando o status de presenca for cobertura.");
+        }
+    }
+
     private void activateShiftIfNeeded(Shift shift, Vehicle vehicle) {
         // Marca check-in e KM inicial apenas quando o turno efetivamente entra em operacao.
         if (shift.getCheckInAt() == null) {
@@ -604,6 +645,46 @@ public class OperationsService {
         if (endKm < vehicle.getCurrentKm()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A quilometragem final nao pode ser menor que a quilometragem atual da viatura.");
         }
+    }
+
+    private Agent resolveCoveredAgent(ShiftAttendanceStatus attendanceStatus, Long coverageForAgentId) {
+        if (attendanceStatus != ShiftAttendanceStatus.COVERED || coverageForAgentId == null) {
+            return null;
+        }
+
+        return getAgent(coverageForAgentId);
+    }
+
+    private void applyAttendanceState(Shift shift, ShiftAttendanceStatus requestedAttendanceStatus, Agent coveredAgent, String attendanceNotes) {
+        // Consolida leitura de escala, atraso e cobertura no proprio turno para evitar estado espalhado.
+        ShiftAttendanceStatus effectiveStatus = requestedAttendanceStatus == null ? ShiftAttendanceStatus.PENDING : requestedAttendanceStatus;
+        Integer lateMinutes = calculateLateMinutes(shift);
+
+        if ((effectiveStatus == ShiftAttendanceStatus.PENDING || effectiveStatus == ShiftAttendanceStatus.ON_TIME || effectiveStatus == ShiftAttendanceStatus.LATE)
+                && shift.getCheckInAt() != null) {
+            effectiveStatus = lateMinutes != null && lateMinutes > 0 ? ShiftAttendanceStatus.LATE : ShiftAttendanceStatus.ON_TIME;
+        }
+
+        if (effectiveStatus == ShiftAttendanceStatus.PENDING && shift.getCheckInAt() == null) {
+            lateMinutes = null;
+        }
+
+        shift.updateAttendance(
+                effectiveStatus,
+                lateMinutes,
+                coveredAgent != null ? coveredAgent.getId() : null,
+                coveredAgent != null ? coveredAgent.getFullName() : null,
+                attendanceNotes
+        );
+    }
+
+    private Integer calculateLateMinutes(Shift shift) {
+        if (shift.getCheckInAt() == null || shift.getScheduledStartAt() == null) {
+            return null;
+        }
+
+        long minutes = java.time.Duration.between(shift.getScheduledStartAt(), shift.getCheckInAt()).toMinutes();
+        return (int) Math.max(minutes, 0);
     }
 
     private Incident getIncident(Long id) {

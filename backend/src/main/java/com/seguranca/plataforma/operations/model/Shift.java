@@ -37,6 +37,9 @@ public class Shift {
     @Column(name = "started_at")
     private OffsetDateTime startedAt;
 
+    @Column(name = "scheduled_start_at", nullable = false)
+    private OffsetDateTime scheduledStartAt;
+
     @Column(name = "scheduled_end_at", nullable = false)
     private OffsetDateTime scheduledEndAt;
 
@@ -85,6 +88,22 @@ public class Shift {
     @Column(name = "checklist_notes", length = 500)
     private String checklistNotes;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "attendance_status", nullable = false)
+    private ShiftAttendanceStatus attendanceStatus;
+
+    @Column(name = "late_minutes")
+    private Integer lateMinutes;
+
+    @Column(name = "coverage_for_agent_id")
+    private Long coverageForAgentId;
+
+    @Column(name = "coverage_for_agent_name")
+    private String coverageForAgentName;
+
+    @Column(name = "attendance_notes", length = 500)
+    private String attendanceNotes;
+
     protected Shift() {
     }
 
@@ -95,6 +114,7 @@ public class Shift {
             String vehiclePlate,
             ShiftStatus status,
             OffsetDateTime startedAt,
+            OffsetDateTime scheduledStartAt,
             OffsetDateTime scheduledEndAt,
             OffsetDateTime checkInAt,
             Long startKm,
@@ -110,6 +130,7 @@ public class Shift {
         this.vehiclePlate = vehiclePlate;
         this.status = status;
         this.startedAt = startedAt;
+        this.scheduledStartAt = scheduledStartAt;
         this.scheduledEndAt = scheduledEndAt;
         this.checkInAt = checkInAt;
         this.startKm = startKm;
@@ -118,6 +139,7 @@ public class Shift {
         this.lightsChecked = lightsChecked;
         this.documentsChecked = documentsChecked;
         this.checklistNotes = checklistNotes;
+        this.attendanceStatus = ShiftAttendanceStatus.PENDING;
     }
 
     public Long getId() {
@@ -150,6 +172,10 @@ public class Shift {
 
     public OffsetDateTime getScheduledEndAt() {
         return scheduledEndAt;
+    }
+
+    public OffsetDateTime getScheduledStartAt() {
+        return scheduledStartAt;
     }
 
     public OffsetDateTime getCheckInAt() {
@@ -212,12 +238,33 @@ public class Shift {
         return checklistNotes;
     }
 
+    public ShiftAttendanceStatus getAttendanceStatus() {
+        return attendanceStatus;
+    }
+
+    public Integer getLateMinutes() {
+        return lateMinutes;
+    }
+
+    public Long getCoverageForAgentId() {
+        return coverageForAgentId;
+    }
+
+    public String getCoverageForAgentName() {
+        return coverageForAgentName;
+    }
+
+    public String getAttendanceNotes() {
+        return attendanceNotes;
+    }
+
     public void update(
             Long agentId,
             String agentName,
             Long vehicleId,
             String vehiclePlate,
             ShiftStatus status,
+            OffsetDateTime scheduledStartAt,
             OffsetDateTime scheduledEndAt,
             Long endKm,
             Integer fuelLevelPercent,
@@ -233,6 +280,7 @@ public class Shift {
         this.vehicleId = vehicleId;
         this.vehiclePlate = vehiclePlate;
         this.status = status;
+        this.scheduledStartAt = scheduledStartAt;
         this.scheduledEndAt = scheduledEndAt;
         this.endKm = endKm;
         this.fuelLevelPercent = fuelLevelPercent;
@@ -253,6 +301,21 @@ public class Shift {
         if (this.status == ShiftStatus.PLANNED) {
             this.status = ShiftStatus.ACTIVE;
         }
+    }
+
+    public void updateAttendance(
+            ShiftAttendanceStatus attendanceStatus,
+            Integer lateMinutes,
+            Long coverageForAgentId,
+            String coverageForAgentName,
+            String attendanceNotes
+    ) {
+        // Centraliza a leitura de presenca do turno para escala, cobertura e atraso.
+        this.attendanceStatus = attendanceStatus;
+        this.lateMinutes = lateMinutes;
+        this.coverageForAgentId = coverageForAgentId;
+        this.coverageForAgentName = coverageForAgentName;
+        this.attendanceNotes = attendanceNotes;
     }
 
     public void close(OffsetDateTime checkOutAt, Long endKm) {

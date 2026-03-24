@@ -1,5 +1,6 @@
 package com.seguranca.plataforma.operations.dto;
 
+import com.seguranca.plataforma.operations.model.ShiftAttendanceStatus;
 import com.seguranca.plataforma.operations.model.ShiftStatus;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Max;
@@ -10,6 +11,7 @@ public record UpdateShiftRequest(
         @NotNull Long agentId,
         @NotNull Long vehicleId,
         @NotNull ShiftStatus status,
+        @NotNull OffsetDateTime scheduledStartAt,
         @NotNull OffsetDateTime scheduledEndAt,
         Long endKm,
         @Min(0) @Max(100)
@@ -17,6 +19,9 @@ public record UpdateShiftRequest(
         boolean tiresChecked,
         boolean lightsChecked,
         boolean documentsChecked,
-        String checklistNotes
+        String checklistNotes,
+        ShiftAttendanceStatus attendanceStatus,
+        Long coverageForAgentId,
+        String attendanceNotes
 ) {
 }

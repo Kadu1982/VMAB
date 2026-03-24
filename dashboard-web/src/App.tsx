@@ -19,6 +19,7 @@ import type {
   Resident,
   ResidentStatus,
   Shift,
+  ShiftAttendanceStatus,
   ShiftStatus,
   Vehicle,
   VehicleStatus,
@@ -31,6 +32,7 @@ const agentStatusOptions: AgentStatus[] = ['ACTIVE', 'ON_DUTY', 'OFF_DUTY', 'BLO
 const residentStatusOptions: ResidentStatus[] = ['ACTIVE', 'INACTIVE']
 const vehicleStatusOptions: VehicleStatus[] = ['AVAILABLE', 'IN_OPERATION', 'MAINTENANCE', 'BLOCKED']
 const shiftStatusOptions: ShiftStatus[] = ['PLANNED', 'ACTIVE', 'HANDOFF', 'CLOSED']
+const shiftAttendanceOptions: ShiftAttendanceStatus[] = ['PENDING', 'ON_TIME', 'LATE', 'ABSENT', 'COVERED']
 const incidentTypeOptions: IncidentType[] = ['PANIC', 'SUSPICIOUS_ACTIVITY', 'MEDICAL', 'ESCORT']
 const incidentPriorityOptions: IncidentPriority[] = ['HIGH', 'MEDIUM', 'LOW']
 const incidentStatusOptions: IncidentStatus[] = ['OPEN', 'DISPATCHED', 'ON_SITE', 'CLOSED']
@@ -81,8 +83,12 @@ const initialResidentForm = {
 const initialShiftForm = {
   agentId: '',
   vehicleId: '',
+  scheduledStartAt: '',
   scheduledEndAt: '',
   status: 'PLANNED' as ShiftStatus,
+  attendanceStatus: 'PENDING' as ShiftAttendanceStatus,
+  coverageForAgentId: '',
+  attendanceNotes: '',
   endKm: '',
   handoffToAgentId: '',
   handoffNotes: '',
@@ -150,6 +156,16 @@ function translateShiftStatus(status: ShiftStatus) {
     ACTIVE: 'Ativo',
     HANDOFF: 'Troca de turno',
     CLOSED: 'Encerrado',
+  }[status]
+}
+
+function translateShiftAttendanceStatus(status: ShiftAttendanceStatus) {
+  return {
+    PENDING: 'Pendente',
+    ON_TIME: 'No horario',
+    LATE: 'Atrasado',
+    ABSENT: 'Falta',
+    COVERED: 'Cobertura',
   }[status]
 }
 
@@ -551,8 +567,12 @@ function App() {
     setShiftForm({
       agentId: String(shift.agentId),
       vehicleId: String(shift.vehicleId),
+      scheduledStartAt: formatDateTimeLocal(shift.scheduledStartAt),
       scheduledEndAt: formatDateTimeLocal(shift.scheduledEndAt),
       status: shift.status,
+      attendanceStatus: shift.attendanceStatus,
+      coverageForAgentId: shift.coverageForAgentId != null ? String(shift.coverageForAgentId) : '',
+      attendanceNotes: shift.attendanceNotes ?? '',
       endKm: shift.endKm != null ? String(shift.endKm) : '',
       handoffToAgentId: shift.handoffToAgentId != null ? String(shift.handoffToAgentId) : '',
       handoffNotes: shift.handoffNotes ?? '',
@@ -758,7 +778,11 @@ function App() {
     const basePayload = {
       agentId: Number(shiftForm.agentId),
       vehicleId: Number(shiftForm.vehicleId),
+      scheduledStartAt: new Date(shiftForm.scheduledStartAt).toISOString(),
       scheduledEndAt: new Date(shiftForm.scheduledEndAt).toISOString(),
+      attendanceStatus: shiftForm.attendanceStatus,
+      coverageForAgentId: shiftForm.coverageForAgentId ? Number(shiftForm.coverageForAgentId) : null,
+      attendanceNotes: shiftForm.attendanceNotes || null,
       endKm: shiftForm.endKm ? Number(shiftForm.endKm) : null,
       fuelLevelPercent: shiftForm.fuelLevelPercent ? Number(shiftForm.fuelLevelPercent) : null,
       tiresChecked: shiftForm.tiresChecked,
@@ -1250,17 +1274,26 @@ function App() {
                       <option value="">Selecione uma viatura</option>
                       {summary.vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.plate} - {vehicle.model}</option>)}
                     </select>
+                    <input required type="datetime-local" value={shiftForm.scheduledStartAt} onChange={(event) => setShiftForm((current) => ({ ...current, scheduledStartAt: event.target.value }))} />
                     <input required type="datetime-local" value={shiftForm.scheduledEndAt} onChange={(event) => setShiftForm((current) => ({ ...current, scheduledEndAt: event.target.value }))} />
                     <input min="0" type="number" placeholder="KM final ao encerrar" value={shiftForm.endKm} onChange={(event) => setShiftForm((current) => ({ ...current, endKm: event.target.value }))} />
                     <input min="0" max="100" type="number" placeholder="Combustivel (%)" value={shiftForm.fuelLevelPercent} onChange={(event) => setShiftForm((current) => ({ ...current, fuelLevelPercent: event.target.value }))} />
                     <select value={shiftForm.status} onChange={(event) => setShiftForm((current) => ({ ...current, status: event.target.value as ShiftStatus }))}>
                       {shiftStatusOptions.map((status) => <option key={status} value={status}>{translateShiftStatus(status)}</option>)}
                     </select>
+                    <select value={shiftForm.attendanceStatus} onChange={(event) => setShiftForm((current) => ({ ...current, attendanceStatus: event.target.value as ShiftAttendanceStatus }))}>
+                      {shiftAttendanceOptions.map((status) => <option key={status} value={status}>{translateShiftAttendanceStatus(status)}</option>)}
+                    </select>
+                    <select value={shiftForm.coverageForAgentId} onChange={(event) => setShiftForm((current) => ({ ...current, coverageForAgentId: event.target.value }))}>
+                      <option value="">Vigilante coberto</option>
+                      {summary.agents.filter((agent) => String(agent.id) !== shiftForm.agentId).map((agent) => <option key={agent.id} value={agent.id}>{agent.fullName}</option>)}
+                    </select>
                     <select value={shiftForm.handoffToAgentId} onChange={(event) => setShiftForm((current) => ({ ...current, handoffToAgentId: event.target.value }))}>
                       <option value="">Vigilante que assume</option>
                       {summary.agents.filter((agent) => String(agent.id) !== shiftForm.agentId).map((agent) => <option key={agent.id} value={agent.id}>{agent.fullName}</option>)}
                     </select>
                     {/* Checklist minimo para fechar jornada e registrar a condicao da viatura no turno. */}
+                    <input placeholder="Observacoes de escala / presenca" value={shiftForm.attendanceNotes} onChange={(event) => setShiftForm((current) => ({ ...current, attendanceNotes: event.target.value }))} />
                     <input placeholder="Observacoes da troca de turno" value={shiftForm.handoffNotes} onChange={(event) => setShiftForm((current) => ({ ...current, handoffNotes: event.target.value }))} />
                     <input placeholder="Observacoes do checklist" value={shiftForm.checklistNotes} onChange={(event) => setShiftForm((current) => ({ ...current, checklistNotes: event.target.value }))} />
                     <label className="checkbox-field">
@@ -1287,7 +1320,7 @@ function App() {
                     <article className="list-row" key={shift.id}>
                       <div>
                         <strong>{shift.agentName}</strong>
-                        <small>{shift.vehiclePlate} | ponto {shift.checkInAt ? formatDate(shift.checkInAt) : 'nao iniciado'} | fim previsto {formatDate(shift.scheduledEndAt)} | troca {shift.handoffToAgentName ?? 'nao registrada'} | checklist {shift.documentsChecked ? 'ok' : 'pendente'}</small>
+                        <small>{shift.vehiclePlate} | escala {formatDate(shift.scheduledStartAt)} ate {formatDate(shift.scheduledEndAt)} | presenca {translateShiftAttendanceStatus(shift.attendanceStatus)}{shift.lateMinutes != null ? ` (${shift.lateMinutes} min)` : ''} | cobertura {shift.coverageForAgentName ?? 'nao aplicada'} | checklist {shift.documentsChecked ? 'ok' : 'pendente'}</small>
                       </div>
                       <div className="row-actions">
                         <span className={`tag ${shift.status.toLowerCase()}`}>{translateShiftStatus(shift.status)}</span>

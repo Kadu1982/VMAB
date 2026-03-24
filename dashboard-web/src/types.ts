@@ -3,6 +3,7 @@ export type AgentStatus = 'ACTIVE' | 'ON_DUTY' | 'OFF_DUTY' | 'BLOCKED'
 export type ResidentStatus = 'ACTIVE' | 'INACTIVE'
 export type VehicleStatus = 'AVAILABLE' | 'IN_OPERATION' | 'MAINTENANCE' | 'BLOCKED'
 export type ShiftStatus = 'PLANNED' | 'ACTIVE' | 'HANDOFF' | 'CLOSED'
+export type ShiftAttendanceStatus = 'PENDING' | 'ON_TIME' | 'LATE' | 'ABSENT' | 'COVERED'
 export type IncidentStatus = 'OPEN' | 'DISPATCHED' | 'ON_SITE' | 'CLOSED'
 export type IncidentType = 'PANIC' | 'SUSPICIOUS_ACTIVITY' | 'MEDICAL' | 'ESCORT'
 export type IncidentPriority = 'HIGH' | 'MEDIUM' | 'LOW'
@@ -52,6 +53,7 @@ export interface Shift {
   vehiclePlate: string
   status: ShiftStatus
   startedAt?: string | null
+  scheduledStartAt: string
   scheduledEndAt: string
   checkInAt?: string | null
   checkOutAt?: string | null
@@ -68,6 +70,11 @@ export interface Shift {
   lightsChecked: boolean
   documentsChecked: boolean
   checklistNotes?: string | null
+  attendanceStatus: ShiftAttendanceStatus
+  lateMinutes?: number | null
+  coverageForAgentId?: number | null
+  coverageForAgentName?: string | null
+  attendanceNotes?: string | null
 }
 
 export interface PatrolRouteStop {
