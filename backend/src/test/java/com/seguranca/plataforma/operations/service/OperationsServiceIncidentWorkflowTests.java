@@ -14,6 +14,8 @@ import com.seguranca.plataforma.auth.AppUserPushNotificationService;
 import com.seguranca.plataforma.config.VmabRetentionProperties;
 import com.seguranca.plataforma.operations.dto.RondaCloseIncidentRequest;
 import com.seguranca.plataforma.operations.dto.RondaDispatchIncidentRequest;
+import com.seguranca.plataforma.operations.dto.ShiftSupervisionAction;
+import com.seguranca.plataforma.operations.dto.SuperviseShiftRequest;
 import com.seguranca.plataforma.operations.model.Agent;
 import com.seguranca.plataforma.operations.model.AgentStatus;
 import com.seguranca.plataforma.operations.model.Incident;
@@ -21,6 +23,7 @@ import com.seguranca.plataforma.operations.model.IncidentPriority;
 import com.seguranca.plataforma.operations.model.IncidentStatus;
 import com.seguranca.plataforma.operations.model.IncidentType;
 import com.seguranca.plataforma.operations.model.Shift;
+import com.seguranca.plataforma.operations.model.ShiftAttendanceStatus;
 import com.seguranca.plataforma.operations.model.ShiftStatus;
 import com.seguranca.plataforma.operations.model.Vehicle;
 import com.seguranca.plataforma.operations.model.VehicleStatus;
@@ -208,5 +211,64 @@ class OperationsServiceIncidentWorkflowTests {
                 ResponseStatusException.class,
                 () -> operationsService.closeIncidentForCurrentRonda(12L, new RondaCloseIncidentRequest("Atendimento concluido"))
         );
+    }
+
+    @Test
+    void naoDeveAplicarCoberturaSemFaltaOuAtraso() {
+        Shift shift = new Shift(
+                7L,
+                "Carlos",
+                3L,
+                "ABC1D23",
+                ShiftStatus.PLANNED,
+                null,
+                OffsetDateTime.now(ZoneOffset.UTC),
+                OffsetDateTime.now(ZoneOffset.UTC).plusHours(8),
+                null,
+                null,
+                80,
+                true,
+                true,
+                true,
+                "Checklist ok"
+        );
+        ReflectionTestUtils.setField(shift, "id", 21L);
+
+        when(shiftRepository.findById(21L)).thenReturn(Optional.of(shift));
+
+        assertThrows(
+                ResponseStatusException.class,
+                () -> operationsService.superviseShift(21L, new SuperviseShiftRequest(ShiftSupervisionAction.APPLY_COVERAGE, 9L, null, "Cobertura"))
+        );
+    }
+
+    @Test
+    void deveNotificarSupervisaoQuandoRegistrarFalta() {
+        Shift shift = new Shift(
+                7L,
+                "Carlos",
+                3L,
+                "ABC1D23",
+                ShiftStatus.PLANNED,
+                null,
+                OffsetDateTime.now(ZoneOffset.UTC),
+                OffsetDateTime.now(ZoneOffset.UTC).plusHours(8),
+                null,
+                null,
+                80,
+                true,
+                true,
+                true,
+                "Checklist ok"
+        );
+        ReflectionTestUtils.setField(shift, "id", 22L);
+
+        when(shiftRepository.findById(22L)).thenReturn(Optional.of(shift));
+        when(shiftRepository.save(any(Shift.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Shift savedShift = operationsService.superviseShift(22L, new SuperviseShiftRequest(ShiftSupervisionAction.MARK_ABSENT, null, null, "Nao compareceu"));
+
+        assertEquals(ShiftAttendanceStatus.ABSENT, savedShift.getAttendanceStatus());
+        verify(appUserPushNotificationService).notifyShiftSupervisionUpdated(savedShift, "Falta registrada");
     }
 }

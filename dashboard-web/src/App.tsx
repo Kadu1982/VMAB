@@ -11,6 +11,7 @@ import type {
   AppUserRole,
   AuthenticatedUser,
   AuthSession,
+  ClientOperationalReport,
   ClientPortal,
   DashboardSummary,
   FleetOperationalReport,
@@ -150,10 +151,27 @@ const initialPrivacyForm = {
   subjectType: 'RESIDENT' as PrivacySubjectType,
   subjectId: '',
   notes: '',
+  status: 'IN_PROGRESS' as PrivacyRequestStatus,
+  notifySubject: false,
+  notificationChannel: '',
+  notificationNotes: '',
 }
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
+}
+
+function formatCurrency(value?: number | null) {
+  if (value == null) {
+    return 'Sem custo'
+  }
+
+  return value.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
 }
 
 function formatDateTimeLocal(value: string) {
@@ -476,6 +494,7 @@ function App() {
   // Estado da sessao, dados operacionais e formularios de manutencao do painel.
   const [summary, setSummary] = useState<DashboardSummary | null>(null)
   const [portal, setPortal] = useState<ClientPortal | null>(null)
+  const [clientReport, setClientReport] = useState<ClientOperationalReport | null>(null)
   const [users, setUsers] = useState<AppUser[]>([])
   const [lastRefreshAt, setLastRefreshAt] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -564,9 +583,14 @@ function App() {
       const adminCanManageUsers = me.roles.includes('ROLE_ADMIN')
 
       if (me.roles.includes('ROLE_CLIENT')) {
-        const portalResponse = await apiFetch('/api/client/portal')
+        const [portalResponse, reportResponse] = await Promise.all([
+          apiFetch('/api/client/portal'),
+          apiFetch('/api/client/report'),
+        ])
         if (!portalResponse.ok) throw new Error('Nao foi possivel carregar o portal do cliente.')
+        if (!reportResponse.ok) throw new Error('Nao foi possivel carregar o relatorio do cliente.')
         setPortal((await portalResponse.json()) as ClientPortal)
+        setClientReport((await reportResponse.json()) as ClientOperationalReport)
         setSummary(null)
         setUsers([])
         setLastRefreshAt(new Date().toISOString())
@@ -588,12 +612,14 @@ function App() {
         if (privacyRequestsResponse?.ok) setPrivacyRequests((await privacyRequestsResponse.json()) as PrivacyRequest[])
         if (retentionResponse?.ok) setRetentionStatus((await retentionResponse.json()) as PrivacyRetentionStatus)
         setPortal(null)
+        setClientReport(null)
         setLastRefreshAt(new Date().toISOString())
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Falha inesperada ao carregar a interface.')
       setSummary(null)
       setPortal(null)
+      setClientReport(null)
       setUsers([])
     } finally {
       setLoading(false)
@@ -1118,9 +1144,97 @@ function App() {
     )
   }
 
+  async function handleShiftSupervision(
+    shiftId: number,
+    action: 'MARK_ON_TIME' | 'MARK_LATE' | 'MARK_ABSENT' | 'APPLY_COVERAGE' | 'CLEAR_COVERAGE',
+  ) {
+    // Explicita no painel as decisoes formais de supervisao para atraso, falta e cobertura.
+    let payload: {
+      action: 'MARK_ON_TIME' | 'MARK_LATE' | 'MARK_ABSENT' | 'APPLY_COVERAGE' | 'CLEAR_COVERAGE'
+      replacementAgentId?: number | null
+      lateMinutes?: number | null
+      notes?: string | null
+    } = {
+      action,
+      replacementAgentId: null,
+      lateMinutes: null,
+      notes: null,
+    }
+
+    if (action === 'MARK_LATE') {
+      const lateMinutesValue = window.prompt('Informe os minutos de atraso deste turno:', '15')
+      if (!lateMinutesValue) {
+        return
+      }
+
+      payload = {
+        action,
+        lateMinutes: Number(lateMinutesValue),
+        notes: `Atraso formalizado em painel: ${lateMinutesValue} minutos.`,
+      }
+    }
+
+    if (action === 'MARK_ABSENT') {
+      payload = {
+        action,
+        notes: 'Falta registrada pela supervisao no painel operacional.',
+      }
+    }
+
+    if (action === 'MARK_ON_TIME') {
+      payload = {
+        action,
+        notes: 'Presenca normalizada pela supervisao no painel operacional.',
+      }
+    }
+
+    if (action === 'APPLY_COVERAGE') {
+      const replacementAgentId = window.prompt('Informe o ID do vigilante que fara a cobertura:', shiftForm.coverageForAgentId || '')
+      if (!replacementAgentId) {
+        return
+      }
+
+      payload = {
+        action,
+        replacementAgentId: Number(replacementAgentId),
+        notes: `Cobertura aplicada via painel para o agente ${replacementAgentId}.`,
+      }
+    }
+
+    if (action === 'CLEAR_COVERAGE') {
+      payload = {
+        action,
+        notes: 'Cobertura removida pela supervisao no painel operacional.',
+      }
+    }
+
+    await saveEntity(
+      `/api/shifts/${shiftId}/supervision`,
+      'POST',
+      payload,
+      'Nao foi possivel registrar a supervisao do turno.',
+      resetShiftForm,
+    )
+  }
+
   function resetPrivacyForm() {
     setPrivacyForm(initialPrivacyForm)
     setEditingPrivacyRequestId(null)
+  }
+
+  function startPrivacyRequestEdit(request: PrivacyRequest) {
+    // Reabre o pedido no formulario para o administrador registrar andamento, notificacao e conclusao.
+    setEditingPrivacyRequestId(request.id)
+    setPrivacyForm({
+      requestType: request.requestType,
+      subjectType: request.subjectType,
+      subjectId: String(request.subjectId),
+      notes: request.notes ?? '',
+      status: request.status === 'OPEN' ? 'IN_PROGRESS' : request.status,
+      notifySubject: Boolean(request.subjectNotifiedAt),
+      notificationChannel: request.subjectNotificationChannel ?? '',
+      notificationNotes: request.subjectNotificationNotes ?? '',
+    })
   }
 
   async function handlePrivacyRequestSubmit(event: FormEvent<HTMLFormElement>) {
@@ -1140,7 +1254,13 @@ function App() {
           subjectId: Number(privacyForm.subjectId),
           notes: privacyForm.notes || null,
         }
-      : { status: 'IN_PROGRESS' as PrivacyRequestStatus, notes: privacyForm.notes || null }
+      : {
+          status: privacyForm.status,
+          notes: privacyForm.notes || null,
+          notifySubject: privacyForm.notifySubject,
+          notificationChannel: privacyForm.notifySubject ? privacyForm.notificationChannel || null : null,
+          notificationNotes: privacyForm.notifySubject ? privacyForm.notificationNotes || null : null,
+        }
     await saveEntity(path, method, payload, 'Nao foi possivel registrar o pedido LGPD.', resetPrivacyForm)
   }
 
@@ -1148,7 +1268,12 @@ function App() {
     await saveEntity(
       `/api/privacy/requests/${requestId}`,
       'PUT',
-      { status: 'COMPLETED' as PrivacyRequestStatus },
+      {
+        status: 'COMPLETED' as PrivacyRequestStatus,
+        notifySubject: privacyForm.notifySubject,
+        notificationChannel: privacyForm.notifySubject ? privacyForm.notificationChannel || null : null,
+        notificationNotes: privacyForm.notifySubject ? privacyForm.notificationNotes || null : null,
+      },
       'Nao foi possivel concluir o pedido LGPD.',
       resetPrivacyForm,
     )
@@ -1172,6 +1297,112 @@ function App() {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Falha inesperada ao gerar a exportacao LGPD.')
     }
+  }
+
+  async function handleClientReportCsvExport() {
+    try {
+      const response = await apiFetch('/api/client/report/export.csv')
+      if (!response.ok) {
+        throw new Error('Nao foi possivel exportar o relatorio CSV do cliente.')
+      }
+
+      const blob = await response.blob()
+      const downloadUrl = window.URL.createObjectURL(blob)
+      const anchor = window.document.createElement('a')
+      anchor.href = downloadUrl
+      anchor.download = 'vmab-relatorio-cliente.csv'
+      anchor.click()
+      window.URL.revokeObjectURL(downloadUrl)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Falha inesperada ao exportar o relatorio do cliente.')
+    }
+  }
+
+  function handleClientReportPrint() {
+    if (!clientReport) {
+      setError('O relatorio do cliente ainda nao foi carregado.')
+      return
+    }
+
+    const printWindow = window.open('', '_blank', 'width=1080,height=820')
+    if (!printWindow) {
+      setError('Nao foi possivel abrir a janela de impressao.')
+      return
+    }
+
+    const html = `
+      <html lang="pt-BR">
+        <head>
+          <title>Relatorio operacional VMAB</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 32px; color: #111827; }
+            h1, h2 { margin-bottom: 8px; }
+            .meta { color: #4b5563; margin-bottom: 24px; }
+            .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 24px; }
+            .card { border: 1px solid #d1d5db; border-radius: 12px; padding: 16px; }
+            .card strong { display: block; font-size: 22px; margin-top: 8px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+            th, td { border: 1px solid #d1d5db; padding: 8px; text-align: left; font-size: 12px; }
+            th { background: #f3f4f6; }
+          </style>
+        </head>
+        <body>
+          <h1>Relatorio operacional VMAB</h1>
+          <p class="meta">Gerado em ${formatDate(clientReport.generatedAt)}</p>
+          <div class="grid">
+            <div class="card"><span>Turnos ativos</span><strong>${clientReport.activeShifts}</strong></div>
+            <div class="card"><span>Ocorrencias abertas</span><strong>${clientReport.openIncidents}</strong></div>
+            <div class="card"><span>Viaturas disponiveis</span><strong>${clientReport.availableVehicles}</strong></div>
+            <div class="card"><span>Alertas de manutencao</span><strong>${clientReport.maintenanceAlerts}</strong></div>
+            <div class="card"><span>Tempo medio de despacho</span><strong>${clientReport.averageDispatchMinutes.toFixed(1)} min</strong></div>
+            <div class="card"><span>Tempo medio de resolucao</span><strong>${clientReport.averageResolutionMinutes.toFixed(1)} min</strong></div>
+          </div>
+          <h2>Ocorrencias</h2>
+          <table>
+            <thead>
+              <tr><th>ID</th><th>Tipo</th><th>Status</th><th>Morador</th><th>Endereco</th><th>Agente</th><th>Viatura</th></tr>
+            </thead>
+            <tbody>
+              ${clientReport.incidents.map((incident) => `
+                <tr>
+                  <td>${incident.id}</td>
+                  <td>${translateIncidentType(incident.type)}</td>
+                  <td>${translateIncidentStatus(incident.status)}</td>
+                  <td>${incident.residentName}</td>
+                  <td>${incident.address}</td>
+                  <td>${incident.assignedAgentName ?? 'Sem agente'}</td>
+                  <td>${incident.vehiclePlate ?? 'Sem viatura'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <h2>Ordens de servico da frota</h2>
+          <table>
+            <thead>
+              <tr><th>Codigo</th><th>Viatura</th><th>Tipo</th><th>Prioridade</th><th>Status</th><th>Custo</th></tr>
+            </thead>
+            <tbody>
+              ${clientReport.maintenanceOrders.map((order) => `
+                <tr>
+                  <td>${order.workOrderCode}</td>
+                  <td>${order.vehiclePlate}</td>
+                  <td>${translateVehicleMaintenanceType(order.type)}</td>
+                  <td>${translateVehicleMaintenancePriority(order.priority)}</td>
+                  <td>${translateVehicleMaintenanceStatus(order.status)}</td>
+                  <td>${formatCurrency(order.costAmount)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `
+
+    printWindow.document.open()
+    printWindow.document.write(html)
+    printWindow.document.close()
+    printWindow.focus()
+    printWindow.print()
   }
 
   async function handleIncidentSubmit(event: FormEvent<HTMLFormElement>) {
@@ -1312,6 +1543,8 @@ function App() {
             </div>
             <div className="hero-actions">
               <button className="refresh-button" onClick={() => void loadData()} type="button">Atualizar</button>
+              <button className="secondary-button" onClick={() => void handleClientReportCsvExport()} type="button">Exportar CSV</button>
+              <button className="secondary-button" onClick={handleClientReportPrint} type="button">Imprimir relatorio</button>
               <button className="secondary-button" onClick={handleLogout} type="button">Sair</button>
             </div>
           </header>
@@ -1325,6 +1558,57 @@ function App() {
             <article className="metric-card"><span>Viaturas disponiveis</span><strong>{portal.availableVehicles}</strong></article>
             <article className="metric-card"><span>Alertas de manutencao</span><strong>{portal.maintenanceAlerts}</strong></article>
           </section>
+
+          {clientReport ? (
+            <section className="panel report-panel">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Relatorio formal</p>
+                  <h3>Indicadores contratuais</h3>
+                </div>
+              </div>
+              <p className="panel-note">Este recorte consolida os indicadores que o cliente normalmente usaria para acompanhar SLA, disponibilidade da frota e prova operacional do contrato.</p>
+              <div className="subpanel-grid">
+                <article className="telemetry-card">
+                  <span>Tempo medio de despacho</span>
+                  <strong>{clientReport.averageDispatchMinutes.toFixed(1)} min</strong>
+                  <small>Gerado em {formatDate(clientReport.generatedAt)}</small>
+                </article>
+                <article className="telemetry-card">
+                  <span>Tempo medio de resolucao</span>
+                  <strong>{clientReport.averageResolutionMinutes.toFixed(1)} min</strong>
+                  <small>Baseado em ocorrencias encerradas</small>
+                </article>
+                <article className="telemetry-card">
+                  <span>Turnos atrasados</span>
+                  <strong>{clientReport.lateShifts}</strong>
+                  <small>Escala com atraso registrado</small>
+                </article>
+                <article className="telemetry-card">
+                  <span>Faltas abertas</span>
+                  <strong>{clientReport.absentShifts}</strong>
+                  <small>Turnos marcados como falta</small>
+                </article>
+              </div>
+              <div className="report-summary-grid">
+                <article className="report-insight-card">
+                  <span>Ordens abertas</span>
+                  <strong>{clientReport.openMaintenanceOrders}</strong>
+                  <small>Ordens de servico ainda sem encerramento formal.</small>
+                </article>
+                <article className="report-insight-card">
+                  <span>Ordens criticas</span>
+                  <strong>{clientReport.criticalMaintenanceOrders}</strong>
+                  <small>Viaturas com risco alto de indisponibilidade.</small>
+                </article>
+                <article className="report-insight-card">
+                  <span>Prova operacional</span>
+                  <strong>{clientReport.incidents.length}</strong>
+                  <small>Ocorrencias recentes consideradas no relatorio atual.</small>
+                </article>
+              </div>
+            </section>
+          ) : null}
 
           <section className="panel">
             <div className="panel-header">
@@ -1373,6 +1657,67 @@ function App() {
               </div>
             )}
           </section>
+
+          {clientReport ? (
+            <section className="panel">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Prova de execucao</p>
+                  <h3>Ocorrencias consolidadas</h3>
+                </div>
+              </div>
+              {clientReport.incidents.length === 0 ? (
+                <p className="panel-note">Nao houve ocorrencias recentes incluidas no recorte formal do cliente.</p>
+              ) : (
+                <div className="list">
+                  {clientReport.incidents.map((incident) => (
+                    <article className="list-row" key={`client-report-incident-${incident.id}`}>
+                      <div>
+                        <strong>#{incident.id} | {translateIncidentType(incident.type)} | {incident.residentName}</strong>
+                        <small>
+                          {translateIncidentStatus(incident.status)} | {incident.address} | agente {incident.assignedAgentName ?? 'nao vinculado'} | viatura {incident.vehiclePlate ?? 'nao vinculada'}
+                        </small>
+                        <small>
+                          Aberta {formatDate(incident.openedAt)}
+                          {incident.dispatchedAt ? ` • despacho ${formatDate(incident.dispatchedAt)}` : ''}
+                          {incident.closedAt ? ` • encerrada ${formatDate(incident.closedAt)}` : ''}
+                        </small>
+                      </div>
+                      <span className={`tag ${incident.priority.toLowerCase()}`}>{translateIncidentPriority(incident.priority)}</span>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+          ) : null}
+
+          {clientReport ? (
+            <section className="panel">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Frota</p>
+                  <h3>Ordens de servico recentes</h3>
+                </div>
+              </div>
+              {clientReport.maintenanceOrders.length === 0 ? (
+                <p className="panel-note">Nenhuma ordem de servico recente registrada.</p>
+              ) : (
+                <div className="list">
+                  {clientReport.maintenanceOrders.map((order) => (
+                    <article className="list-row" key={order.id}>
+                      <div>
+                        <strong>{order.workOrderCode} | {order.vehiclePlate}</strong>
+                        <small>
+                          {translateVehicleMaintenanceType(order.type)} | {translateVehicleMaintenancePriority(order.priority)} | {translateVehicleMaintenanceStatus(order.status)} | {order.description}
+                        </small>
+                      </div>
+                      <span className={`tag ${order.priority.toLowerCase()}`}>{formatCurrency(order.costAmount)}</span>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+          ) : null}
         </main>
       </div>
     )
@@ -1913,6 +2258,25 @@ function App() {
                             <button className="ghost-button danger-button" onClick={() => void handleShiftHandoffReject(shift.id, 'Rejeitado pelo vigilante designado.')} type="button">Rejeitar</button>
                           </>
                         ) : null}
+                        {canCreateOperations ? (
+                          <>
+                            {(shift.status === 'PLANNED' || shift.status === 'ACTIVE' || shift.status === 'HANDOFF') ? (
+                              <button className="ghost-button" onClick={() => void handleShiftSupervision(shift.id, 'MARK_ON_TIME')} type="button">Normalizar</button>
+                            ) : null}
+                            {shift.status !== 'CLOSED' ? (
+                              <button className="ghost-button" onClick={() => void handleShiftSupervision(shift.id, 'MARK_LATE')} type="button">Registrar atraso</button>
+                            ) : null}
+                            {shift.status !== 'CLOSED' ? (
+                              <button className="ghost-button danger-button" onClick={() => void handleShiftSupervision(shift.id, 'MARK_ABSENT')} type="button">Registrar falta</button>
+                            ) : null}
+                            {(shift.attendanceStatus === 'ABSENT' || shift.attendanceStatus === 'LATE') ? (
+                              <button className="ghost-button" onClick={() => void handleShiftSupervision(shift.id, 'APPLY_COVERAGE')} type="button">Aplicar cobertura</button>
+                            ) : null}
+                            {shift.attendanceStatus === 'COVERED' ? (
+                              <button className="ghost-button" onClick={() => void handleShiftSupervision(shift.id, 'CLEAR_COVERAGE')} type="button">Remover cobertura</button>
+                            ) : null}
+                          </>
+                        ) : null}
                         {canUpdateOperations ? <button className="ghost-button" onClick={() => startShiftEdit(shift)} type="button">Editar</button> : null}
                         {canCreateOperations ? <button className="ghost-button danger-button" onClick={() => void handleDelete(`/api/shifts/${shift.id}`, 'Deseja remover este turno?', resetShiftForm)} type="button">Excluir</button> : null}
                       </div>
@@ -2023,6 +2387,10 @@ function App() {
                     </div>
                   </div>
                   <p className="panel-note">Consolida pedidos LGPD de exportacao e exclusao sem misturar com a operacao normal da plataforma. Apenas administradores podem gerenciar esses fluxos.</p>
+                  <div className="compliance-callout">
+                    <strong>Limite objetivo</strong>
+                    <span>O sistema ja cobre abertura, exportacao, anonimização e registro de notificacao. O que nao existe aqui e revisao juridica externa. Marcar isso como concluido sem essa etapa seria mentira.</span>
+                  </div>
                   {retentionStatus ? (
                     <div className="subpanel-grid" style={{ marginBottom: 16 }}>
                       <article className="telemetry-card">
@@ -2050,16 +2418,31 @@ function App() {
                     </div>
                   ) : null}
                   <form className="form-grid" onSubmit={handlePrivacyRequestSubmit}>
-                    <select value={privacyForm.requestType} onChange={(event) => setPrivacyForm((current) => ({ ...current, requestType: event.target.value as PrivacyRequestType }))}>
+                    <select disabled={editingPrivacyRequestId !== null} value={privacyForm.requestType} onChange={(event) => setPrivacyForm((current) => ({ ...current, requestType: event.target.value as PrivacyRequestType }))}>
                       {privacyRequestTypeOptions.map((type) => <option key={type} value={type}>{translatePrivacyRequestType(type)}</option>)}
                     </select>
-                    <select value={privacyForm.subjectType} onChange={(event) => setPrivacyForm((current) => ({ ...current, subjectType: event.target.value as PrivacySubjectType }))}>
+                    <select disabled={editingPrivacyRequestId !== null} value={privacyForm.subjectType} onChange={(event) => setPrivacyForm((current) => ({ ...current, subjectType: event.target.value as PrivacySubjectType }))}>
                       {privacySubjectTypeOptions.map((type) => <option key={type} value={type}>{translatePrivacySubjectType(type)}</option>)}
                     </select>
-                    <input required placeholder="ID do titular" type="number" value={privacyForm.subjectId} onChange={(event) => setPrivacyForm((current) => ({ ...current, subjectId: event.target.value }))} />
+                    <input disabled={editingPrivacyRequestId !== null} required placeholder="ID do titular" type="number" value={privacyForm.subjectId} onChange={(event) => setPrivacyForm((current) => ({ ...current, subjectId: event.target.value }))} />
                     <input placeholder="Observacoes (opcional)" value={privacyForm.notes} onChange={(event) => setPrivacyForm((current) => ({ ...current, notes: event.target.value }))} />
+                    {editingPrivacyRequestId !== null ? (
+                      <>
+                        <select value={privacyForm.status} onChange={(event) => setPrivacyForm((current) => ({ ...current, status: event.target.value as PrivacyRequestStatus }))}>
+                          {(['IN_PROGRESS', 'COMPLETED', 'REJECTED'] as PrivacyRequestStatus[]).map((status) => (
+                            <option key={status} value={status}>{translatePrivacyRequestStatus(status)}</option>
+                          ))}
+                        </select>
+                        <input placeholder="Canal de notificacao do titular" value={privacyForm.notificationChannel} onChange={(event) => setPrivacyForm((current) => ({ ...current, notificationChannel: event.target.value }))} />
+                        <input placeholder="Observacao da notificacao" value={privacyForm.notificationNotes} onChange={(event) => setPrivacyForm((current) => ({ ...current, notificationNotes: event.target.value }))} />
+                        <label className="checkbox-field">
+                          <input checked={privacyForm.notifySubject} onChange={(event) => setPrivacyForm((current) => ({ ...current, notifySubject: event.target.checked }))} type="checkbox" />
+                          <span>Registrar notificacao formal ao titular neste passo</span>
+                        </label>
+                      </>
+                    ) : null}
                     <div className="button-row">
-                      <button type="submit">{editingPrivacyRequestId === null ? 'Abrir pedido LGPD' : 'Salvar pedido'}</button>
+                      <button type="submit">{editingPrivacyRequestId === null ? 'Abrir pedido LGPD' : 'Atualizar fluxo LGPD'}</button>
                       {editingPrivacyRequestId !== null ? <button className="secondary-button" onClick={resetPrivacyForm} type="button">Cancelar</button> : null}
                     </div>
                   </form>
@@ -2082,7 +2465,10 @@ function App() {
                               <button className="ghost-button" onClick={() => void handlePrivacyExportDownload(request.subjectType, request.subjectId)} type="button">Baixar JSON</button>
                             ) : null}
                             {request.status === 'OPEN' || request.status === 'IN_PROGRESS' ? (
-                              <button className="ghost-button" onClick={() => void handlePrivacyRequestComplete(request.id)} type="button">Concluir</button>
+                              <>
+                                <button className="ghost-button" onClick={() => startPrivacyRequestEdit(request)} type="button">Editar fluxo</button>
+                                <button className="ghost-button" onClick={() => void handlePrivacyRequestComplete(request.id)} type="button">Concluir</button>
+                              </>
                             ) : null}
                           </div>
                         </article>

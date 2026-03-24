@@ -38,7 +38,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**").authenticated()
                         .requestMatchers("/api/users/**").hasRole("ADMIN")
                         .requestMatchers("/api/privacy/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/client/portal").hasAnyRole("CLIENT", "SUPERVISOR", "ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/client/portal", "/api/client/report", "/api/client/report/export.csv").hasAnyRole("CLIENT", "SUPERVISOR", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/dashboard/**").hasAnyRole("RONDA", "SUPERVISOR", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/agents/**", "/api/vehicles/**", "/api/residents/**", "/api/shifts/**", "/api/incidents/**", "/api/resident-alerts/**").hasAnyRole("RONDA", "SUPERVISOR", "ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/incidents/*/evidence").hasAnyRole("RONDA", "SUPERVISOR", "ADMIN")

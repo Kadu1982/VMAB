@@ -306,6 +306,22 @@ export interface ClientPortal {
   recentIncidents: Incident[]
 }
 
+export interface ClientOperationalReport {
+  generatedAt: string
+  activeShifts: number
+  openIncidents: number
+  availableVehicles: number
+  maintenanceAlerts: number
+  openMaintenanceOrders: number
+  criticalMaintenanceOrders: number
+  lateShifts: number
+  absentShifts: number
+  averageDispatchMinutes: number
+  averageResolutionMinutes: number
+  incidents: Incident[]
+  maintenanceOrders: VehicleMaintenanceOrder[]
+}
+
 export interface AuthSession {
   accessToken: string
   tokenType: string

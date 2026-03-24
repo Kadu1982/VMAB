@@ -17,6 +17,7 @@ import com.seguranca.plataforma.operations.dto.DispatchIncidentRequest;
 import com.seguranca.plataforma.operations.dto.FleetOperationalReportResponse;
 import com.seguranca.plataforma.operations.dto.IncidentEvidenceResponse;
 import com.seguranca.plataforma.operations.dto.ClientPortalResponse;
+import com.seguranca.plataforma.operations.dto.ClientOperationalReportResponse;
 import com.seguranca.plataforma.operations.dto.DashboardSummaryResponse;
 import com.seguranca.plataforma.operations.dto.PatrolRouteStopResponse;
 import com.seguranca.plataforma.operations.dto.OnSiteIncidentRequest;
@@ -733,6 +734,9 @@ public class OperationsService {
 
         switch (action) {
             case MARK_ON_TIME -> {
+                if (shift.getStatus() == ShiftStatus.CLOSED) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nao e possivel supervisionar presenca em turno encerrado.");
+                }
                 shift.setAttendanceManually(ShiftAttendanceStatus.ON_TIME, 0, normalizeOptionalText(request.notes(), 500));
                 if (shift.getStatus() == ShiftStatus.PLANNED) {
                     shift.update(
@@ -753,15 +757,27 @@ public class OperationsService {
                 }
             }
             case MARK_LATE -> {
+                if (shift.getStatus() == ShiftStatus.CLOSED) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nao e possivel marcar atraso em turno encerrado.");
+                }
                 int lateMinutes = request.lateMinutes() == null || request.lateMinutes() <= 0 ? 1 : request.lateMinutes();
                 shift.setAttendanceManually(ShiftAttendanceStatus.LATE, lateMinutes, normalizeOptionalText(request.notes(), 500));
             }
             case MARK_ABSENT -> {
+                if (shift.getStatus() == ShiftStatus.CLOSED) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nao e possivel marcar falta em turno encerrado.");
+                }
+                if (shift.getCheckInAt() != null) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Um turno com check-in registrado nao pode ser tratado como falta.");
+                }
                 shift.setAttendanceManually(ShiftAttendanceStatus.ABSENT, null, normalizeOptionalText(request.notes(), 500));
             }
             case APPLY_COVERAGE -> {
                 if (request.replacementAgentId() == null) {
                     throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selecione o agente de cobertura.");
+                }
+                if (shift.getAttendanceStatus() != ShiftAttendanceStatus.ABSENT && shift.getAttendanceStatus() != ShiftAttendanceStatus.LATE) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cobertura so pode ser aplicada em turno marcado como falta ou atraso.");
                 }
                 Agent replacementAgent = getAgent(request.replacementAgentId());
                 if (replacementAgent.getId().equals(shift.getAgentId())) {
@@ -769,11 +785,17 @@ public class OperationsService {
                 }
                 shift.applyCoverage(replacementAgent.getId(), replacementAgent.getFullName(), normalizeOptionalText(request.notes(), 500));
             }
-            case CLEAR_COVERAGE -> applyAttendanceState(shift, ShiftAttendanceStatus.PENDING, null, normalizeOptionalText(request.notes(), 500));
+            case CLEAR_COVERAGE -> {
+                if (shift.getAttendanceStatus() != ShiftAttendanceStatus.COVERED) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nao existe cobertura aplicada para limpar neste turno.");
+                }
+                applyAttendanceState(shift, ShiftAttendanceStatus.PENDING, null, normalizeOptionalText(request.notes(), 500));
+            }
         }
 
         Shift savedShift = shiftRepository.save(shift);
         recordAudit(AuditActionType.UPDATE, "Shift", savedShift.getId(), "Supervisao do turno " + savedShift.getId() + " com acao " + action.name());
+        appUserPushNotificationService.notifyShiftSupervisionUpdated(savedShift, translateShiftSupervisionAction(action));
         return savedShift;
     }
 
@@ -1223,6 +1245,71 @@ public class OperationsService {
                 maintenanceAlerts,
                 openMaintenanceOrders,
                 incidents.stream().limit(5).toList()
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public ClientOperationalReportResponse clientOperationalReport() {
+        // Consolida um recorte contratual mais formal para exportacao e impressao do cliente.
+        List<Shift> shifts = listShifts();
+        List<Incident> incidents = listIncidents();
+        List<Vehicle> vehicles = listVehicles();
+        List<VehicleMaintenanceOrderResponse> maintenanceOrders = listVehicleMaintenanceOrders();
+
+        long activeShifts = shifts.stream()
+                .filter(shift -> shift.getStatus() == ShiftStatus.ACTIVE || shift.getStatus() == ShiftStatus.HANDOFF || shift.getStatus() == ShiftStatus.HANDOFF_PENDING)
+                .count();
+        long openIncidents = incidents.stream()
+                .filter(incident -> incident.getStatus() != IncidentStatus.CLOSED)
+                .count();
+        long availableVehicles = vehicles.stream()
+                .filter(vehicle -> vehicle.getStatus() == VehicleStatus.AVAILABLE)
+                .count();
+        long maintenanceAlerts = vehicles.stream()
+                .filter(this::hasVehicleAlert)
+                .count();
+        long openMaintenanceOrders = maintenanceOrders.stream()
+                .filter(order -> order.status() != VehicleMaintenanceStatus.COMPLETED && order.status() != VehicleMaintenanceStatus.CANCELLED)
+                .count();
+        long criticalMaintenanceOrders = maintenanceOrders.stream()
+                .filter(order -> order.priority() == VehicleMaintenancePriority.CRITICAL)
+                .filter(order -> order.status() != VehicleMaintenanceStatus.COMPLETED && order.status() != VehicleMaintenanceStatus.CANCELLED)
+                .count();
+        long lateShifts = shifts.stream()
+                .filter(shift -> shift.getAttendanceStatus() == ShiftAttendanceStatus.LATE)
+                .count();
+        long absentShifts = shifts.stream()
+                .filter(shift -> shift.getAttendanceStatus() == ShiftAttendanceStatus.ABSENT)
+                .count();
+
+        double averageDispatchMinutes = incidents.stream()
+                .filter(incident -> incident.getDispatchedAt() != null)
+                .mapToLong(incident -> java.time.Duration.between(incident.getOpenedAt(), incident.getDispatchedAt()).toMinutes())
+                .average()
+                .orElse(0.0);
+        double averageResolutionMinutes = incidents.stream()
+                .filter(incident -> incident.getClosedAt() != null)
+                .mapToLong(incident -> java.time.Duration.between(incident.getOpenedAt(), incident.getClosedAt()).toMinutes())
+                .average()
+                .orElse(0.0);
+
+        return new ClientOperationalReportResponse(
+                OffsetDateTime.now(ZoneOffset.UTC),
+                activeShifts,
+                openIncidents,
+                availableVehicles,
+                maintenanceAlerts,
+                openMaintenanceOrders,
+                criticalMaintenanceOrders,
+                lateShifts,
+                absentShifts,
+                averageDispatchMinutes,
+                averageResolutionMinutes,
+                incidents.stream()
+                        .sorted(Comparator.comparing(Incident::getOpenedAt).reversed())
+                        .limit(30)
+                        .toList(),
+                maintenanceOrders.stream().limit(20).toList()
         );
     }
 
@@ -1864,6 +1951,16 @@ public class OperationsService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, message);
         }
         return normalized;
+    }
+
+    private String translateShiftSupervisionAction(ShiftSupervisionAction action) {
+        return switch (action) {
+            case MARK_ON_TIME -> "Presenca normalizada";
+            case MARK_LATE -> "Atraso registrado";
+            case MARK_ABSENT -> "Falta registrada";
+            case APPLY_COVERAGE -> "Cobertura aplicada";
+            case CLEAR_COVERAGE -> "Cobertura removida";
+        };
     }
 
     private String resolveCurrentActorUsername() {

@@ -2,6 +2,7 @@ package com.seguranca.plataforma.auth;
 
 import com.seguranca.plataforma.operations.model.Incident;
 import com.seguranca.plataforma.operations.model.IncidentStatus;
+import com.seguranca.plataforma.operations.model.Shift;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.HashMap;
@@ -121,6 +122,58 @@ public class AppUserPushNotificationService {
         }
     }
 
+    public void notifyShiftSupervisionUpdated(Shift shift, String actionLabel) {
+        if (!enabled) {
+            return;
+        }
+
+        Set<Long> targetUserIds = new LinkedHashSet<>();
+        appUserRepository.findByRoleInAndEnabledTrue(List.of(AppUserRole.ADMIN, AppUserRole.SUPERVISOR))
+                .forEach(user -> targetUserIds.add(user.getId()));
+        appUserRepository.findByLinkedAgentIdAndRoleAndEnabledTrue(shift.getAgentId(), AppUserRole.RONDA)
+                .forEach(user -> targetUserIds.add(user.getId()));
+        if (shift.getCoverageForAgentId() != null) {
+            appUserRepository.findByLinkedAgentIdAndRoleAndEnabledTrue(shift.getCoverageForAgentId(), AppUserRole.RONDA)
+                    .forEach(user -> targetUserIds.add(user.getId()));
+        }
+
+        if (targetUserIds.isEmpty()) {
+            return;
+        }
+
+        List<AppUserPushDevice> devices = appUserPushDeviceRepository.findByUserIdInAndRevokedAtIsNullOrderByUpdatedAtDesc(List.copyOf(targetUserIds));
+        if (devices.isEmpty()) {
+            return;
+        }
+
+        PushMessage message = buildShiftMessage(shift, actionLabel);
+        for (AppUserPushDevice device : devices) {
+            try {
+                Map<String, Object> payload = new HashMap<>();
+                payload.put("to", device.getExpoPushToken());
+                payload.put("title", message.title());
+                payload.put("body", message.body());
+                payload.put("sound", "default");
+                payload.put("channelId", "vmab-alertas");
+                payload.put("data", Map.of(
+                        "shiftId", shift.getId(),
+                        "status", shift.getStatus().name(),
+                        "attendanceStatus", shift.getAttendanceStatus().name(),
+                        "agentName", shift.getAgentName(),
+                        "vehiclePlate", shift.getVehiclePlate()
+                ));
+
+                restClient.post()
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(payload)
+                        .retrieve()
+                        .toBodilessEntity();
+            } catch (Exception exception) {
+                LOGGER.warn("Falha ao enviar push operacional do turno {} para o token {}", shift.getId(), device.getExpoPushToken(), exception);
+            }
+        }
+    }
+
     PushMessage buildIncidentMessage(Incident incident) {
         // Fica acessivel ao teste para validar o texto operacional sem depender do cliente HTTP.
         return switch (incident.getStatus()) {
@@ -129,6 +182,13 @@ public class AppUserPushNotificationService {
             case ON_SITE -> new PushMessage("Equipe no local", "A equipe confirmou chegada em " + incident.getResidentName() + ".");
             case CLOSED -> new PushMessage("Ocorrencia encerrada", "Atendimento finalizado em " + incident.getResidentName() + ".");
         };
+    }
+
+    PushMessage buildShiftMessage(Shift shift, String actionLabel) {
+        return new PushMessage(
+                "Atualizacao de escala",
+                actionLabel + " no turno " + shift.getId() + " de " + shift.getAgentName() + " na viatura " + shift.getVehiclePlate() + "."
+        );
     }
 
     private String normalizeDeviceLabel(String deviceLabel) {

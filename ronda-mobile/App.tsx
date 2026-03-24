@@ -1527,9 +1527,16 @@ export default function App() {
       <SafeAreaView style={styles.safeArea}>
         <StatusBar style="light" />
         <View style={styles.loginShell}>
-          <Text style={styles.eyebrow}>VMAB Mobile</Text>
-          <Text style={styles.title}>Um app. Dois perfis.</Text>
-          <Text style={styles.copy}>Escolha se o acesso sera de morador ou colaborador e entre com as credenciais desse perfil.</Text>
+          {/* Camada visual de entrada: deixa o app com leitura mais premium sem alterar o fluxo de autenticacao. */}
+          <View style={styles.heroCard}>
+            <View style={styles.heroBadge}>
+              <Text style={styles.heroBadgeText}>VMAB Mobile</Text>
+            </View>
+            <Text style={styles.title}>Um app. Dois perfis.</Text>
+            <Text style={styles.copy}>Escolha se o acesso sera de morador ou colaborador e entre com as credenciais desse perfil.</Text>
+            <View style={styles.heroDivider} />
+            <Text style={styles.heroSupportingText}>Interface unica para emergencia, patrulha, evidencia e resposta operacional.</Text>
+          </View>
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
@@ -1543,6 +1550,12 @@ export default function App() {
           </View>
 
           <View style={styles.formCard}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Acesso seguro</Text>
+              <View style={styles.inlinePill}>
+                <Text style={styles.inlinePillText}>{mode === 'COLLABORATOR' ? 'Colaborador' : 'Morador'}</Text>
+              </View>
+            </View>
             <TextInput
               autoCapitalize="none"
               autoCorrect={false}
@@ -1600,6 +1613,7 @@ export default function App() {
             )}
           </View>
 
+          {/* Painel curto de apoio para acelerar o primeiro acesso em homologacao. */}
           <View style={styles.infoBlock}>
             <Text style={styles.infoTitle}>Credenciais iniciais</Text>
             {mode === 'COLLABORATOR' ? (
@@ -1626,15 +1640,30 @@ export default function App() {
       <SafeAreaView style={styles.safeArea}>
         <StatusBar style="light" />
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          <View style={styles.headerRow}>
-            <View>
-              <Text style={styles.eyebrow}>Atendimento do morador</Text>
-              <Text style={styles.title}>{residentProfile?.fullName ?? residentSession.fullName}</Text>
-              <Text style={styles.copy}>{residentProfile?.address ?? residentSession.address}</Text>
+          {/* Cabecalho principal do morador com linguagem mais leve e orientada ao estado do atendimento. */}
+          <View style={styles.heroCard}>
+            <View style={styles.headerRow}>
+              <View style={styles.headerCopyBlock}>
+                <Text style={styles.eyebrow}>Atendimento do morador</Text>
+                <Text style={styles.title}>{residentProfile?.fullName ?? residentSession.fullName}</Text>
+                <Text style={styles.copy}>{residentProfile?.address ?? residentSession.address}</Text>
+              </View>
+              <Pressable style={styles.secondaryButton} onPress={() => void handleResidentLogout()}>
+                <Text style={styles.secondaryButtonText}>Sair</Text>
+              </Pressable>
             </View>
-            <Pressable style={styles.secondaryButton} onPress={() => void handleResidentLogout()}>
-              <Text style={styles.secondaryButtonText}>Sair</Text>
-            </Pressable>
+            <View style={styles.highlightStrip}>
+              <View style={styles.highlightItem}>
+                <Text style={styles.highlightLabel}>Telefone</Text>
+                <Text style={styles.highlightValue}>{residentProfile?.phoneNumber ?? residentSession.phoneNumber}</Text>
+              </View>
+              <View style={styles.highlightItem}>
+                <Text style={styles.highlightLabel}>Sessao ate</Text>
+                <Text style={styles.highlightValue}>
+                  {residentProfile?.sessionExpiresAt ? formatDate(residentProfile.sessionExpiresAt) : formatDate(residentSession.expiresAt)}
+                </Text>
+              </View>
+            </View>
           </View>
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -1648,10 +1677,13 @@ export default function App() {
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Patrulha visivel</Text>
-            <Text style={styles.meta}>
-              A localizacao atual da ronda fica exposta para dar ciencia do patrulhamento e evidenciar possivel atraso no atendimento.
-            </Text>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Patrulha visivel</Text>
+              <View style={styles.inlinePill}>
+                <Text style={styles.inlinePillText}>Mapa em tempo real</Text>
+              </View>
+            </View>
+            <Text style={styles.meta}>A localizacao atual da ronda fica exposta para dar ciencia do patrulhamento e evidenciar possivel atraso no atendimento.</Text>
             {residentPatrol ? (
               <>
                 <View style={styles.mapCard}>
@@ -1697,7 +1729,12 @@ export default function App() {
 
           {activeResidentAlert ? (
             <View style={styles.activeAlertCard}>
-              <Text style={styles.sectionTitle}>Atendimento em andamento</Text>
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionTitle}>Atendimento em andamento</Text>
+                <View style={styles.alertPulsePill}>
+                  <Text style={styles.alertPulsePillText}>Ao vivo</Text>
+                </View>
+              </View>
               <Text style={styles.activeAlertTitle}>{activeResidentAlert.silent ? 'Solicitacao silenciosa' : translateResidentActionLabel(activeResidentAlert.type)}</Text>
               <Text style={styles.body}>{getAlertOperationalMessage(activeResidentAlert)}</Text>
               {activeResidentAlert.escortDestination ? <Text style={styles.meta}>Destino da escolta: {activeResidentAlert.escortDestination}</Text> : null}
@@ -1709,7 +1746,12 @@ export default function App() {
           ) : null}
 
           <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Abrir alerta</Text>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Abrir alerta</Text>
+              <View style={styles.inlinePill}>
+                <Text style={styles.inlinePillText}>Acao imediata</Text>
+              </View>
+            </View>
             <Text style={styles.meta}>
               {activeResidentAlert
                 ? 'Ja existe um alerta em atendimento. Aguarde a central concluir ou cancele o alerta atual.'
@@ -1766,7 +1808,12 @@ export default function App() {
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Alertas recentes</Text>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Alertas recentes</Text>
+              <View style={styles.inlinePillMuted}>
+                <Text style={styles.inlinePillMutedText}>{residentAlerts.length} registro(s)</Text>
+              </View>
+            </View>
             {residentAlerts.length === 0 ? <Text style={styles.meta}>Nenhum alerta registrado ainda.</Text> : null}
             {residentAlerts.map((alert) => (
               <View key={alert.id} style={styles.alertItem}>
@@ -1797,22 +1844,35 @@ export default function App() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="light" />
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.eyebrow}>Operacao em campo</Text>
-            <Text style={styles.title}>Ronda em tempo real</Text>
-            <Text style={styles.copy}>A tela prioriza patrulha, fila offline, ocorrencias e evidencia operacional.</Text>
+        {/* Hero da operacao: concentra contexto do turno e acoes frequentes sem poluir a tela. */}
+        <View style={styles.heroCard}>
+          <View style={styles.headerRow}>
+            <View style={styles.headerCopyBlock}>
+              <Text style={styles.eyebrow}>Operacao em campo</Text>
+              <Text style={styles.title}>Ronda em tempo real</Text>
+              <Text style={styles.copy}>A tela prioriza patrulha, fila offline, ocorrencias e evidencia operacional.</Text>
+            </View>
+            <View style={styles.actionRow}>
+              <Pressable style={styles.secondaryButton} onPress={() => void fetchSummary()}>
+                <Text style={styles.secondaryButtonText}>{loading ? 'Atualizando...' : 'Atualizar'}</Text>
+              </Pressable>
+              <Pressable style={styles.secondaryButton} onPress={() => void flushOfflineQueue()}>
+                <Text style={styles.secondaryButtonText}>Sincronizar fila</Text>
+              </Pressable>
+              <Pressable style={styles.secondaryButton} onPress={() => void handleLogout()}>
+                <Text style={styles.secondaryButtonText}>Sair</Text>
+              </Pressable>
+            </View>
           </View>
-          <View style={styles.actionRow}>
-            <Pressable style={styles.secondaryButton} onPress={() => void fetchSummary()}>
-              <Text style={styles.secondaryButtonText}>{loading ? 'Atualizando...' : 'Atualizar'}</Text>
-            </Pressable>
-            <Pressable style={styles.secondaryButton} onPress={() => void flushOfflineQueue()}>
-              <Text style={styles.secondaryButtonText}>Sincronizar fila</Text>
-            </Pressable>
-            <Pressable style={styles.secondaryButton} onPress={() => void handleLogout()}>
-              <Text style={styles.secondaryButtonText}>Sair</Text>
-            </Pressable>
+          <View style={styles.highlightStrip}>
+            <View style={styles.highlightItem}>
+              <Text style={styles.highlightLabel}>Status GPS</Text>
+              <Text style={styles.highlightValue}>{syncingGps ? 'Sincronizando' : 'Ativo'}</Text>
+            </View>
+            <View style={styles.highlightItem}>
+              <Text style={styles.highlightLabel}>Fila local</Text>
+              <Text style={styles.highlightValue}>{offlineQueueCount} pendencia(s)</Text>
+            </View>
           </View>
         </View>
 
@@ -1927,7 +1987,12 @@ export default function App() {
             </View>
 
             <View style={styles.sectionCard}>
-              <Text style={styles.sectionTitle}>Fila operacional de ocorrencias</Text>
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionTitle}>Fila operacional de ocorrencias</Text>
+                <View style={styles.inlinePillMuted}>
+                  <Text style={styles.inlinePillMutedText}>{incidentQueue.length} item(ns)</Text>
+                </View>
+              </View>
               {incidentQueue.length === 0 ? <Text style={styles.rowMeta}>Nenhuma ocorrencia carregada no momento.</Text> : null}
               {incidentQueue.map((incident) => {
                 const nextAction = getCollaboratorIncidentNextAction(incident, activeCollaboratorAgentId)
@@ -1951,13 +2016,17 @@ export default function App() {
 
                 return (
                   <View style={styles.rowCard} key={incident.id}>
-                    <Text style={styles.rowTitle}>
-                      {translateIncidentType(incident.type)} | {incident.residentName}
-                    </Text>
+                    <View style={styles.sectionHeaderRow}>
+                      <Text style={styles.rowTitle}>
+                        {translateIncidentType(incident.type)} | {incident.residentName}
+                      </Text>
+                      <View style={styles.priorityBadge}>
+                        <Text style={styles.priorityBadgeText}>{translateIncidentPriority(incident.priority)}</Text>
+                      </View>
+                    </View>
                     <Text style={styles.rowMeta}>{incident.address}</Text>
                     <Text style={styles.rowMeta}>
-                      {translateIncidentPriority(incident.priority)} | {translateIncidentStatus(incident.status)} |{' '}
-                      {incident.vehiclePlate ?? 'Sem viatura'}
+                      {translateIncidentStatus(incident.status)} | {incident.vehiclePlate ?? 'Sem viatura'}
                     </Text>
                     <Text style={styles.rowMeta}>Aberta em {formatDate(incident.openedAt)}</Text>
                     {incident.assignedAgentName ? <Text style={styles.rowMeta}>Ronda responsavel: {incident.assignedAgentName}</Text> : null}
@@ -1989,7 +2058,12 @@ export default function App() {
             </View>
 
             <View style={styles.sectionCard}>
-              <Text style={styles.sectionTitle}>Evidencia rapida</Text>
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionTitle}>Evidencia rapida</Text>
+                <View style={styles.inlinePill}>
+                  <Text style={styles.inlinePillText}>Camera da viatura</Text>
+                </View>
+              </View>
               <Text style={styles.rowMeta}>Selecione a ocorrencia e envie a foto direto do celular da viatura.</Text>
               <View style={styles.formStack}>
                 <TextInput
@@ -2035,172 +2109,192 @@ export default function App() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#07101a',
+    backgroundColor: '#050b12',
   },
   loginShell: {
     flex: 1,
-    padding: 24,
+    padding: 22,
     justifyContent: 'center',
-    gap: 20,
+    gap: 18,
   },
   scrollContent: {
     padding: 18,
-    gap: 14,
+    gap: 16,
+    backgroundColor: '#050b12',
   },
   eyebrow: {
     fontSize: 11,
-    letterSpacing: 2,
+    letterSpacing: 2.6,
     textTransform: 'uppercase',
-    color: '#e4bc74',
+    color: '#f2c97d',
     marginBottom: 6,
+    fontWeight: '700',
   },
   title: {
-    fontSize: 30,
-    fontWeight: '700',
-    color: '#f7f4ec',
+    fontSize: 31,
+    fontWeight: '800',
+    color: '#f8fafc',
   },
   copy: {
     fontSize: 15,
     lineHeight: 22,
-    color: '#b9c2cf',
+    color: '#afbbca',
   },
   body: {
-    color: '#dbe1e8',
-    lineHeight: 20,
+    color: '#d8e1eb',
+    lineHeight: 21,
   },
   meta: {
-    color: '#9ba7b7',
+    color: '#8fa0b4',
+    lineHeight: 20,
   },
   modeSwitcher: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 12,
   },
   modeButton: {
     flex: 1,
-    borderRadius: 16,
-    paddingVertical: 12,
+    borderRadius: 18,
+    paddingVertical: 14,
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.03)',
+    backgroundColor: 'rgba(13,23,35,0.92)',
     borderWidth: 1,
-    borderColor: 'rgba(228,188,116,0.12)',
+    borderColor: 'rgba(114,145,180,0.16)',
   },
   modeButtonActive: {
-    backgroundColor: 'rgba(225,183,103,0.18)',
-    borderColor: 'rgba(225,183,103,0.35)',
+    backgroundColor: 'rgba(18,35,53,0.98)',
+    borderColor: 'rgba(242,201,125,0.45)',
+    shadowColor: '#d8b468',
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 2,
   },
   modeButtonText: {
-    color: '#f5f0e5',
+    color: '#dce5ee',
     fontWeight: '700',
   },
   modeButtonTextActive: {
-    color: '#f9e6bf',
+    color: '#f7d79a',
   },
   formCard: {
     padding: 18,
-    borderRadius: 22,
-    backgroundColor: 'rgba(15,24,35,0.96)',
+    borderRadius: 24,
+    backgroundColor: 'rgba(11,19,30,0.96)',
     borderWidth: 1,
-    borderColor: 'rgba(228,188,116,0.12)',
-    gap: 12,
+    borderColor: 'rgba(125,163,204,0.15)',
+    gap: 13,
   },
   card: {
     padding: 18,
-    borderRadius: 22,
-    backgroundColor: '#11151c',
+    borderRadius: 24,
+    backgroundColor: 'rgba(11,19,30,0.95)',
     borderWidth: 1,
-    borderColor: 'rgba(216,180,104,0.12)',
-    gap: 10,
+    borderColor: 'rgba(125,163,204,0.14)',
+    gap: 12,
   },
   profileCard: {
     padding: 18,
-    borderRadius: 22,
-    backgroundColor: '#10141b',
+    borderRadius: 24,
+    backgroundColor: 'rgba(9,17,27,0.94)',
     borderWidth: 1,
-    borderColor: 'rgba(216,180,104,0.12)',
-    gap: 4,
+    borderColor: 'rgba(125,163,204,0.14)',
+    gap: 6,
   },
   activeAlertCard: {
     padding: 18,
-    borderRadius: 22,
-    backgroundColor: '#161014',
+    borderRadius: 24,
+    backgroundColor: 'rgba(39,18,24,0.92)',
     borderWidth: 1,
-    borderColor: 'rgba(216,104,104,0.24)',
-    gap: 8,
+    borderColor: 'rgba(246,129,118,0.28)',
+    gap: 10,
   },
   activeAlertTitle: {
-    color: '#ffd6d0',
+    color: '#ffe1db',
     fontWeight: '800',
     fontSize: 18,
   },
   input: {
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-    borderRadius: 14,
+    borderColor: 'rgba(121,151,186,0.18)',
+    borderRadius: 16,
     paddingHorizontal: 14,
-    paddingVertical: 12,
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    color: '#f7f4ec',
+    paddingVertical: 13,
+    backgroundColor: 'rgba(5,11,18,0.58)',
+    color: '#f8fafc',
   },
   textArea: {
     minHeight: 88,
     textAlignVertical: 'top',
   },
   primaryButton: {
-    borderRadius: 16,
+    borderRadius: 18,
     backgroundColor: '#e1b767',
-    paddingVertical: 13,
+    paddingVertical: 14,
     alignItems: 'center',
+    shadowColor: '#d8b468',
+    shadowOpacity: 0.26,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
   },
   primaryButtonText: {
-    color: '#1d1407',
-    fontWeight: '700',
+    color: '#1a1308',
+    fontWeight: '800',
   },
   secondaryButton: {
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.025)',
+    borderRadius: 16,
+    backgroundColor: 'rgba(10,18,29,0.86)',
     borderWidth: 1,
-    borderColor: 'rgba(228,188,116,0.12)',
+    borderColor: 'rgba(125,163,204,0.14)',
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
   secondaryButtonSmall: {
     alignSelf: 'flex-start',
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.025)',
+    borderRadius: 16,
+    backgroundColor: 'rgba(10,18,29,0.86)',
     borderWidth: 1,
-    borderColor: 'rgba(228,188,116,0.12)',
+    borderColor: 'rgba(125,163,204,0.14)',
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
   secondaryButtonText: {
-    color: '#f5f0e5',
+    color: '#eff4f9',
     fontWeight: '700',
   },
   infoBlock: {
     padding: 14,
-    borderRadius: 18,
-    backgroundColor: 'rgba(15,24,35,0.94)',
+    borderRadius: 20,
+    backgroundColor: 'rgba(8,15,24,0.94)',
     borderWidth: 1,
-    borderColor: 'rgba(228,188,116,0.1)',
-    gap: 4,
+    borderColor: 'rgba(125,163,204,0.13)',
+    gap: 5,
   },
   infoTitle: {
     fontWeight: '700',
-    color: '#f7f4ec',
+    color: '#f7fafc',
     marginBottom: 8,
   },
   infoText: {
-    color: '#9ba7b7',
+    color: '#8fa0b4',
   },
   errorText: {
-    color: '#ffb8aa',
+    color: '#ffb6aa',
     fontWeight: '600',
+    backgroundColor: 'rgba(73,18,23,0.55)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,145,130,0.2)',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 16,
   },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     gap: 16,
+    flexWrap: 'wrap',
   },
   actionRow: {
     flexDirection: 'row',
@@ -2211,10 +2305,10 @@ const styles = StyleSheet.create({
   activePatrolCard: {
     gap: 12,
     padding: 18,
-    borderRadius: 22,
-    backgroundColor: 'rgba(15,24,35,0.96)',
+    borderRadius: 24,
+    backgroundColor: 'rgba(10,18,29,0.96)',
     borderWidth: 1,
-    borderColor: 'rgba(228,188,116,0.14)',
+    borderColor: 'rgba(125,163,204,0.15)',
   },
   profileRow: {
     flexDirection: 'row',
@@ -2228,12 +2322,14 @@ const styles = StyleSheet.create({
   avatar: {
     width: 76,
     height: 76,
-    borderRadius: 20,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(242,201,125,0.25)',
   },
   avatarFallback: {
     width: 76,
     height: 76,
-    borderRadius: 20,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#e4bc74',
@@ -2247,57 +2343,59 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   metricCard: {
-    borderRadius: 18,
-    padding: 14,
-    backgroundColor: '#111a25',
+    borderRadius: 20,
+    padding: 15,
+    backgroundColor: 'rgba(16,28,42,0.92)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.04)',
+    borderColor: 'rgba(125,163,204,0.13)',
   },
   metricLabel: {
     fontSize: 13,
-    color: '#90a0b4',
+    color: '#8fa1b6',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
   metricValue: {
     marginTop: 6,
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#f7f4ec',
+    fontSize: 30,
+    fontWeight: '800',
+    color: '#f8fafc',
   },
   metricValueSmall: {
     marginTop: 6,
     fontSize: 18,
-    fontWeight: '700',
-    color: '#f7f4ec',
+    fontWeight: '800',
+    color: '#f8fafc',
   },
   sectionCard: {
-    borderRadius: 20,
+    borderRadius: 22,
     padding: 16,
-    backgroundColor: 'rgba(15,24,35,0.94)',
+    backgroundColor: 'rgba(10,18,29,0.94)',
     borderWidth: 1,
-    borderColor: 'rgba(228,188,116,0.1)',
-    gap: 10,
+    borderColor: 'rgba(125,163,204,0.13)',
+    gap: 12,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#f7f4ec',
+    fontWeight: '800',
+    color: '#f8fafc',
     marginBottom: 4,
   },
   rowCard: {
-    borderRadius: 14,
-    backgroundColor: '#111a25',
+    borderRadius: 18,
+    backgroundColor: 'rgba(16,28,42,0.9)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.04)',
-    padding: 12,
-    gap: 4,
+    borderColor: 'rgba(125,163,204,0.12)',
+    padding: 14,
+    gap: 5,
   },
   alertItem: {
-    padding: 14,
-    borderRadius: 18,
-    backgroundColor: '#171c25',
+    padding: 15,
+    borderRadius: 20,
+    backgroundColor: 'rgba(15,24,35,0.9)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
-    gap: 6,
+    borderColor: 'rgba(125,163,204,0.12)',
+    gap: 7,
   },
   alertHeader: {
     flexDirection: 'row',
@@ -2306,34 +2404,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   alertTitle: {
-    color: '#f7f5ef',
+    color: '#f8fafc',
     fontWeight: '800',
+    flex: 1,
   },
   statusPill: {
-    color: '#d8b468',
+    color: '#f6cf86',
     fontWeight: '800',
   },
   alertGrid: {
     gap: 10,
   },
   alertButton: {
-    borderRadius: 16,
-    paddingVertical: 14,
+    borderRadius: 18,
+    paddingVertical: 15,
     alignItems: 'center',
-    backgroundColor: '#171c25',
+    backgroundColor: 'rgba(16,28,42,0.9)',
     borderWidth: 1,
-    borderColor: 'rgba(216,180,104,0.18)',
+    borderColor: 'rgba(125,163,204,0.16)',
   },
   alertButtonDisabled: {
     opacity: 0.45,
   },
   alertButtonLabel: {
-    color: '#f7f5ef',
+    color: '#f8fafc',
     fontWeight: '800',
     marginBottom: 4,
   },
   alertButtonHint: {
-    color: '#9ba7bf',
+    color: '#8da0b5',
     fontSize: 12,
     lineHeight: 17,
     paddingHorizontal: 12,
@@ -2344,10 +2443,10 @@ const styles = StyleSheet.create({
   },
   evidencePreviewCard: {
     marginTop: 2,
-    borderRadius: 18,
+    borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(125,184,199,0.18)',
+    borderColor: 'rgba(125,163,204,0.18)',
     backgroundColor: 'rgba(8,16,26,0.9)',
   },
   evidencePreview: {
@@ -2355,23 +2454,158 @@ const styles = StyleSheet.create({
     height: 188,
   },
   rowTitle: {
-    fontWeight: '700',
-    color: '#f7f4ec',
+    fontWeight: '800',
+    color: '#f8fafc',
   },
   rowMeta: {
-    color: '#9ba7b7',
+    color: '#90a0b4',
+    lineHeight: 19,
   },
   mapCard: {
     marginTop: 4,
-    borderRadius: 20,
+    borderRadius: 22,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(228,188,116,0.1)',
-    backgroundColor: '#0b1118',
+    borderColor: 'rgba(125,163,204,0.15)',
+    backgroundColor: '#081018',
   },
   mapFrame: {
     width: '100%',
     height: 260,
-    backgroundColor: '#0b1118',
+    backgroundColor: '#081018',
+  },
+  heroCard: {
+    borderRadius: 28,
+    padding: 20,
+    gap: 14,
+    backgroundColor: 'rgba(8,15,24,0.96)',
+    borderWidth: 1,
+    borderColor: 'rgba(125,163,204,0.16)',
+    shadowColor: '#000000',
+    shadowOpacity: 0.22,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 3,
+  },
+  heroBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(225,183,103,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(242,201,125,0.24)',
+  },
+  heroBadgeText: {
+    color: '#f2c97d',
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    fontSize: 11,
+  },
+  heroDivider: {
+    height: 1,
+    backgroundColor: 'rgba(125,163,204,0.16)',
+  },
+  heroSupportingText: {
+    color: '#7f95ac',
+    lineHeight: 20,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  inlinePill: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: 'rgba(225,183,103,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(242,201,125,0.22)',
+  },
+  inlinePillText: {
+    color: '#f7d79a',
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  inlinePillMuted: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: 'rgba(125,163,204,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(125,163,204,0.16)',
+  },
+  inlinePillMutedText: {
+    color: '#9bb2c8',
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  alertPulsePill: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: 'rgba(246,129,118,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(246,129,118,0.22)',
+  },
+  alertPulsePillText: {
+    color: '#ffd5cf',
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  priorityBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(242,201,125,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(242,201,125,0.22)',
+  },
+  priorityBadgeText: {
+    color: '#f6cf86',
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  highlightStrip: {
+    flexDirection: 'row',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  highlightItem: {
+    flexGrow: 1,
+    minWidth: 130,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(16,28,42,0.9)',
+    borderWidth: 1,
+    borderColor: 'rgba(125,163,204,0.12)',
+  },
+  highlightLabel: {
+    color: '#8ca0b5',
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  highlightValue: {
+    color: '#f8fafc',
+    fontWeight: '800',
+  },
+  headerCopyBlock: {
+    flex: 1,
+    minWidth: 220,
   },
 })
