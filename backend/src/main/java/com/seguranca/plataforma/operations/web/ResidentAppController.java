@@ -17,6 +17,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.ResponseStatus;
 
 @RestController
 @RequestMapping("/api/resident-app")
@@ -32,6 +34,12 @@ public class ResidentAppController {
     @PostMapping("/session")
     public ResidentSessionResponse login(@Valid @RequestBody ResidentLoginRequest request) {
         return residentAlertService.createSession(request);
+    }
+
+    @PostMapping("/session/logout")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void logout(@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
+        residentAlertService.logout(authorization);
     }
 
     @GetMapping("/me")

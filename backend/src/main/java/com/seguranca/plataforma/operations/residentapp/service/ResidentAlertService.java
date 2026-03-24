@@ -160,6 +160,7 @@ public class ResidentAlertService {
         String notes = StringUtils.hasText(request.notes()) ? request.notes().trim() : null;
         boolean silentAlert = request.type() == ResidentAlertType.COACAO;
         String escortDestination = normalizeEscortDestination(request.escortDestination());
+        ensureResidentHasNoActiveAlert(resident.getId());
 
         if (silentAlert) {
             validateCoercionPin(resident, request.coercionPin());
@@ -189,6 +190,16 @@ public class ResidentAlertService {
         residentSessionRepository.save(session);
         recordAudit(AuditActionType.RESIDENT_ALERT, "ResidentAlert", savedAlert.getId(), "Abertura do alerta " + savedAlert.getType() + " do morador " + resident.getFullName());
         return toResponse(savedAlert);
+    }
+
+    @Transactional
+    public void logout(String authorizationHeader) {
+        // O logout revoga a sessao atual do morador em vez de apenas apagar estado local no celular.
+        ResidentSession session = resolveActiveSession(authorizationHeader);
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        session.revoke(now);
+        residentSessionRepository.save(session);
+        recordAudit(AuditActionType.AUTH, "ResidentSession", session.getResidentId(), "Logout do morador");
     }
 
     @Transactional
@@ -341,6 +352,25 @@ public class ResidentAlertService {
         if (currentStatus == ResidentAlertStatus.ACKNOWLEDGED && requestedStatus == ResidentAlertStatus.RESOLVED) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O alerta precisa passar por despacho antes da resolucao.");
         }
+    }
+
+    private void ensureResidentHasNoActiveAlert(Long residentId) {
+        // O morador nao pode abrir varios alertas ativos ao mesmo tempo porque isso quebra o atendimento.
+        residentAlertRepository.findFirstByResidentIdAndStatusInOrderByOpenedAtDesc(
+                        residentId,
+                        List.of(
+                                ResidentAlertStatus.OPEN,
+                                ResidentAlertStatus.ACKNOWLEDGED,
+                                ResidentAlertStatus.DISPATCHED,
+                                ResidentAlertStatus.ON_SITE
+                        )
+                )
+                .ifPresent(alert -> {
+                    throw new ResponseStatusException(
+                            HttpStatus.CONFLICT,
+                            "Ja existe um alerta ativo em atendimento. Aguarde a central concluir ou cancele o alerta atual."
+                    );
+                });
     }
 
     private ResidentAlertResponse toResponse(ResidentAlert alert) {

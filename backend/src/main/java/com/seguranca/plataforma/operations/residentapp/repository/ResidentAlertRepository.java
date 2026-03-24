@@ -11,5 +11,7 @@ public interface ResidentAlertRepository extends JpaRepository<ResidentAlert, Lo
 
     Optional<ResidentAlert> findByIdAndResidentId(Long id, Long residentId);
 
+    Optional<ResidentAlert> findFirstByResidentIdAndStatusInOrderByOpenedAtDesc(Long residentId, List<ResidentAlertStatus> statuses);
+
     long countByStatus(ResidentAlertStatus status);
 }
