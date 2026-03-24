@@ -1,0 +1,384 @@
+package com.seguranca.plataforma.operations.residentapp.service;
+
+import com.seguranca.plataforma.operations.model.AuditActionType;
+import com.seguranca.plataforma.operations.model.AuditRecord;
+import com.seguranca.plataforma.operations.model.Agent;
+import com.seguranca.plataforma.operations.model.Resident;
+import com.seguranca.plataforma.operations.model.Vehicle;
+import com.seguranca.plataforma.operations.model.VehicleStatus;
+import com.seguranca.plataforma.operations.repository.AgentRepository;
+import com.seguranca.plataforma.operations.repository.AuditRecordRepository;
+import com.seguranca.plataforma.operations.repository.ResidentRepository;
+import com.seguranca.plataforma.operations.repository.VehicleRepository;
+import com.seguranca.plataforma.operations.residentapp.dto.CreateResidentAlertRequest;
+import com.seguranca.plataforma.operations.residentapp.dto.DispatchResidentAlertRequest;
+import com.seguranca.plataforma.operations.residentapp.dto.ResidentAlertActionNotesRequest;
+import com.seguranca.plataforma.operations.residentapp.dto.ResidentAlertCancelRequest;
+import com.seguranca.plataforma.operations.residentapp.dto.ResidentAlertResponse;
+import com.seguranca.plataforma.operations.residentapp.dto.ResidentLoginRequest;
+import com.seguranca.plataforma.operations.residentapp.dto.ResidentProfileResponse;
+import com.seguranca.plataforma.operations.residentapp.dto.ResidentSessionResponse;
+import com.seguranca.plataforma.operations.residentapp.model.ResidentAlert;
+import com.seguranca.plataforma.operations.residentapp.model.ResidentAlertStatus;
+import com.seguranca.plataforma.operations.residentapp.model.ResidentAlertType;
+import com.seguranca.plataforma.operations.residentapp.model.ResidentSession;
+import com.seguranca.plataforma.operations.residentapp.repository.ResidentAlertRepository;
+import com.seguranca.plataforma.operations.residentapp.repository.ResidentSessionRepository;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.HexFormat;
+import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import org.springframework.web.server.ResponseStatusException;
+
+@Service
+public class ResidentAlertService {
+    // Mantem o fluxo do morador separado da operacao interna para evitar misturar dominios diferentes.
+
+    private static final int SESSION_DAYS = 7;
+
+    private final ResidentRepository residentRepository;
+    private final ResidentAlertRepository residentAlertRepository;
+    private final ResidentSessionRepository residentSessionRepository;
+    private final AgentRepository agentRepository;
+    private final VehicleRepository vehicleRepository;
+    private final AuditRecordRepository auditRecordRepository;
+
+    public ResidentAlertService(
+            ResidentRepository residentRepository,
+            ResidentAlertRepository residentAlertRepository,
+            ResidentSessionRepository residentSessionRepository,
+            AgentRepository agentRepository,
+            VehicleRepository vehicleRepository,
+            AuditRecordRepository auditRecordRepository
+    ) {
+        this.residentRepository = residentRepository;
+        this.residentAlertRepository = residentAlertRepository;
+        this.residentSessionRepository = residentSessionRepository;
+        this.agentRepository = agentRepository;
+        this.vehicleRepository = vehicleRepository;
+        this.auditRecordRepository = auditRecordRepository;
+    }
+
+    @Transactional
+    public ResidentSessionResponse createSession(ResidentLoginRequest request) {
+        // Cria uma sessao simples e separada para o app do morador com validade curta.
+        Resident resident = getResident(request.residentId());
+        if (!normalizeDigits(resident.getPhoneNumber()).equals(normalizeDigits(request.phoneNumber()))) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Morador ou telefone invalidos.");
+        }
+
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        String accessToken = UUID.randomUUID().toString().replace("-", "");
+        ResidentSession session = new ResidentSession(
+                resident.getId(),
+                hashToken(accessToken),
+                now,
+                now.plusDays(SESSION_DAYS),
+                now
+        );
+        residentSessionRepository.save(session);
+        recordAudit(AuditActionType.AUTH, "ResidentSession", resident.getId(), "Sessao do morador " + resident.getFullName());
+
+        return new ResidentSessionResponse(
+                "Bearer",
+                accessToken,
+                session.getExpiresAt(),
+                resident.getId(),
+                resident.getFullName(),
+                resident.getPhoneNumber(),
+                resident.getAddress(),
+                resident.getReferenceNote()
+        );
+    }
+
+    @Transactional
+    public ResidentProfileResponse getProfile(String authorizationHeader) {
+        // Expõe apenas a ficha minima do morador autenticado para a tela inicial do app.
+        ResidentSession session = resolveActiveSession(authorizationHeader);
+        Resident resident = getResident(session.getResidentId());
+        return new ResidentProfileResponse(
+                resident.getId(),
+                resident.getFullName(),
+                resident.getPhoneNumber(),
+                resident.getAddress(),
+                resident.getReferenceNote(),
+                session.getExpiresAt()
+        );
+    }
+
+    @Transactional
+    public List<ResidentAlertResponse> listResidentAlerts(String authorizationHeader) {
+        // Entrega o historico proprio do morador sem expor alertas de terceiros.
+        ResidentSession session = resolveActiveSession(authorizationHeader);
+        return residentAlertRepository.findByResidentIdOrderByOpenedAtDesc(session.getResidentId()).stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    @Transactional
+    public ResidentAlertResponse getResidentAlert(String authorizationHeader, Long alertId) {
+        ResidentSession session = resolveActiveSession(authorizationHeader);
+        return toResponse(getResidentAlert(alertId, session.getResidentId()));
+    }
+
+    @Transactional
+    public ResidentAlertResponse createAlert(String authorizationHeader, CreateResidentAlertRequest request) {
+        // Registra o alerta com a identidade do morador e a localizacao opcional do celular.
+        ResidentSession session = resolveActiveSession(authorizationHeader);
+        Resident resident = getResident(session.getResidentId());
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        String notes = StringUtils.hasText(request.notes()) ? request.notes().trim() : null;
+
+        ResidentAlert alert = new ResidentAlert(
+                resident.getId(),
+                resident.getFullName(),
+                resident.getPhoneNumber(),
+                resident.getAddress(),
+                request.type(),
+                ResidentAlertStatus.OPEN,
+                now,
+                now,
+                request.latitude(),
+                request.longitude(),
+                notes
+        );
+
+        ResidentAlert savedAlert = residentAlertRepository.save(alert);
+        session.touch(now);
+        residentSessionRepository.save(session);
+        recordAudit(AuditActionType.RESIDENT_ALERT, "ResidentAlert", savedAlert.getId(), "Abertura do alerta " + savedAlert.getType() + " do morador " + resident.getFullName());
+        return toResponse(savedAlert);
+    }
+
+    @Transactional
+    public ResidentAlertResponse cancelAlert(String authorizationHeader, Long alertId, ResidentAlertCancelRequest request) {
+        // Cancela apenas o proprio alerta enquanto ele ainda esta num estado recuperavel.
+        ResidentSession session = resolveActiveSession(authorizationHeader);
+        ResidentAlert alert = getResidentAlert(alertId, session.getResidentId());
+        if (alert.getStatus() == ResidentAlertStatus.DISPATCHED || alert.getStatus() == ResidentAlertStatus.ON_SITE || alert.getStatus() == ResidentAlertStatus.RESOLVED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nao e possivel cancelar um alerta ja despachado ou resolvido.");
+        }
+
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        alert.cancel(now, normalizeNotes(request == null ? null : request.cancellationReason(), "Cancelado pelo morador"));
+        ResidentAlert savedAlert = residentAlertRepository.save(alert);
+        session.touch(now);
+        residentSessionRepository.save(session);
+        recordAudit(AuditActionType.RESIDENT_ALERT, "ResidentAlert", savedAlert.getId(), "Cancelamento do alerta " + savedAlert.getId());
+        return toResponse(savedAlert);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ResidentAlertResponse> listAllAlerts() {
+        // Visao operacional da central para supervisao e atendimento.
+        return residentAlertRepository.findAll().stream()
+                .sorted((left, right) -> right.getOpenedAt().compareTo(left.getOpenedAt()))
+                .map(this::toResponse)
+                .toList();
+    }
+
+    @Transactional
+    public ResidentAlertResponse acknowledge(Long alertId, ResidentAlertActionNotesRequest request) {
+        // Marca a recepcao do alerta antes de despachar equipe.
+        ResidentAlert alert = getResidentAlert(alertId);
+        validateAlertTransition(alert.getStatus(), ResidentAlertStatus.ACKNOWLEDGED);
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        alert.acknowledge(now, normalizeNotes(request == null ? null : request.notes(), "Alerta recebido pela central."));
+        ResidentAlert savedAlert = residentAlertRepository.save(alert);
+        recordAudit(AuditActionType.RESIDENT_ALERT, "ResidentAlert", savedAlert.getId(), "Recebimento do alerta " + savedAlert.getId());
+        return toResponse(savedAlert);
+    }
+
+    @Transactional
+    public ResidentAlertResponse dispatch(Long alertId, DispatchResidentAlertRequest request) {
+        // Relaciona o alerta com vigilante e viatura responsaveis pelo deslocamento.
+        ResidentAlert alert = getResidentAlert(alertId);
+        validateAlertTransition(alert.getStatus(), ResidentAlertStatus.DISPATCHED);
+        Agent agent = getAgent(request.assignedAgentId());
+        Vehicle vehicle = getVehicle(request.vehicleId());
+        if (vehicle.getStatus() == VehicleStatus.MAINTENANCE || vehicle.getStatus() == VehicleStatus.BLOCKED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A viatura selecionada nao esta disponivel para despacho.");
+        }
+
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        alert.dispatch(
+                agent.getId(),
+                agent.getFullName(),
+                vehicle.getId(),
+                vehicle.getPlate(),
+                now,
+                normalizeNotes(request.dispatchNotes(), null)
+        );
+        ResidentAlert savedAlert = residentAlertRepository.save(alert);
+        recordAudit(AuditActionType.RESIDENT_ALERT, "ResidentAlert", savedAlert.getId(), "Despacho do alerta " + savedAlert.getId());
+        return toResponse(savedAlert);
+    }
+
+    @Transactional
+    public ResidentAlertResponse markOnSite(Long alertId, ResidentAlertActionNotesRequest request) {
+        // Registra chegada sem perder o historico do despacho.
+        ResidentAlert alert = getResidentAlert(alertId);
+        validateAlertTransition(alert.getStatus(), ResidentAlertStatus.ON_SITE);
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        alert.markOnSite(now, normalizeNotes(request == null ? null : request.notes(), "Equipe no local."));
+        ResidentAlert savedAlert = residentAlertRepository.save(alert);
+        recordAudit(AuditActionType.RESIDENT_ALERT, "ResidentAlert", savedAlert.getId(), "Chegada no local do alerta " + savedAlert.getId());
+        return toResponse(savedAlert);
+    }
+
+    @Transactional
+    public ResidentAlertResponse resolve(Long alertId, ResidentAlertActionNotesRequest request) {
+        // Fecha o ciclo operacional do alerta.
+        ResidentAlert alert = getResidentAlert(alertId);
+        validateAlertTransition(alert.getStatus(), ResidentAlertStatus.RESOLVED);
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        alert.resolve(now, normalizeNotes(request == null ? null : request.notes(), "Alerta resolvido pela operacao."));
+        ResidentAlert savedAlert = residentAlertRepository.save(alert);
+        recordAudit(AuditActionType.RESIDENT_ALERT, "ResidentAlert", savedAlert.getId(), "Resolucao do alerta " + savedAlert.getId());
+        return toResponse(savedAlert);
+    }
+
+    private ResidentSession resolveActiveSession(String authorizationHeader) {
+        if (!StringUtils.hasText(authorizationHeader)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Sessao do morador ausente.");
+        }
+
+        String token = normalizeBearerToken(authorizationHeader);
+        ResidentSession session = residentSessionRepository.findByTokenHash(hashToken(token))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Sessao do morador invalida."));
+
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        if (!session.isActive(now)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Sessao do morador expirada ou revogada.");
+        }
+
+        session.touch(now);
+        residentSessionRepository.save(session);
+        return session;
+    }
+
+    private ResidentAlert getResidentAlert(Long alertId, Long residentId) {
+        return residentAlertRepository.findByIdAndResidentId(alertId, residentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Alerta do morador nao encontrado."));
+    }
+
+    private ResidentAlert getResidentAlert(Long alertId) {
+        return residentAlertRepository.findById(alertId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Alerta do morador nao encontrado."));
+    }
+
+    private Resident getResident(Long id) {
+        return residentRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Morador nao encontrado."));
+    }
+
+    private Agent getAgent(Long id) {
+        return agentRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Agente nao encontrado."));
+    }
+
+    private Vehicle getVehicle(Long id) {
+        return vehicleRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Viatura nao encontrada."));
+    }
+
+    private void validateAlertTransition(ResidentAlertStatus currentStatus, ResidentAlertStatus requestedStatus) {
+        // Impede regressao ou saltos inconsistentes no ciclo do alerta.
+        if (currentStatus == ResidentAlertStatus.CANCELLED || currentStatus == ResidentAlertStatus.RESOLVED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O alerta ja foi finalizado e nao pode mudar de status.");
+        }
+
+        if (currentStatus == ResidentAlertStatus.OPEN && requestedStatus == ResidentAlertStatus.ON_SITE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O alerta precisa ser despachado antes de registrar chegada no local.");
+        }
+    }
+
+    private ResidentAlertResponse toResponse(ResidentAlert alert) {
+        return new ResidentAlertResponse(
+                alert.getId(),
+                alert.getResidentId(),
+                alert.getResidentName(),
+                alert.getResidentPhoneNumber(),
+                alert.getResidentAddress(),
+                alert.getType(),
+                alert.getStatus(),
+                alert.getLatitude(),
+                alert.getLongitude(),
+                alert.getNotes(),
+                alert.getOpenedAt(),
+                alert.getUpdatedAt(),
+                alert.getAcknowledgedAt(),
+                alert.getDispatchedAt(),
+                alert.getOnSiteAt(),
+                alert.getResolvedAt(),
+                alert.getCancelledAt(),
+                alert.getAssignedAgentId(),
+                alert.getAssignedAgentName(),
+                alert.getVehicleId(),
+                alert.getVehiclePlate(),
+                alert.getAcknowledgmentNotes(),
+                alert.getDispatchNotes(),
+                alert.getArrivalNotes(),
+                alert.getResolutionNotes(),
+                alert.getCancellationReason()
+        );
+    }
+
+    private String normalizeBearerToken(String authorizationHeader) {
+        String trimmed = authorizationHeader.trim();
+        if (trimmed.toLowerCase(Locale.ROOT).startsWith("bearer ")) {
+            return trimmed.substring(7).trim();
+        }
+        return trimmed;
+    }
+
+    private String normalizeDigits(String value) {
+        return value == null ? "" : value.replaceAll("\\D+", "");
+    }
+
+    private String normalizeNotes(String notes, String fallback) {
+        return StringUtils.hasText(notes) ? notes.trim() : fallback;
+    }
+
+    private String hashToken(String token) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hashedBytes = digest.digest(token.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hashedBytes);
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("Nao foi possivel gerar o hash do token do morador.", ex);
+        }
+    }
+
+    private void recordAudit(AuditActionType actionType, String entityName, Long entityId, String description) {
+        // Mantem a trilha de auditoria no mesmo padrao da operacao administrativa.
+        AuditRecord record = new AuditRecord(
+                actionType,
+                entityName,
+                entityId,
+                resolveCurrentActorUsername(),
+                OffsetDateTime.now(ZoneOffset.UTC),
+                description
+        );
+        auditRecordRepository.save(record);
+    }
+
+    private String resolveCurrentActorUsername() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || authentication.getName() == null || "anonymousUser".equals(authentication.getName())) {
+            return "sistema";
+        }
+        return authentication.getName();
+    }
+}

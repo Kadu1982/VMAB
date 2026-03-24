@@ -8,5 +8,6 @@ public enum AuditActionType {
     MAINTENANCE,
     TELEMETRY,
     INCIDENT_WORKFLOW,
-    AUTH
+    AUTH,
+    RESIDENT_ALERT
 }
