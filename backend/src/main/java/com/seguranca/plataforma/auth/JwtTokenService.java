@@ -23,13 +23,14 @@ public class JwtTokenService {
         this.secretKey = Keys.hmacShaKeyFor(normalizeSecret(jwtProperties.secret()));
     }
 
-    public String generateToken(String username, List<String> roles) {
+    public String generateToken(String username, List<String> roles, int tokenVersion) {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         OffsetDateTime expiresAt = now.plusHours(jwtProperties.expirationHours());
 
         return Jwts.builder()
                 .subject(username)
                 .claim("roles", roles)
+                .claim("tokenVersion", tokenVersion)
                 .issuedAt(Date.from(now.toInstant()))
                 .expiration(Date.from(expiresAt.toInstant()))
                 .signWith(secretKey)
@@ -48,6 +49,14 @@ public class JwtTokenService {
     public List<String> extractRoles(String token) {
         Object roles = parseClaims(token).get("roles");
         return roles instanceof List<?> list ? (List<String>) list : List.of();
+    }
+
+    public int extractTokenVersion(String token) {
+        Object version = parseClaims(token).get("tokenVersion");
+        if (version instanceof Number number) {
+            return number.intValue();
+        }
+        return 0;
     }
 
     public boolean isValid(String token, String username) {

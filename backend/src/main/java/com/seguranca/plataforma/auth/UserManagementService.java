@@ -31,13 +31,14 @@ public class UserManagementService {
 
     @Transactional
     public AppUserResponse createUser(CreateAppUserRequest request) {
-        appUserRepository.findByUsername(request.username())
+        String username = request.username().trim();
+        appUserRepository.findByUsername(username)
                 .ifPresent(user -> {
                     throw new ResponseStatusException(HttpStatus.CONFLICT, "Ja existe um usuario com esse login.");
                 });
 
         AppUser user = new AppUser(
-                request.username().trim(),
+                username,
                 passwordEncoder.encode(request.password()),
                 request.role(),
                 request.enabled(),
@@ -50,6 +51,7 @@ public class UserManagementService {
     @Transactional
     public AppUserResponse updateUser(Long id, UpdateAppUserRequest request) {
         AppUser user = getUser(id);
+        boolean enabledChanged = user.isEnabled() != request.enabled();
 
         appUserRepository.findByUsername(request.username().trim())
                 .filter(existing -> !existing.getId().equals(id))
@@ -60,7 +62,16 @@ public class UserManagementService {
         user.update(request.username().trim(), request.role(), request.enabled());
         if (StringUtils.hasText(request.password())) {
             user.updatePasswordHash(passwordEncoder.encode(request.password()));
+            user.resetSecurityState();
         }
+
+        if (enabledChanged && request.enabled()) {
+            // Reabilitar um usuario tambem limpa bloqueios temporarios anteriores.
+            user.resetSecurityState();
+        }
+
+        // Qualquer alteracao administrativa invalida tokens emitidos antes desta mudanca.
+        user.bumpTokenVersion();
 
         return AppUserResponse.fromEntity(appUserRepository.save(user));
     }

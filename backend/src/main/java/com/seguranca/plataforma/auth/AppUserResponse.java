@@ -7,7 +7,10 @@ public record AppUserResponse(
         String username,
         AppUserRole role,
         boolean enabled,
-        OffsetDateTime createdAt
+        OffsetDateTime createdAt,
+        int tokenVersion,
+        int failedLoginAttempts,
+        OffsetDateTime lockedUntil
 ) {
     public static AppUserResponse fromEntity(AppUser user) {
         return new AppUserResponse(
@@ -15,7 +18,10 @@ public record AppUserResponse(
                 user.getUsername(),
                 user.getRole(),
                 user.isEnabled(),
-                user.getCreatedAt()
+                user.getCreatedAt(),
+                user.getTokenVersion(),
+                user.getFailedLoginAttempts(),
+                user.getLockedUntil()
         );
     }
 }

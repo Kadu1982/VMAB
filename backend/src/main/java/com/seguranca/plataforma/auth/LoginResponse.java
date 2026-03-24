@@ -8,6 +8,7 @@ public record LoginResponse(
         String tokenType,
         OffsetDateTime expiresAt,
         String username,
-        List<String> roles
+        List<String> roles,
+        int tokenVersion
 ) {
 }

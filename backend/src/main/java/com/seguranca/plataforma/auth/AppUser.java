@@ -9,6 +9,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 
 @Entity
 @Table(name = "app_users")
@@ -34,6 +35,15 @@ public class AppUser {
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 
+    @Column(name = "token_version", nullable = false)
+    private int tokenVersion;
+
+    @Column(name = "failed_login_attempts", nullable = false)
+    private int failedLoginAttempts;
+
+    @Column(name = "locked_until")
+    private OffsetDateTime lockedUntil;
+
     protected AppUser() {
     }
 
@@ -43,6 +53,8 @@ public class AppUser {
         this.role = role;
         this.enabled = enabled;
         this.createdAt = createdAt;
+        this.tokenVersion = 0;
+        this.failedLoginAttempts = 0;
     }
 
     public Long getId() {
@@ -69,6 +81,23 @@ public class AppUser {
         return createdAt;
     }
 
+    public int getTokenVersion() {
+        return tokenVersion;
+    }
+
+    public int getFailedLoginAttempts() {
+        return failedLoginAttempts;
+    }
+
+    public OffsetDateTime getLockedUntil() {
+        return lockedUntil;
+    }
+
+    public boolean isLocked() {
+        // Bloqueio temporario e respeitado apenas enquanto a janela estiver ativa.
+        return lockedUntil != null && lockedUntil.isAfter(OffsetDateTime.now(ZoneOffset.UTC));
+    }
+
     public void update(String username, AppUserRole role, boolean enabled) {
         this.username = username;
         this.role = role;
@@ -77,5 +106,27 @@ public class AppUser {
 
     public void updatePasswordHash(String passwordHash) {
         this.passwordHash = passwordHash;
+    }
+
+    public void incrementFailedLoginAttempts() {
+        this.failedLoginAttempts++;
+    }
+
+    public void resetFailedLoginAttempts() {
+        this.failedLoginAttempts = 0;
+    }
+
+    public void lockUntil(OffsetDateTime lockedUntil) {
+        this.lockedUntil = lockedUntil;
+    }
+
+    public void bumpTokenVersion() {
+        // Cada alteracao sensivel invalida as sessoes emitidas antes desta versao.
+        this.tokenVersion++;
+    }
+
+    public void resetSecurityState() {
+        this.failedLoginAttempts = 0;
+        this.lockedUntil = null;
     }
 }

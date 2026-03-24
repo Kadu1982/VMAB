@@ -36,6 +36,26 @@ public class AuthController {
         }
     }
 
+    @PostMapping("/logout")
+    public SessionActionResponse logout(Authentication authentication) {
+        // Derruba o ciclo de sessao do usuario atual ao invalidar a versao dos tokens.
+        return authService.logout(authentication.getName());
+    }
+
+    @PostMapping("/password-reset/request")
+    @ResponseStatus(HttpStatus.OK)
+    public PasswordResetRequestResponse requestPasswordReset(@Valid @RequestBody PasswordResetRequest request) {
+        // Gera um codigo temporario de recuperacao para o usuario informado.
+        return authService.requestPasswordReset(request.username());
+    }
+
+    @PostMapping("/password-reset/confirm")
+    @ResponseStatus(HttpStatus.OK)
+    public SessionActionResponse confirmPasswordReset(@Valid @RequestBody PasswordResetConfirmRequest request) {
+        // Conclui a troca de senha e invalida qualquer sessao emitida antes disso.
+        return authService.confirmPasswordReset(request);
+    }
+
     @GetMapping("/me")
     public Map<String, Object> me(Principal principal, Authentication authentication) {
         List<String> roles = authentication.getAuthorities().stream()
