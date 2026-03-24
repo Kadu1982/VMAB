@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "VMAB Morador",
+    "slug": "resident-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "A localizacao e usada apenas quando o morador abre um alerta para ajudar a central a localizar a ocorrencia."
+      }
+    },
+    "android": {
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ]
+    }
+  }
+}
