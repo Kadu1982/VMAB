@@ -1,5 +1,6 @@
 package com.seguranca.plataforma.auth;
 
+import com.seguranca.plataforma.operations.repository.AgentRepository;
 import com.seguranca.plataforma.operations.model.AuditActionType;
 import com.seguranca.plataforma.operations.model.AuditRecord;
 import com.seguranca.plataforma.operations.repository.AuditRecordRepository;
@@ -33,6 +34,7 @@ public class AuthService {
     private final AppUserRepository appUserRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final AuditRecordRepository auditRecordRepository;
+    private final AgentRepository agentRepository;
     private final JwtTokenService jwtTokenService;
     private final PasswordEncoder passwordEncoder;
     private final SecureRandom secureRandom = new SecureRandom();
@@ -42,6 +44,7 @@ public class AuthService {
             AppUserRepository appUserRepository,
             PasswordResetTokenRepository passwordResetTokenRepository,
             AuditRecordRepository auditRecordRepository,
+            AgentRepository agentRepository,
             JwtTokenService jwtTokenService,
             PasswordEncoder passwordEncoder
     ) {
@@ -49,6 +52,7 @@ public class AuthService {
         this.appUserRepository = appUserRepository;
         this.passwordResetTokenRepository = passwordResetTokenRepository;
         this.auditRecordRepository = auditRecordRepository;
+        this.agentRepository = agentRepository;
         this.jwtTokenService = jwtTokenService;
         this.passwordEncoder = passwordEncoder;
     }
@@ -136,6 +140,17 @@ public class AuthService {
         recordAudit(AuditActionType.AUTH, "Auth", user.getId(), "Senha redefinida para o usuario " + user.getUsername());
 
         return new SessionActionResponse("Senha redefinida com sucesso.");
+    }
+
+    @Transactional(readOnly = true)
+    public AuthenticatedUserResponse getAuthenticatedUser(String username, List<String> roles) {
+        // Retorna o contexto autenticado com o eventual vinculo operacional da conta.
+        AppUser user = appUserRepository.findByUsername(username.trim())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario nao encontrado."));
+        String linkedAgentName = user.getLinkedAgentId() == null
+                ? null
+                : agentRepository.findById(user.getLinkedAgentId()).map(agent -> agent.getFullName()).orElse(null);
+        return new AuthenticatedUserResponse(user.getUsername(), roles, user.getLinkedAgentId(), linkedAgentName);
     }
 
     private void registerFailedLoginAttempt(AppUser user) {

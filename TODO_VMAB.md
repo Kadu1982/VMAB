@@ -7,12 +7,12 @@ Tabela objetiva do que ainda falta para o sistema atingir um estado forte de pro
 | ID | Bloco | Status | Prioridade | Observacao objetiva |
 |---|---|---|---|---|
 | 01 | Autenticacao com usuarios persistidos e JWT | Concluido | Alta | Entregue no backend, web e mobile. |
-| 02 | Gestao real de usuarios e perfis no painel | Concluido | Alta | CRUD minimo entregue no backend e no painel, restrito ao perfil administrador. |
+| 02 | Gestao real de usuarios e perfis no painel | Concluido | Alta | CRUD minimo entregue no backend e no painel, restrito ao perfil administrador, com vinculo opcional entre usuario operacional e vigilante. |
 | 03 | Recuperacao de senha, bloqueio e ciclo de sessao | Concluido | Alta | Fluxo de reset, bloqueio por tentativas, logout, invalidacao por versao de token e integracao basica no painel web estao entregues. |
 | 04 | App do morador | Em andamento | Alta | App inicial criado em `resident-mobile` com login, abertura de alertas e historico; ainda falta endurecer seguranca, push e UX final. |
 | 05 | Fluxo real de alerta, panico, coacao e escolta | Em andamento | Alta | Backend, app do morador e painel operacional ja conseguem abrir e operar alertas; ainda faltam notificacoes em tempo real, seguranca forte e regras avancadas. |
 | 06 | Operacao de ronda com aceite, despacho e encerramento mais completos | Em andamento | Alta | Despacho, chegada ao local, encerramento e trilha de auditoria ja existem no backend e no painel; ainda faltam mobile, notificacao e refinamento de regras operacionais. |
-| 07 | Troca de turno com aceite duplo e trilha formal | Concluido | Alta | Pedido de troca via /handoff-request, aceite e rejeicao pelo supervisor diretamente no painel; status HANDOFF_PENDING visivel na lista de turnos com botoes de acao. |
+| 07 | Troca de turno com aceite duplo e trilha formal | Concluido | Alta | Pedido de troca via /handoff-request, com aceite e rejeicao amarrados ao usuario de ronda vinculado ao vigilante designado; status HANDOFF_PENDING visivel na lista de turnos com botoes coerentes com a permissao real. |
 | 08 | Escala, falta, atraso e cobertura | Em andamento | Alta | O painel e o backend ja suportam marcacao formal de atraso, falta, normalizacao e cobertura; ainda faltam notificacoes e regras mais fortes de supervisao. |
 | 09 | Quilometragem percorrida, checklist e manutencao mais profundos | Concluido | Alta | Painel agora carrega /api/vehicles/report e exibe saude da frota, OS abertas por tipo, custo 30d e historico das ultimas OS com prioridade e status de ciclo de vida. |
 | 10 | Relatorios executivos e prova de execucao para cliente | Em andamento | Alta | Portal do cliente ganhou leitura executiva, saude do contrato e visao consolidada, mas ainda falta backend dedicado para relatorios formais. |

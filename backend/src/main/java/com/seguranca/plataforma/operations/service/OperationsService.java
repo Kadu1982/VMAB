@@ -1,5 +1,8 @@
 package com.seguranca.plataforma.operations.service;
 
+import com.seguranca.plataforma.auth.AppUser;
+import com.seguranca.plataforma.auth.AppUserRepository;
+import com.seguranca.plataforma.auth.AppUserRole;
 import com.seguranca.plataforma.config.VmabRetentionProperties;
 import com.seguranca.plataforma.operations.dto.CreateAgentRequest;
 import com.seguranca.plataforma.operations.dto.ActivePatrolResponse;
@@ -88,6 +91,7 @@ public class OperationsService {
     // Orquestra o dominio operacional: cadastros, turnos, ocorrencias, dashboard e telemetria.
 
     private final AgentRepository agentRepository;
+    private final AppUserRepository appUserRepository;
     private final AuditRecordRepository auditRecordRepository;
     private final VehicleRepository vehicleRepository;
     private final VehicleMaintenanceRecordRepository vehicleMaintenanceRecordRepository;
@@ -103,6 +107,7 @@ public class OperationsService {
 
     public OperationsService(
             AgentRepository agentRepository,
+            AppUserRepository appUserRepository,
             AuditRecordRepository auditRecordRepository,
             VehicleRepository vehicleRepository,
             VehicleMaintenanceRecordRepository vehicleMaintenanceRecordRepository,
@@ -117,6 +122,7 @@ public class OperationsService {
             @Value("${vmab.storage-root}") String storageRoot
     ) {
         this.agentRepository = agentRepository;
+        this.appUserRepository = appUserRepository;
         this.auditRecordRepository = auditRecordRepository;
         this.vehicleRepository = vehicleRepository;
         this.vehicleMaintenanceRecordRepository = vehicleMaintenanceRecordRepository;
@@ -623,10 +629,8 @@ public class OperationsService {
     public Shift requestShiftHandoff(Long id, RequestShiftHandoffRequest request) {
         // Abre um pedido formal de troca de turno e deixa a transferencia pendente ate o aceite.
         Shift shift = getShift(id);
-        if (!shift.getAgentId().equals(request.fromAgentId())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O agente de origem nao corresponde ao turno atual.");
-        }
-        if (request.fromAgentId().equals(request.toAgentId())) {
+        enforceHandoffRequesterAuthorization(shift);
+        if (shift.getAgentId().equals(request.toAgentId())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O agente que assume precisa ser diferente do agente atual.");
         }
 
@@ -655,8 +659,9 @@ public class OperationsService {
         if (shift.getStatus() != ShiftStatus.HANDOFF_PENDING) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nao existe troca pendente para este turno.");
         }
-        if (!request.actingAgentId().equals(shift.getHandoffToAgentId())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Somente o vigilante designado pode aceitar esta troca.");
+        Long currentAgentId = resolveCurrentOperationalAgentId(true);
+        if (!currentAgentId.equals(shift.getHandoffToAgentId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Somente o vigilante designado pode aceitar esta troca.");
         }
 
         shift.acceptHandoff(OffsetDateTime.now(ZoneOffset.UTC), normalizeOptionalText(request.notes(), 500));
@@ -672,14 +677,15 @@ public class OperationsService {
         if (shift.getStatus() != ShiftStatus.HANDOFF_PENDING) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nao existe troca pendente para este turno.");
         }
-        if (!request.actingAgentId().equals(shift.getHandoffToAgentId())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Somente o vigilante designado pode recusar esta troca.");
+        Long currentAgentId = resolveCurrentOperationalAgentId(true);
+        if (!currentAgentId.equals(shift.getHandoffToAgentId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Somente o vigilante designado pode recusar esta troca.");
         }
 
         shift.rejectHandoff(
                 OffsetDateTime.now(ZoneOffset.UTC),
                 resolveCurrentActorUsername(),
-                normalizeOptionalText(request.notes(), 500)
+                normalizeOptionalText(request.rejectionReason(), 500)
         );
         Shift savedShift = shiftRepository.save(shift);
         recordAudit(AuditActionType.HANDOFF, "Shift", savedShift.getId(), "Recusa da troca pelo agente " + shift.getHandoffToAgentName());
@@ -1562,6 +1568,41 @@ public class OperationsService {
         } catch (IOException exception) {
             // O diretorio vazio nao precisa bloquear a exclusao funcional da ocorrencia.
         }
+    }
+
+    private void enforceHandoffRequesterAuthorization(Shift shift) {
+        // Abertura da troca pode vir da ronda dona do turno ou de um perfil administrativo.
+        AppUser currentUser = resolveCurrentAppUser();
+        if (currentUser.getRole() != AppUserRole.RONDA) {
+            return;
+        }
+
+        Long linkedAgentId = resolveCurrentOperationalAgentId(true);
+        if (!linkedAgentId.equals(shift.getAgentId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "A conta autenticada nao representa o vigilante atual deste turno.");
+        }
+    }
+
+    private Long resolveCurrentOperationalAgentId(boolean required) {
+        // Acoes sensiveis da ronda precisam sair do usuario autenticado, nao de IDs enviados pelo cliente.
+        AppUser currentUser = resolveCurrentAppUser();
+        if (currentUser.getRole() != AppUserRole.RONDA) {
+            if (required) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Somente um usuario de ronda vinculado a vigilante pode executar esta acao.");
+            }
+            return null;
+        }
+
+        if (currentUser.getLinkedAgentId() == null && required) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "A conta da ronda precisa estar vinculada a um vigilante para assumir ou recusar trocas.");
+        }
+        return currentUser.getLinkedAgentId();
+    }
+
+    private AppUser resolveCurrentAppUser() {
+        String username = resolveCurrentActorUsername();
+        return appUserRepository.findByUsername(username)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Usuario autenticado nao encontrado."));
     }
 
     private String sanitizeFilename(String originalFilename) {

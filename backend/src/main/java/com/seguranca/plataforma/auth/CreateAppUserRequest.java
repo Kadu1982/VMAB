@@ -8,6 +8,7 @@ public record CreateAppUserRequest(
         @NotBlank String username,
         @NotBlank @Size(min = 6) String password,
         @NotNull AppUserRole role,
-        boolean enabled
+        boolean enabled,
+        Long linkedAgentId
 ) {
 }

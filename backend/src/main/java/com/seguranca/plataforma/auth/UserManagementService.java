@@ -1,9 +1,14 @@
 package com.seguranca.plataforma.auth;
 
+import com.seguranca.plataforma.operations.model.Agent;
+import com.seguranca.plataforma.operations.repository.AgentRepository;
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.time.ZoneOffset;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -14,18 +19,23 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class UserManagementService {
     private final AppUserRepository appUserRepository;
+    private final AgentRepository agentRepository;
     private final PasswordEncoder passwordEncoder;
 
-    public UserManagementService(AppUserRepository appUserRepository, PasswordEncoder passwordEncoder) {
+    public UserManagementService(AppUserRepository appUserRepository, AgentRepository agentRepository, PasswordEncoder passwordEncoder) {
         this.appUserRepository = appUserRepository;
+        this.agentRepository = agentRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
     @Transactional(readOnly = true)
     public List<AppUserResponse> listUsers() {
-        return appUserRepository.findAll().stream()
+        List<AppUser> users = appUserRepository.findAll().stream()
                 .sorted(Comparator.comparing(AppUser::getId))
-                .map(AppUserResponse::fromEntity)
+                .toList();
+        Map<Long, String> agentNames = loadAgentNames(users.stream().map(AppUser::getLinkedAgentId).toList());
+        return users.stream()
+                .map(user -> AppUserResponse.fromEntity(user, agentNames.get(user.getLinkedAgentId())))
                 .toList();
     }
 
@@ -44,8 +54,10 @@ public class UserManagementService {
                 request.enabled(),
                 OffsetDateTime.now(ZoneOffset.UTC)
         );
+        user.update(username, request.role(), request.enabled(), resolveLinkedAgentId(request.role(), request.linkedAgentId()));
 
-        return AppUserResponse.fromEntity(appUserRepository.save(user));
+        AppUser savedUser = appUserRepository.save(user);
+        return AppUserResponse.fromEntity(savedUser, resolveLinkedAgentName(savedUser.getLinkedAgentId()));
     }
 
     @Transactional
@@ -59,7 +71,12 @@ public class UserManagementService {
                     throw new ResponseStatusException(HttpStatus.CONFLICT, "Ja existe um usuario com esse login.");
                 });
 
-        user.update(request.username().trim(), request.role(), request.enabled());
+        user.update(
+                request.username().trim(),
+                request.role(),
+                request.enabled(),
+                resolveLinkedAgentId(request.role(), request.linkedAgentId())
+        );
         if (StringUtils.hasText(request.password())) {
             user.updatePasswordHash(passwordEncoder.encode(request.password()));
             user.resetSecurityState();
@@ -73,7 +90,8 @@ public class UserManagementService {
         // Qualquer alteracao administrativa invalida tokens emitidos antes desta mudanca.
         user.bumpTokenVersion();
 
-        return AppUserResponse.fromEntity(appUserRepository.save(user));
+        AppUser savedUser = appUserRepository.save(user);
+        return AppUserResponse.fromEntity(savedUser, resolveLinkedAgentName(savedUser.getLinkedAgentId()));
     }
 
     @Transactional
@@ -89,5 +107,42 @@ public class UserManagementService {
     private AppUser getUser(Long id) {
         return appUserRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario nao encontrado."));
+    }
+
+    private Long resolveLinkedAgentId(AppUserRole role, Long linkedAgentId) {
+        // O vinculo opcional com agente permite amarrar a identidade da ronda a um vigilante real.
+        if (linkedAgentId == null) {
+            return null;
+        }
+
+        if (role != AppUserRole.RONDA && role != AppUserRole.SUPERVISOR && role != AppUserRole.ADMIN) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Somente usuarios operacionais podem ser vinculados a um vigilante.");
+        }
+
+        agentRepository.findById(linkedAgentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Agente vinculado nao encontrado."));
+        return linkedAgentId;
+    }
+
+    private Map<Long, String> loadAgentNames(Collection<Long> linkedAgentIds) {
+        List<Long> validIds = linkedAgentIds.stream()
+                .filter(id -> id != null)
+                .distinct()
+                .toList();
+        if (validIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return agentRepository.findAllById(validIds).stream()
+                .collect(Collectors.toMap(Agent::getId, Agent::getFullName, (left, right) -> left));
+    }
+
+    private String resolveLinkedAgentName(Long linkedAgentId) {
+        if (linkedAgentId == null) {
+            return null;
+        }
+        return agentRepository.findById(linkedAgentId)
+                .map(Agent::getFullName)
+                .orElse(null);
     }
 }

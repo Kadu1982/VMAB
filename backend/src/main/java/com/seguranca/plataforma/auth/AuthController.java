@@ -1,9 +1,7 @@
 package com.seguranca.plataforma.auth;
 
 import jakarta.validation.Valid;
-import java.security.Principal;
 import java.util.List;
-import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.Authentication;
@@ -57,13 +55,10 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    public Map<String, Object> me(Principal principal, Authentication authentication) {
+    public AuthenticatedUserResponse me(Authentication authentication) {
         List<String> roles = authentication.getAuthorities().stream()
                 .map(grantedAuthority -> grantedAuthority.getAuthority())
                 .toList();
-        return Map.of(
-                "username", principal.getName(),
-                "roles", roles
-        );
+        return authService.getAuthenticatedUser(authentication.getName(), roles);
     }
 }

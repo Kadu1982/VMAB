@@ -8,6 +8,7 @@ public record UpdateAppUserRequest(
         @NotBlank String username,
         @NotNull AppUserRole role,
         boolean enabled,
-        @Size(min = 6) String password
+        @Size(min = 6) String password,
+        Long linkedAgentId
 ) {
 }

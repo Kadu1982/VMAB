@@ -44,6 +44,9 @@ public class AppUser {
     @Column(name = "locked_until")
     private OffsetDateTime lockedUntil;
 
+    @Column(name = "linked_agent_id")
+    private Long linkedAgentId;
+
     protected AppUser() {
     }
 
@@ -93,15 +96,20 @@ public class AppUser {
         return lockedUntil;
     }
 
+    public Long getLinkedAgentId() {
+        return linkedAgentId;
+    }
+
     public boolean isLocked() {
         // Bloqueio temporario e respeitado apenas enquanto a janela estiver ativa.
         return lockedUntil != null && lockedUntil.isAfter(OffsetDateTime.now(ZoneOffset.UTC));
     }
 
-    public void update(String username, AppUserRole role, boolean enabled) {
+    public void update(String username, AppUserRole role, boolean enabled, Long linkedAgentId) {
         this.username = username;
         this.role = role;
         this.enabled = enabled;
+        this.linkedAgentId = linkedAgentId;
     }
 
     public void updatePasswordHash(String passwordHash) {

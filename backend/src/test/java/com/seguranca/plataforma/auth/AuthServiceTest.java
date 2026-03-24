@@ -14,6 +14,7 @@ import static org.mockito.Mockito.when;
 
 import com.seguranca.plataforma.operations.model.AuditActionType;
 import com.seguranca.plataforma.operations.model.AuditRecord;
+import com.seguranca.plataforma.operations.repository.AgentRepository;
 import com.seguranca.plataforma.operations.repository.AuditRecordRepository;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -46,6 +47,9 @@ class AuthServiceTest {
 
     @Mock
     private AuditRecordRepository auditRecordRepository;
+
+    @Mock
+    private AgentRepository agentRepository;
 
     @Mock
     private JwtTokenService jwtTokenService;

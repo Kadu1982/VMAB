@@ -10,9 +10,11 @@ public record AppUserResponse(
         OffsetDateTime createdAt,
         int tokenVersion,
         int failedLoginAttempts,
-        OffsetDateTime lockedUntil
+        OffsetDateTime lockedUntil,
+        Long linkedAgentId,
+        String linkedAgentName
 ) {
-    public static AppUserResponse fromEntity(AppUser user) {
+    public static AppUserResponse fromEntity(AppUser user, String linkedAgentName) {
         return new AppUserResponse(
                 user.getId(),
                 user.getUsername(),
@@ -21,7 +23,9 @@ public record AppUserResponse(
                 user.getCreatedAt(),
                 user.getTokenVersion(),
                 user.getFailedLoginAttempts(),
-                user.getLockedUntil()
+                user.getLockedUntil(),
+                user.getLinkedAgentId(),
+                linkedAgentName
         );
     }
 }

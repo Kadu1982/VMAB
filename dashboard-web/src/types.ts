@@ -310,12 +310,21 @@ export interface AuthSession {
   roles: string[]
 }
 
+export interface AuthenticatedUser {
+  username: string
+  roles: string[]
+  linkedAgentId?: number | null
+  linkedAgentName?: string | null
+}
+
 export interface AppUser {
   id: number
   username: string
   role: AppUserRole
   enabled: boolean
   createdAt: string
+  linkedAgentId?: number | null
+  linkedAgentName?: string | null
 }
 
 export interface PrivacyRequest {

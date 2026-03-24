@@ -4,12 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.security.Principal;
 import java.time.OffsetDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -107,17 +106,18 @@ class AuthControllerTest {
     @Test
     void meDeveExporUsuarioERolesDaSessao() {
         Authentication authentication = mock(Authentication.class);
-        Principal principal = mock(Principal.class);
-        List<org.springframework.security.core.GrantedAuthority> authorities = List.of(
+        when(authentication.getName()).thenReturn("admin");
+        doReturn(List.of(
                 new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN"),
                 new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_SUPERVISOR")
-        );
-        when(principal.getName()).thenReturn("admin");
-        doReturn(authorities).when(authentication).getAuthorities();
+        )).when(authentication).getAuthorities();
+        when(authService.getAuthenticatedUser("admin", List.of("ROLE_ADMIN", "ROLE_SUPERVISOR")))
+                .thenReturn(new AuthenticatedUserResponse("admin", List.of("ROLE_ADMIN", "ROLE_SUPERVISOR"), 7L, "Agente Demo"));
 
-        var response = authController.me(principal, authentication);
+        AuthenticatedUserResponse response = authController.me(authentication);
 
-        assertEquals("admin", response.get("username"));
-        assertEquals(List.of("ROLE_ADMIN", "ROLE_SUPERVISOR"), response.get("roles"));
+        assertEquals("admin", response.username());
+        assertEquals(List.of("ROLE_ADMIN", "ROLE_SUPERVISOR"), response.roles());
+        assertEquals(7L, response.linkedAgentId());
     }
 }

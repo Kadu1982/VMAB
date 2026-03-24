@@ -3,12 +3,13 @@ import type { FormEvent } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import './styles.css'
-import logoVmab from './assets/vmab-logo.png'
+import logoVmab from './assets/vmab-logo.svg'
 import type {
   Agent,
   AgentStatus,
   AppUser,
   AppUserRole,
+  AuthenticatedUser,
   AuthSession,
   ClientPortal,
   DashboardSummary,
@@ -60,6 +61,7 @@ const initialUserForm = {
   password: '',
   role: 'SUPERVISOR' as AppUserRole,
   enabled: true,
+  linkedAgentId: '',
 }
 
 const initialAgentForm = {
@@ -468,6 +470,7 @@ function App() {
   const [authenticated, setAuthenticated] = useState(() => Boolean(readStoredSession()))
   const [currentUsername, setCurrentUsername] = useState<string | null>(null)
   const [currentRoles, setCurrentRoles] = useState<string[]>([])
+  const [currentLinkedAgentId, setCurrentLinkedAgentId] = useState<number | null>(null)
   const [agentForm, setAgentForm] = useState(initialAgentForm)
   const [userForm, setUserForm] = useState(initialUserForm)
   const [residentForm, setResidentForm] = useState(initialResidentForm)
@@ -497,7 +500,6 @@ function App() {
   const canManageCatalog = hasAnyRole(currentRoles, ['ROLE_ADMIN', 'ROLE_SUPERVISOR'])
   const canUpdateOperations = hasAnyRole(currentRoles, ['ROLE_ADMIN', 'ROLE_SUPERVISOR', 'ROLE_RONDA'])
   const canCreateOperations = hasAnyRole(currentRoles, ['ROLE_ADMIN', 'ROLE_SUPERVISOR'])
-  const canRegisterHandoff = hasAnyRole(currentRoles, ['ROLE_ADMIN', 'ROLE_SUPERVISOR'])
 
   const shiftSubmitDisabled = !canCreateOperations && editingShiftId === null
   const incidentSubmitDisabled = !canCreateOperations && editingIncidentId === null
@@ -518,6 +520,7 @@ function App() {
       setAuthenticated(false)
       setCurrentUsername(null)
       setCurrentRoles([])
+      setCurrentLinkedAgentId(null)
       throw new Error('Sua sessao expirou ou as credenciais sao invalidas.')
     }
 
@@ -535,9 +538,10 @@ function App() {
       const meResponse = await apiFetch('/api/auth/me')
       if (!meResponse.ok) throw new Error('Nao foi possivel validar a sessao.')
 
-      const me = (await meResponse.json()) as { username: string; roles: string[] }
+      const me = (await meResponse.json()) as AuthenticatedUser
       setCurrentUsername(me.username)
       setCurrentRoles(me.roles)
+      setCurrentLinkedAgentId(me.linkedAgentId ?? null)
       const adminCanManageUsers = me.roles.includes('ROLE_ADMIN')
 
       if (me.roles.includes('ROLE_CLIENT')) {
@@ -650,6 +654,7 @@ function App() {
       password: '',
       role: user.role,
       enabled: user.enabled,
+      linkedAgentId: user.linkedAgentId != null ? String(user.linkedAgentId) : '',
     })
   }
 
@@ -771,6 +776,7 @@ function App() {
       setAuthenticated(false)
       setCurrentUsername(null)
       setCurrentRoles([])
+      setCurrentLinkedAgentId(null)
       setSummary(null)
       setPortal(null)
       setUsers([])
@@ -788,6 +794,7 @@ function App() {
       setAuthenticated(false)
       setCurrentUsername(null)
       setCurrentRoles([])
+      setCurrentLinkedAgentId(null)
       setSummary(null)
       setPortal(null)
       setUsers([])
@@ -911,15 +918,29 @@ function App() {
     const path = editingUserId === null ? '/api/users' : `/api/users/${editingUserId}`
     const method = editingUserId === null ? 'POST' : 'PUT'
     const payload = editingUserId === null
-      ? userForm
+      ? {
+          ...userForm,
+          linkedAgentId: userForm.linkedAgentId ? Number(userForm.linkedAgentId) : null,
+        }
       : {
           username: userForm.username,
           password: userForm.password || null,
           role: userForm.role,
           enabled: userForm.enabled,
+          linkedAgentId: userForm.linkedAgentId ? Number(userForm.linkedAgentId) : null,
         }
 
     await saveEntity(path, method, payload, 'Nao foi possivel salvar o usuario.', resetUserForm)
+  }
+
+  function canRequestHandoffForShiftAgent(agentId: number) {
+    // A ronda so pode pedir troca do proprio turno; admin e supervisor continuam podendo abrir a solicitacao.
+    return canCreateOperations || (currentRoles.includes('ROLE_RONDA') && currentLinkedAgentId === agentId)
+  }
+
+  function canRespondHandoffForShift(shift: Shift) {
+    // O aceite duplo agora depende do vigilante autenticado estar vinculado ao turno pendente.
+    return currentRoles.includes('ROLE_RONDA') && currentLinkedAgentId != null && currentLinkedAgentId === shift.handoffToAgentId
   }
 
   async function handleVehicleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -1483,6 +1504,10 @@ function App() {
                     <select value={userForm.role} onChange={(event) => setUserForm((current) => ({ ...current, role: event.target.value as AppUserRole }))}>
                       {appUserRoleOptions.map((role) => <option key={role} value={role}>{translateRole(role)}</option>)}
                     </select>
+                    <select value={userForm.linkedAgentId} onChange={(event) => setUserForm((current) => ({ ...current, linkedAgentId: event.target.value }))}>
+                      <option value="">Sem vinculo com vigilante</option>
+                      {(summary?.agents ?? []).map((agent) => <option key={agent.id} value={agent.id}>{agent.fullName}</option>)}
+                    </select>
                     <label className="checkbox-field">
                       <input checked={userForm.enabled} type="checkbox" onChange={(event) => setUserForm((current) => ({ ...current, enabled: event.target.checked }))} />
                       <span>Usuario ativo</span>
@@ -1497,7 +1522,7 @@ function App() {
                       <article className="list-row" key={user.id}>
                         <div>
                           <strong>{user.username}</strong>
-                          <small>{translateRole(user.role)} | criado em {formatDate(user.createdAt)}</small>
+                          <small>{translateRole(user.role)} | criado em {formatDate(user.createdAt)}{user.linkedAgentName ? ` | vinculado a ${user.linkedAgentName}` : ''}</small>
                         </div>
                         <div className="row-actions">
                           <span className={`tag ${user.enabled ? 'active' : 'blocked'}`}>{user.enabled ? 'Ativo' : 'Bloqueado'}</span>
@@ -1740,7 +1765,7 @@ function App() {
                     </label>
                     <div className="button-row">
                       <button disabled={shiftSubmitDisabled} type="submit">{editingShiftId === null ? 'Cadastrar turno' : 'Salvar turno'}</button>
-                      {editingShiftId !== null && canRegisterHandoff ? <button className="secondary-button" onClick={() => void handleShiftHandoff(editingShiftId)} type="button">Registrar troca</button> : null}
+                      {editingShiftId !== null && canRequestHandoffForShiftAgent(Number(shiftForm.agentId || 0)) ? <button className="secondary-button" onClick={() => void handleShiftHandoff(editingShiftId)} type="button">Registrar troca</button> : null}
                       {editingShiftId !== null ? <button className="secondary-button" onClick={resetShiftForm} type="button">Cancelar</button> : null}
                     </div>
                   </form>
@@ -1754,10 +1779,10 @@ function App() {
                       </div>
                       <div className="row-actions">
                         <span className={`tag ${shift.status.toLowerCase().replace('_', '-')}`}>{translateShiftStatus(shift.status)}</span>
-                        {shift.status === 'HANDOFF_PENDING' && canRegisterHandoff ? (
+                        {shift.status === 'HANDOFF_PENDING' && canRespondHandoffForShift(shift) ? (
                           <>
                             <button className="ghost-button" onClick={() => void handleShiftHandoffAccept(shift.id)} type="button">Aceitar troca</button>
-                            <button className="ghost-button danger-button" onClick={() => void handleShiftHandoffReject(shift.id, 'Rejeitado pelo supervisor.')} type="button">Rejeitar</button>
+                            <button className="ghost-button danger-button" onClick={() => void handleShiftHandoffReject(shift.id, 'Rejeitado pelo vigilante designado.')} type="button">Rejeitar</button>
                           </>
                         ) : null}
                         {canUpdateOperations ? <button className="ghost-button" onClick={() => startShiftEdit(shift)} type="button">Editar</button> : null}
