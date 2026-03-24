@@ -12,9 +12,12 @@ import com.seguranca.plataforma.operations.dto.DispatchIncidentRequest;
 import com.seguranca.plataforma.operations.dto.IncidentEvidenceResponse;
 import com.seguranca.plataforma.operations.dto.ClientPortalResponse;
 import com.seguranca.plataforma.operations.dto.DashboardSummaryResponse;
-import com.seguranca.plataforma.operations.dto.HandoffShiftRequest;
 import com.seguranca.plataforma.operations.dto.PatrolRouteStopResponse;
 import com.seguranca.plataforma.operations.dto.OnSiteIncidentRequest;
+import com.seguranca.plataforma.operations.dto.RequestShiftHandoffRequest;
+import com.seguranca.plataforma.operations.dto.RespondShiftHandoffRequest;
+import com.seguranca.plataforma.operations.dto.ShiftSupervisionAction;
+import com.seguranca.plataforma.operations.dto.SuperviseShiftRequest;
 import com.seguranca.plataforma.operations.dto.TelemetryTrailPointResponse;
 import com.seguranca.plataforma.operations.dto.UpdateAgentRequest;
 import com.seguranca.plataforma.operations.dto.UpdateIncidentRequest;
@@ -557,27 +560,124 @@ public class OperationsService {
     }
 
     @Transactional
-    public Shift handoffShift(Long id, HandoffShiftRequest request) {
-        // Formaliza a troca de vigilante em um turno ja existente sem abrir outro registro paralelo.
+    public Shift requestShiftHandoff(Long id, RequestShiftHandoffRequest request) {
+        // Abre um pedido formal de troca de turno e deixa a transferencia pendente ate o aceite.
         Shift shift = getShift(id);
         if (!shift.getAgentId().equals(request.fromAgentId())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O agente de origem nao corresponde ao turno atual.");
+        }
+        if (request.fromAgentId().equals(request.toAgentId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O agente que assume precisa ser diferente do agente atual.");
         }
 
         Agent newAgent = getAgent(request.toAgentId());
         Vehicle vehicle = getVehicle(shift.getVehicleId());
         activateShiftIfNeeded(shift, vehicle);
-        shift.registerHandoff(
+        shift.requestHandoff(
                 shift.getAgentId(),
                 shift.getAgentName(),
                 newAgent.getId(),
                 newAgent.getFullName(),
                 OffsetDateTime.now(ZoneOffset.UTC),
-                request.notes()
+                resolveCurrentActorUsername(),
+                normalizeOptionalText(request.notes(), 500)
         );
 
         Shift savedShift = shiftRepository.save(shift);
-        recordAudit(AuditActionType.HANDOFF, "Shift", savedShift.getId(), "Troca de turno do agente " + savedShift.getHandoffFromAgentName() + " para " + savedShift.getHandoffToAgentName());
+        recordAudit(AuditActionType.HANDOFF, "Shift", savedShift.getId(), "Pedido de troca do agente " + savedShift.getHandoffFromAgentName() + " para " + savedShift.getHandoffToAgentName());
+        return savedShift;
+    }
+
+    @Transactional
+    public Shift acceptShiftHandoff(Long id, RespondShiftHandoffRequest request) {
+        // Conclui a troca apenas quando o vigilante de destino aceita formalmente assumir o turno.
+        Shift shift = getShift(id);
+        if (shift.getStatus() != ShiftStatus.HANDOFF_PENDING) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nao existe troca pendente para este turno.");
+        }
+        if (!request.actingAgentId().equals(shift.getHandoffToAgentId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Somente o vigilante designado pode aceitar esta troca.");
+        }
+
+        shift.acceptHandoff(OffsetDateTime.now(ZoneOffset.UTC), normalizeOptionalText(request.notes(), 500));
+        Shift savedShift = shiftRepository.save(shift);
+        recordAudit(AuditActionType.HANDOFF, "Shift", savedShift.getId(), "Aceite da troca para o agente " + savedShift.getHandoffToAgentName());
+        return savedShift;
+    }
+
+    @Transactional
+    public Shift rejectShiftHandoff(Long id, RespondShiftHandoffRequest request) {
+        // Permite recusar a troca sem perder a trilha de quem recusou e por qual motivo.
+        Shift shift = getShift(id);
+        if (shift.getStatus() != ShiftStatus.HANDOFF_PENDING) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nao existe troca pendente para este turno.");
+        }
+        if (!request.actingAgentId().equals(shift.getHandoffToAgentId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Somente o vigilante designado pode recusar esta troca.");
+        }
+
+        shift.rejectHandoff(
+                OffsetDateTime.now(ZoneOffset.UTC),
+                resolveCurrentActorUsername(),
+                normalizeOptionalText(request.notes(), 500)
+        );
+        Shift savedShift = shiftRepository.save(shift);
+        recordAudit(AuditActionType.HANDOFF, "Shift", savedShift.getId(), "Recusa da troca pelo agente " + shift.getHandoffToAgentName());
+        return savedShift;
+    }
+
+    @Transactional
+    public Shift superviseShift(Long id, SuperviseShiftRequest request) {
+        // Consolida a acao de supervisao sobre presenca: atraso, falta, cobertura e normalizacao.
+        Shift shift = getShift(id);
+        ShiftSupervisionAction action = request.action();
+        if (action == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Informe a acao de supervisao do turno.");
+        }
+
+        switch (action) {
+            case MARK_ON_TIME -> {
+                shift.setAttendanceManually(ShiftAttendanceStatus.ON_TIME, 0, normalizeOptionalText(request.notes(), 500));
+                if (shift.getStatus() == ShiftStatus.PLANNED) {
+                    shift.update(
+                            shift.getAgentId(),
+                            shift.getAgentName(),
+                            shift.getVehicleId(),
+                            shift.getVehiclePlate(),
+                            ShiftStatus.ACTIVE,
+                            shift.getScheduledStartAt(),
+                            shift.getScheduledEndAt(),
+                            shift.getEndKm(),
+                            shift.getFuelLevelPercent(),
+                            shift.isTiresChecked(),
+                            shift.isLightsChecked(),
+                            shift.isDocumentsChecked(),
+                            shift.getChecklistNotes()
+                    );
+                }
+            }
+            case MARK_LATE -> {
+                int lateMinutes = request.lateMinutes() == null || request.lateMinutes() <= 0 ? 1 : request.lateMinutes();
+                shift.setAttendanceManually(ShiftAttendanceStatus.LATE, lateMinutes, normalizeOptionalText(request.notes(), 500));
+            }
+            case MARK_ABSENT -> {
+                shift.setAttendanceManually(ShiftAttendanceStatus.ABSENT, null, normalizeOptionalText(request.notes(), 500));
+            }
+            case APPLY_COVERAGE -> {
+                if (request.replacementAgentId() == null) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selecione o agente de cobertura.");
+                }
+                Agent replacementAgent = getAgent(request.replacementAgentId());
+                if (replacementAgent.getId().equals(shift.getAgentId())) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O agente de cobertura precisa ser diferente do agente ausente.");
+                }
+                shift.applyCoverage(replacementAgent.getId(), replacementAgent.getFullName(), normalizeOptionalText(request.notes(), 500));
+            }
+            case CLEAR_COVERAGE -> applyAttendanceState(shift, ShiftAttendanceStatus.PENDING, null, normalizeOptionalText(request.notes(), 500));
+        }
+
+        Shift savedShift = shiftRepository.save(shift);
+        recordAudit(AuditActionType.UPDATE, "Shift", savedShift.getId(), "Supervisao do turno " + savedShift.getId() + " com acao " + action.name());
         return savedShift;
     }
 
@@ -834,7 +934,7 @@ public class OperationsService {
                 .filter(vehicle -> vehicle.getStatus() == VehicleStatus.AVAILABLE || vehicle.getStatus() == VehicleStatus.IN_OPERATION)
                 .count();
         long activeShifts = shifts.stream()
-                .filter(shift -> shift.getStatus() == ShiftStatus.ACTIVE || shift.getStatus() == ShiftStatus.HANDOFF)
+                .filter(shift -> shift.getStatus() == ShiftStatus.ACTIVE || shift.getStatus() == ShiftStatus.HANDOFF || shift.getStatus() == ShiftStatus.HANDOFF_PENDING)
                 .count();
         long lateShifts = shifts.stream()
                 .filter(shift -> shift.getAttendanceStatus() == ShiftAttendanceStatus.LATE)
@@ -882,7 +982,7 @@ public class OperationsService {
                 .filter(vehicle -> vehicle.getStatus() == VehicleStatus.AVAILABLE || vehicle.getStatus() == VehicleStatus.IN_OPERATION)
                 .count();
         long activeShifts = shifts.stream()
-                .filter(shift -> shift.getStatus() == ShiftStatus.ACTIVE || shift.getStatus() == ShiftStatus.HANDOFF)
+                .filter(shift -> shift.getStatus() == ShiftStatus.ACTIVE || shift.getStatus() == ShiftStatus.HANDOFF || shift.getStatus() == ShiftStatus.HANDOFF_PENDING)
                 .count();
         long openIncidents = incidents.stream()
                 .filter(incident -> incident.getStatus() != IncidentStatus.CLOSED)
@@ -1132,7 +1232,7 @@ public class OperationsService {
     private ActivePatrolResponse buildActivePatrol(List<Agent> agents, List<Vehicle> vehicles, List<Shift> shifts, List<Incident> incidents) {
         // Monta o cartao e o mapa da patrulha ativa com ultimo ponto e historico de telemetria.
         Shift activeShift = shifts.stream()
-                .filter(shift -> shift.getStatus() == ShiftStatus.ACTIVE || shift.getStatus() == ShiftStatus.HANDOFF)
+                .filter(shift -> shift.getStatus() == ShiftStatus.ACTIVE || shift.getStatus() == ShiftStatus.HANDOFF || shift.getStatus() == ShiftStatus.HANDOFF_PENDING)
                 .findFirst()
                 .orElse(null);
 

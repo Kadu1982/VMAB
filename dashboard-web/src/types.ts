@@ -2,7 +2,7 @@ export type AgentStatus = 'ACTIVE' | 'ON_DUTY' | 'OFF_DUTY' | 'BLOCKED'
 // Tipos compartilhados pelo frontend para alinhar o contrato com a API.
 export type ResidentStatus = 'ACTIVE' | 'INACTIVE'
 export type VehicleStatus = 'AVAILABLE' | 'IN_OPERATION' | 'MAINTENANCE' | 'BLOCKED'
-export type ShiftStatus = 'PLANNED' | 'ACTIVE' | 'HANDOFF' | 'CLOSED'
+export type ShiftStatus = 'PLANNED' | 'ACTIVE' | 'HANDOFF_PENDING' | 'HANDOFF' | 'CLOSED'
 export type ShiftAttendanceStatus = 'PENDING' | 'ON_TIME' | 'LATE' | 'ABSENT' | 'COVERED'
 export type VehicleMaintenanceType = 'PREVENTIVE' | 'CORRECTIVE' | 'INSPECTION' | 'DOCUMENTATION'
 export type AuditActionType = 'CREATE' | 'UPDATE' | 'DELETE' | 'HANDOFF' | 'MAINTENANCE' | 'TELEMETRY' | 'INCIDENT_WORKFLOW' | 'AUTH'
@@ -94,6 +94,11 @@ export interface Shift {
   handoffToAgentId?: number | null
   handoffToAgentName?: string | null
   handoffAcceptedAt?: string | null
+  handoffRequestedAt?: string | null
+  handoffRequestedBy?: string | null
+  handoffRejectedAt?: string | null
+  handoffRejectedBy?: string | null
+  handoffRejectionReason?: string | null
   handoffNotes?: string | null
   fuelLevelPercent?: number | null
   tiresChecked: boolean

@@ -39,7 +39,7 @@ const agentStatusOptions: AgentStatus[] = ['ACTIVE', 'ON_DUTY', 'OFF_DUTY', 'BLO
 const residentStatusOptions: ResidentStatus[] = ['ACTIVE', 'INACTIVE']
 const vehicleStatusOptions: VehicleStatus[] = ['AVAILABLE', 'IN_OPERATION', 'MAINTENANCE', 'BLOCKED']
 const vehicleMaintenanceTypeOptions: VehicleMaintenanceType[] = ['PREVENTIVE', 'CORRECTIVE', 'INSPECTION', 'DOCUMENTATION']
-const shiftStatusOptions: ShiftStatus[] = ['PLANNED', 'ACTIVE', 'HANDOFF', 'CLOSED']
+const shiftStatusOptions: ShiftStatus[] = ['PLANNED', 'ACTIVE', 'HANDOFF_PENDING', 'HANDOFF', 'CLOSED']
 const shiftAttendanceOptions: ShiftAttendanceStatus[] = ['PENDING', 'ON_TIME', 'LATE', 'ABSENT', 'COVERED']
 const incidentTypeOptions: IncidentType[] = ['PANIC', 'SUSPICIOUS_ACTIVITY', 'MEDICAL', 'ESCORT']
 const incidentPriorityOptions: IncidentPriority[] = ['HIGH', 'MEDIUM', 'LOW']
@@ -108,6 +108,8 @@ const initialShiftForm = {
   status: 'PLANNED' as ShiftStatus,
   attendanceStatus: 'PENDING' as ShiftAttendanceStatus,
   coverageForAgentId: '',
+  replacementAgentId: '',
+  supervisionLateMinutes: '',
   attendanceNotes: '',
   endKm: '',
   handoffToAgentId: '',
@@ -189,6 +191,7 @@ function translateShiftStatus(status: ShiftStatus) {
   return {
     PLANNED: 'Planejado',
     ACTIVE: 'Ativo',
+    HANDOFF_PENDING: 'Troca pendente',
     HANDOFF: 'Troca de turno',
     CLOSED: 'Encerrado',
   }[status]
@@ -1007,6 +1010,8 @@ function App() {
       status: shift.status,
       attendanceStatus: shift.attendanceStatus,
       coverageForAgentId: shift.coverageForAgentId != null ? String(shift.coverageForAgentId) : '',
+      replacementAgentId: '',
+      supervisionLateMinutes: shift.lateMinutes != null ? String(shift.lateMinutes) : '',
       attendanceNotes: shift.attendanceNotes ?? '',
       endKm: shift.endKm != null ? String(shift.endKm) : '',
       handoffToAgentId: shift.handoffToAgentId != null ? String(shift.handoffToAgentId) : '',
@@ -1408,7 +1413,7 @@ function App() {
   }
 
   async function handleShiftHandoff(shiftId: number) {
-    // Registra no painel a troca formal de vigilante sem descartar o turno em andamento.
+    // Abre o pedido formal de troca; a transferencia so fecha com aceite explicito.
     if (!shiftForm.handoffToAgentId) {
       setError('Selecione o vigilante que assumira o turno.')
       return
@@ -1421,14 +1426,67 @@ function App() {
     }
 
     await saveEntity(
-      `/api/shifts/${shiftId}/handoff`,
+      `/api/shifts/${shiftId}/handoff-request`,
       'POST',
       {
         fromAgentId: currentShift.agentId,
         toAgentId: Number(shiftForm.handoffToAgentId),
         notes: shiftForm.handoffNotes || null,
       },
-      'Nao foi possivel concluir a troca de turno.',
+      'Nao foi possivel solicitar a troca de turno.',
+      resetShiftForm,
+    )
+  }
+
+  async function handleShiftHandoffAccept(shiftId: number) {
+    if (!shiftForm.handoffToAgentId) {
+      setError('Informe o vigilante que vai aceitar a troca.')
+      return
+    }
+
+    await saveEntity(
+      `/api/shifts/${shiftId}/handoff-accept`,
+      'POST',
+      {
+        actingAgentId: Number(shiftForm.handoffToAgentId),
+        notes: shiftForm.handoffNotes || null,
+      },
+      'Nao foi possivel aceitar a troca de turno.',
+      resetShiftForm,
+    )
+  }
+
+  async function handleShiftHandoffReject(shiftId: number) {
+    if (!shiftForm.handoffToAgentId) {
+      setError('Informe o vigilante que vai recusar a troca.')
+      return
+    }
+
+    await saveEntity(
+      `/api/shifts/${shiftId}/handoff-reject`,
+      'POST',
+      {
+        actingAgentId: Number(shiftForm.handoffToAgentId),
+        notes: shiftForm.handoffNotes || null,
+      },
+      'Nao foi possivel recusar a troca de turno.',
+      resetShiftForm,
+    )
+  }
+
+  async function handleShiftSupervision(shiftId: number, action: 'MARK_ON_TIME' | 'MARK_LATE' | 'MARK_ABSENT' | 'APPLY_COVERAGE' | 'CLEAR_COVERAGE') {
+    const payload = {
+      action,
+      replacementAgentId: shiftForm.replacementAgentId ? Number(shiftForm.replacementAgentId) : null,
+      lateMinutes: shiftForm.supervisionLateMinutes ? Number(shiftForm.supervisionLateMinutes) : null,
+      notes: shiftForm.attendanceNotes || null,
+    }
+
+    await saveEntity(
+      `/api/shifts/${shiftId}/supervision`,
+      'POST',
+      payload,
+      'Nao foi possivel aplicar a supervisao do turno.',
       resetShiftForm,
     )
   }
@@ -2196,11 +2254,16 @@ function App() {
                       <option value="">Vigilante coberto</option>
                       {summary.agents.filter((agent) => String(agent.id) !== shiftForm.agentId).map((agent) => <option key={agent.id} value={agent.id}>{agent.fullName}</option>)}
                     </select>
+                    <select value={shiftForm.replacementAgentId} onChange={(event) => setShiftForm((current) => ({ ...current, replacementAgentId: event.target.value }))}>
+                      <option value="">Agente de cobertura</option>
+                      {summary.agents.filter((agent) => String(agent.id) !== shiftForm.agentId).map((agent) => <option key={agent.id} value={agent.id}>{agent.fullName}</option>)}
+                    </select>
                     <select value={shiftForm.handoffToAgentId} onChange={(event) => setShiftForm((current) => ({ ...current, handoffToAgentId: event.target.value }))}>
                       <option value="">Vigilante que assume</option>
                       {summary.agents.filter((agent) => String(agent.id) !== shiftForm.agentId).map((agent) => <option key={agent.id} value={agent.id}>{agent.fullName}</option>)}
                     </select>
                     {/* Checklist minimo para fechar jornada e registrar a condicao da viatura no turno. */}
+                    <input min="0" type="number" placeholder="Minutos de atraso para supervisao" value={shiftForm.supervisionLateMinutes} onChange={(event) => setShiftForm((current) => ({ ...current, supervisionLateMinutes: event.target.value }))} />
                     <input placeholder="Observacoes de escala / presenca" value={shiftForm.attendanceNotes} onChange={(event) => setShiftForm((current) => ({ ...current, attendanceNotes: event.target.value }))} />
                     <input placeholder="Observacoes da troca de turno" value={shiftForm.handoffNotes} onChange={(event) => setShiftForm((current) => ({ ...current, handoffNotes: event.target.value }))} />
                     <input placeholder="Observacoes do checklist" value={shiftForm.checklistNotes} onChange={(event) => setShiftForm((current) => ({ ...current, checklistNotes: event.target.value }))} />
@@ -2218,7 +2281,14 @@ function App() {
                     </label>
                     <div className="button-row">
                       <button disabled={shiftSubmitDisabled} type="submit">{editingShiftId === null ? 'Cadastrar turno' : 'Salvar turno'}</button>
-                      {editingShiftId !== null && canRegisterHandoff ? <button className="secondary-button" onClick={() => void handleShiftHandoff(editingShiftId)} type="button">Registrar troca</button> : null}
+                      {editingShiftId !== null && canRegisterHandoff ? <button className="secondary-button" onClick={() => void handleShiftHandoff(editingShiftId)} type="button">Solicitar troca</button> : null}
+                      {editingShiftId !== null && canUpdateOperations ? <button className="secondary-button" onClick={() => void handleShiftHandoffAccept(editingShiftId)} type="button">Aceitar troca</button> : null}
+                      {editingShiftId !== null && canUpdateOperations ? <button className="secondary-button" onClick={() => void handleShiftHandoffReject(editingShiftId)} type="button">Recusar troca</button> : null}
+                      {editingShiftId !== null && canManageCatalog ? <button className="secondary-button" onClick={() => void handleShiftSupervision(editingShiftId, 'MARK_ON_TIME')} type="button">No horario</button> : null}
+                      {editingShiftId !== null && canManageCatalog ? <button className="secondary-button" onClick={() => void handleShiftSupervision(editingShiftId, 'MARK_LATE')} type="button">Marcar atraso</button> : null}
+                      {editingShiftId !== null && canManageCatalog ? <button className="secondary-button" onClick={() => void handleShiftSupervision(editingShiftId, 'MARK_ABSENT')} type="button">Marcar falta</button> : null}
+                      {editingShiftId !== null && canManageCatalog ? <button className="secondary-button" onClick={() => void handleShiftSupervision(editingShiftId, 'APPLY_COVERAGE')} type="button">Aplicar cobertura</button> : null}
+                      {editingShiftId !== null && canManageCatalog ? <button className="secondary-button" onClick={() => void handleShiftSupervision(editingShiftId, 'CLEAR_COVERAGE')} type="button">Limpar cobertura</button> : null}
                       {editingShiftId !== null ? <button className="secondary-button" onClick={resetShiftForm} type="button">Cancelar</button> : null}
                     </div>
                   </form>
@@ -2228,7 +2298,8 @@ function App() {
                     <article className="list-row" key={shift.id}>
                       <div>
                         <strong>{shift.agentName}</strong>
-                        <small>{shift.vehiclePlate} | escala {formatDate(shift.scheduledStartAt)} ate {formatDate(shift.scheduledEndAt)} | presenca {translateShiftAttendanceStatus(shift.attendanceStatus)}{shift.lateMinutes != null ? ` (${shift.lateMinutes} min)` : ''} | cobertura {shift.coverageForAgentName ?? 'nao aplicada'} | checklist {shift.documentsChecked ? 'ok' : 'pendente'}</small>
+                        <small>{shift.vehiclePlate} | escala {formatDate(shift.scheduledStartAt)} ate {formatDate(shift.scheduledEndAt)} | presenca {translateShiftAttendanceStatus(shift.attendanceStatus)}{shift.lateMinutes != null ? ` (${shift.lateMinutes} min)` : ''} | cobertura {shift.coverageForAgentName ?? 'nao aplicada'} | troca {shift.handoffToAgentName ?? 'nao solicitada'} | checklist {shift.documentsChecked ? 'ok' : 'pendente'}</small>
+                        <small>{shift.handoffRequestedAt ? `Solicitada por ${shift.handoffRequestedBy ?? 'sistema'} em ${formatDate(shift.handoffRequestedAt)}` : 'Sem troca pendente'}{shift.handoffAcceptedAt ? ` | aceita em ${formatDate(shift.handoffAcceptedAt)}` : ''}{shift.handoffRejectedAt ? ` | recusada em ${formatDate(shift.handoffRejectedAt)}` : ''}{shift.handoffRejectionReason ? ` | motivo: ${shift.handoffRejectionReason}` : ''}</small>
                       </div>
                       <div className="row-actions">
                         <span className={`tag ${shift.status.toLowerCase()}`}>{translateShiftStatus(shift.status)}</span>

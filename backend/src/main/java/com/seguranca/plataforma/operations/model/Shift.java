@@ -70,6 +70,21 @@ public class Shift {
     @Column(name = "handoff_accepted_at")
     private OffsetDateTime handoffAcceptedAt;
 
+    @Column(name = "handoff_requested_at")
+    private OffsetDateTime handoffRequestedAt;
+
+    @Column(name = "handoff_requested_by")
+    private String handoffRequestedBy;
+
+    @Column(name = "handoff_rejected_at")
+    private OffsetDateTime handoffRejectedAt;
+
+    @Column(name = "handoff_rejected_by")
+    private String handoffRejectedBy;
+
+    @Column(name = "handoff_rejection_reason", length = 500)
+    private String handoffRejectionReason;
+
     @Column(name = "handoff_notes", length = 500)
     private String handoffNotes;
 
@@ -218,6 +233,26 @@ public class Shift {
         return handoffNotes;
     }
 
+    public OffsetDateTime getHandoffRequestedAt() {
+        return handoffRequestedAt;
+    }
+
+    public String getHandoffRequestedBy() {
+        return handoffRequestedBy;
+    }
+
+    public OffsetDateTime getHandoffRejectedAt() {
+        return handoffRejectedAt;
+    }
+
+    public String getHandoffRejectedBy() {
+        return handoffRejectedBy;
+    }
+
+    public String getHandoffRejectionReason() {
+        return handoffRejectionReason;
+    }
+
     public Integer getFuelLevelPercent() {
         return fuelLevelPercent;
     }
@@ -325,23 +360,62 @@ public class Shift {
         this.endKm = endKm;
     }
 
-    public void registerHandoff(
+    public void requestHandoff(
             Long handoffFromAgentId,
             String handoffFromAgentName,
             Long handoffToAgentId,
             String handoffToAgentName,
-            OffsetDateTime handoffAcceptedAt,
+            OffsetDateTime handoffRequestedAt,
+            String handoffRequestedBy,
             String handoffNotes
     ) {
-        // Registra a passagem formal de responsabilidade entre vigilantes no mesmo turno.
+        // Registra o pedido de troca sem transferir a responsabilidade antes do aceite do proximo vigilante.
         this.handoffFromAgentId = handoffFromAgentId;
         this.handoffFromAgentName = handoffFromAgentName;
         this.handoffToAgentId = handoffToAgentId;
         this.handoffToAgentName = handoffToAgentName;
+        this.handoffRequestedAt = handoffRequestedAt;
+        this.handoffRequestedBy = handoffRequestedBy;
+        this.handoffAcceptedAt = null;
+        this.handoffRejectedAt = null;
+        this.handoffRejectedBy = null;
+        this.handoffRejectionReason = null;
+        this.handoffNotes = handoffNotes;
+        this.status = ShiftStatus.HANDOFF_PENDING;
+    }
+
+    public void acceptHandoff(OffsetDateTime handoffAcceptedAt, String handoffNotes) {
+        // So transfere a responsabilidade depois do aceite explicito do vigilante que vai assumir.
         this.handoffAcceptedAt = handoffAcceptedAt;
         this.handoffNotes = handoffNotes;
         this.agentId = handoffToAgentId;
         this.agentName = handoffToAgentName;
         this.status = ShiftStatus.HANDOFF;
+    }
+
+    public void rejectHandoff(OffsetDateTime rejectedAt, String rejectedBy, String rejectionReason) {
+        // Mantem o agente atual no turno quando a troca for recusada e deixa a trilha do motivo.
+        this.handoffRejectedAt = rejectedAt;
+        this.handoffRejectedBy = rejectedBy;
+        this.handoffRejectionReason = rejectionReason;
+        this.status = ShiftStatus.ACTIVE;
+    }
+
+    public void applyCoverage(Long replacementAgentId, String replacementAgentName, String attendanceNotes) {
+        // Reatribui o turno para a cobertura mantendo o vigilante originalmente afetado na trilha.
+        this.coverageForAgentId = this.agentId;
+        this.coverageForAgentName = this.agentName;
+        this.agentId = replacementAgentId;
+        this.agentName = replacementAgentName;
+        this.attendanceStatus = ShiftAttendanceStatus.COVERED;
+        this.attendanceNotes = attendanceNotes;
+        this.status = ShiftStatus.ACTIVE;
+    }
+
+    public void setAttendanceManually(ShiftAttendanceStatus attendanceStatus, Integer lateMinutes, String attendanceNotes) {
+        // Permite que a supervisao marque atraso, falta ou normalidade antes do check-in automatico.
+        this.attendanceStatus = attendanceStatus;
+        this.lateMinutes = lateMinutes;
+        this.attendanceNotes = attendanceNotes;
     }
 }
