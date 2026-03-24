@@ -3,14 +3,17 @@ package com.seguranca.plataforma.operations.service;
 import com.seguranca.plataforma.operations.dto.CreateAgentRequest;
 import com.seguranca.plataforma.operations.dto.ActivePatrolResponse;
 import com.seguranca.plataforma.operations.dto.CreateIncidentRequest;
+import com.seguranca.plataforma.operations.dto.CloseIncidentRequest;
 import com.seguranca.plataforma.operations.dto.CreateResidentRequest;
 import com.seguranca.plataforma.operations.dto.CreateShiftRequest;
 import com.seguranca.plataforma.operations.dto.CreateVehicleMaintenanceRequest;
 import com.seguranca.plataforma.operations.dto.CreateVehicleRequest;
+import com.seguranca.plataforma.operations.dto.DispatchIncidentRequest;
 import com.seguranca.plataforma.operations.dto.ClientPortalResponse;
 import com.seguranca.plataforma.operations.dto.DashboardSummaryResponse;
 import com.seguranca.plataforma.operations.dto.HandoffShiftRequest;
 import com.seguranca.plataforma.operations.dto.PatrolRouteStopResponse;
+import com.seguranca.plataforma.operations.dto.OnSiteIncidentRequest;
 import com.seguranca.plataforma.operations.dto.TelemetryTrailPointResponse;
 import com.seguranca.plataforma.operations.dto.UpdateAgentRequest;
 import com.seguranca.plataforma.operations.dto.UpdateIncidentRequest;
@@ -21,6 +24,8 @@ import com.seguranca.plataforma.operations.dto.UpdateVehicleRequest;
 import com.seguranca.plataforma.operations.dto.UpsertShiftTelemetryRequest;
 import com.seguranca.plataforma.operations.model.Agent;
 import com.seguranca.plataforma.operations.model.AgentStatus;
+import com.seguranca.plataforma.operations.model.AuditActionType;
+import com.seguranca.plataforma.operations.model.AuditRecord;
 import com.seguranca.plataforma.operations.model.Incident;
 import com.seguranca.plataforma.operations.model.IncidentStatus;
 import com.seguranca.plataforma.operations.model.Resident;
@@ -34,6 +39,7 @@ import com.seguranca.plataforma.operations.model.VehicleMaintenanceRecord;
 import com.seguranca.plataforma.operations.model.VehicleMaintenanceType;
 import com.seguranca.plataforma.operations.model.VehicleStatus;
 import com.seguranca.plataforma.operations.repository.AgentRepository;
+import com.seguranca.plataforma.operations.repository.AuditRecordRepository;
 import com.seguranca.plataforma.operations.repository.IncidentRepository;
 import com.seguranca.plataforma.operations.repository.ResidentRepository;
 import com.seguranca.plataforma.operations.repository.ShiftRepository;
@@ -48,6 +54,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -58,6 +66,7 @@ public class OperationsService {
     // Orquestra o dominio operacional: cadastros, turnos, ocorrencias, dashboard e telemetria.
 
     private final AgentRepository agentRepository;
+    private final AuditRecordRepository auditRecordRepository;
     private final VehicleRepository vehicleRepository;
     private final VehicleMaintenanceRecordRepository vehicleMaintenanceRecordRepository;
     private final ResidentRepository residentRepository;
@@ -67,6 +76,7 @@ public class OperationsService {
 
     public OperationsService(
             AgentRepository agentRepository,
+            AuditRecordRepository auditRecordRepository,
             VehicleRepository vehicleRepository,
             VehicleMaintenanceRecordRepository vehicleMaintenanceRecordRepository,
             ResidentRepository residentRepository,
@@ -75,6 +85,7 @@ public class OperationsService {
             IncidentRepository incidentRepository
     ) {
         this.agentRepository = agentRepository;
+        this.auditRecordRepository = auditRecordRepository;
         this.vehicleRepository = vehicleRepository;
         this.vehicleMaintenanceRecordRepository = vehicleMaintenanceRecordRepository;
         this.residentRepository = residentRepository;
@@ -162,8 +173,16 @@ public class OperationsService {
                 ana.getFullName(),
                 ana.getAddress(),
                 OffsetDateTime.now().minusMinutes(9),
+                carlos.getId(),
                 carlos.getFullName(),
-                alpha.getPlate()
+                alpha.getId(),
+                alpha.getPlate(),
+                OffsetDateTime.now().minusMinutes(8),
+                null,
+                null,
+                "Equipe acionada e a caminho.",
+                null,
+                null
         ));
         incidentRepository.save(new Incident(
                 com.seguranca.plataforma.operations.model.IncidentType.ESCORT,
@@ -172,8 +191,16 @@ public class OperationsService {
                 bruno.getFullName(),
                 bruno.getAddress(),
                 OffsetDateTime.now().minusMinutes(3),
+                marina.getId(),
                 marina.getFullName(),
-                beta.getPlate()
+                beta.getId(),
+                beta.getPlate(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
         ));
     }
 
@@ -197,7 +224,9 @@ public class OperationsService {
                 request.workExamsExpiry(),
                 request.documentNotes()
         );
-        return agentRepository.save(agent);
+        Agent savedAgent = agentRepository.save(agent);
+        recordAudit(AuditActionType.CREATE, "Agent", savedAgent.getId(), "Cadastro de agente " + savedAgent.getFullName());
+        return savedAgent;
     }
 
     @Transactional
@@ -214,13 +243,16 @@ public class OperationsService {
                 request.workExamsExpiry(),
                 request.documentNotes()
         );
-        return agentRepository.save(agent);
+        Agent savedAgent = agentRepository.save(agent);
+        recordAudit(AuditActionType.UPDATE, "Agent", savedAgent.getId(), "Atualizacao do agente " + savedAgent.getFullName());
+        return savedAgent;
     }
 
     @Transactional
     public void deleteAgent(Long id) {
         Agent agent = getAgent(id);
         agentRepository.delete(agent);
+        recordAudit(AuditActionType.DELETE, "Agent", id, "Exclusao do agente " + agent.getFullName());
     }
 
     @Transactional(readOnly = true)
@@ -235,6 +267,11 @@ public class OperationsService {
         return vehicleMaintenanceRecordRepository.findAll().stream()
                 .sorted(Comparator.comparing(VehicleMaintenanceRecord::getOpenedAt).reversed())
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<AuditRecord> listRecentAuditRecords() {
+        return auditRecordRepository.findTop10ByOrderByOccurredAtDesc();
     }
 
     @Transactional(readOnly = true)
@@ -253,7 +290,9 @@ public class OperationsService {
                 request.referenceNote(),
                 ResidentStatus.ACTIVE
         );
-        return residentRepository.save(resident);
+        Resident savedResident = residentRepository.save(resident);
+        recordAudit(AuditActionType.CREATE, "Resident", savedResident.getId(), "Cadastro do morador " + savedResident.getFullName());
+        return savedResident;
     }
 
     @Transactional
@@ -266,13 +305,16 @@ public class OperationsService {
                 request.referenceNote(),
                 request.status()
         );
-        return residentRepository.save(resident);
+        Resident savedResident = residentRepository.save(resident);
+        recordAudit(AuditActionType.UPDATE, "Resident", savedResident.getId(), "Atualizacao do morador " + savedResident.getFullName());
+        return savedResident;
     }
 
     @Transactional
     public void deleteResident(Long id) {
         Resident resident = getResident(id);
         residentRepository.delete(resident);
+        recordAudit(AuditActionType.DELETE, "Resident", id, "Exclusao do morador " + resident.getFullName());
     }
 
     @Transactional
@@ -289,7 +331,9 @@ public class OperationsService {
                 request.lastMaintenanceAt(),
                 request.maintenanceNotes()
         );
-        return vehicleRepository.save(vehicle);
+        Vehicle savedVehicle = vehicleRepository.save(vehicle);
+        recordAudit(AuditActionType.CREATE, "Vehicle", savedVehicle.getId(), "Cadastro da viatura " + savedVehicle.getPlate());
+        return savedVehicle;
     }
 
     @Transactional
@@ -307,7 +351,9 @@ public class OperationsService {
                 request.lastMaintenanceAt(),
                 request.maintenanceNotes()
         );
-        return vehicleRepository.save(vehicle);
+        Vehicle savedVehicle = vehicleRepository.save(vehicle);
+        recordAudit(AuditActionType.UPDATE, "Vehicle", savedVehicle.getId(), "Atualizacao da viatura " + savedVehicle.getPlate());
+        return savedVehicle;
     }
 
     @Transactional
@@ -333,7 +379,9 @@ public class OperationsService {
 
         applyMaintenanceImpact(vehicle, request.type(), request.serviceDate(), request.kmAtService(), request.nextMaintenanceKm(), request.description(), request.resolved());
         vehicleRepository.save(vehicle);
-        return vehicleMaintenanceRecordRepository.save(record);
+        VehicleMaintenanceRecord savedRecord = vehicleMaintenanceRecordRepository.save(record);
+        recordAudit(AuditActionType.MAINTENANCE, "VehicleMaintenance", savedRecord.getId(), "Registro de manutencao " + savedRecord.getType() + " para a viatura " + savedRecord.getVehiclePlate());
+        return savedRecord;
     }
 
     @Transactional
@@ -356,13 +404,16 @@ public class OperationsService {
 
         applyMaintenanceImpact(vehicle, request.type(), request.serviceDate(), request.kmAtService(), request.nextMaintenanceKm(), request.description(), request.resolved());
         vehicleRepository.save(vehicle);
-        return vehicleMaintenanceRecordRepository.save(record);
+        VehicleMaintenanceRecord savedRecord = vehicleMaintenanceRecordRepository.save(record);
+        recordAudit(AuditActionType.MAINTENANCE, "VehicleMaintenance", savedRecord.getId(), "Atualizacao da manutencao " + savedRecord.getType() + " da viatura " + savedRecord.getVehiclePlate());
+        return savedRecord;
     }
 
     @Transactional
     public void deleteVehicle(Long id) {
         Vehicle vehicle = getVehicle(id);
         vehicleRepository.delete(vehicle);
+        recordAudit(AuditActionType.DELETE, "Vehicle", id, "Exclusao da viatura " + vehicle.getPlate());
     }
 
     @Transactional(readOnly = true)
@@ -401,7 +452,9 @@ public class OperationsService {
                 request.checklistNotes()
         );
         applyAttendanceState(shift, request.attendanceStatus(), coveredAgent, request.attendanceNotes());
-        return shiftRepository.save(shift);
+        Shift savedShift = shiftRepository.save(shift);
+        recordAudit(AuditActionType.CREATE, "Shift", savedShift.getId(), "Criacao do turno para " + savedShift.getAgentName() + " na viatura " + savedShift.getVehiclePlate());
+        return savedShift;
     }
 
     @Transactional
@@ -475,7 +528,9 @@ public class OperationsService {
             vehicleRepository.save(vehicle);
         }
 
-        return shiftRepository.save(shift);
+        Shift savedShift = shiftRepository.save(shift);
+        recordAudit(AuditActionType.UPDATE, "Shift", savedShift.getId(), "Atualizacao do turno " + savedShift.getId() + " com status " + savedShift.getStatus());
+        return savedShift;
     }
 
     @Transactional
@@ -498,13 +553,16 @@ public class OperationsService {
                 request.notes()
         );
 
-        return shiftRepository.save(shift);
+        Shift savedShift = shiftRepository.save(shift);
+        recordAudit(AuditActionType.HANDOFF, "Shift", savedShift.getId(), "Troca de turno do agente " + savedShift.getHandoffFromAgentName() + " para " + savedShift.getHandoffToAgentName());
+        return savedShift;
     }
 
     @Transactional
     public void deleteShift(Long id) {
         Shift shift = getShift(id);
         shiftRepository.delete(shift);
+        recordAudit(AuditActionType.DELETE, "Shift", id, "Exclusao do turno " + shift.getId());
     }
 
     @Transactional
@@ -525,7 +583,9 @@ public class OperationsService {
                 request.batteryLevel(),
                 recordedAt
         );
-        return shiftTelemetryRepository.save(telemetry);
+        ShiftTelemetry savedTelemetry = shiftTelemetryRepository.save(telemetry);
+        recordAudit(AuditActionType.TELEMETRY, "ShiftTelemetry", shiftId, "Sincronizacao de telemetria do turno " + shiftId);
+        return savedTelemetry;
     }
 
     @Transactional(readOnly = true)
@@ -545,8 +605,10 @@ public class OperationsService {
     @Transactional
     public Incident addIncident(CreateIncidentRequest request) {
         Resident resident = resolveResident(request.residentId(), request.residentName(), request.address());
-        String assignedAgentName = request.assignedAgentId() == null ? null : getAgent(request.assignedAgentId()).getFullName();
-        String vehiclePlate = request.vehicleId() == null ? null : getVehicle(request.vehicleId()).getPlate();
+        Long assignedAgentId = request.assignedAgentId();
+        String assignedAgentName = assignedAgentId == null ? null : getAgent(assignedAgentId).getFullName();
+        Long vehicleId = request.vehicleId();
+        String vehiclePlate = vehicleId == null ? null : getVehicle(vehicleId).getPlate();
 
         Incident incident = new Incident(
                 request.type(),
@@ -555,18 +617,32 @@ public class OperationsService {
                 resident != null ? resident.getFullName() : request.residentName().trim(),
                 resident != null ? resident.getAddress() : request.address().trim(),
                 OffsetDateTime.now(),
+                assignedAgentId,
                 assignedAgentName,
-                vehiclePlate
+                vehicleId,
+                vehiclePlate,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
         );
-        return incidentRepository.save(incident);
+        Incident savedIncident = incidentRepository.save(incident);
+        recordAudit(AuditActionType.CREATE, "Incident", savedIncident.getId(), "Abertura da ocorrencia para " + savedIncident.getResidentName());
+        return savedIncident;
     }
 
     @Transactional
     public Incident updateIncident(Long id, UpdateIncidentRequest request) {
         Incident incident = getIncident(id);
         Resident resident = resolveResident(request.residentId(), request.residentName(), request.address());
-        String assignedAgentName = request.assignedAgentId() == null ? null : getAgent(request.assignedAgentId()).getFullName();
-        String vehiclePlate = request.vehicleId() == null ? null : getVehicle(request.vehicleId()).getPlate();
+        Long assignedAgentId = request.assignedAgentId();
+        String assignedAgentName = assignedAgentId == null ? null : getAgent(assignedAgentId).getFullName();
+        Long vehicleId = request.vehicleId();
+        String vehiclePlate = vehicleId == null ? null : getVehicle(vehicleId).getPlate();
+
+        validateIncidentTransition(incident.getStatus(), request.status());
 
         incident.update(
                 request.type(),
@@ -574,16 +650,79 @@ public class OperationsService {
                 request.status(),
                 resident != null ? resident.getFullName() : request.residentName().trim(),
                 resident != null ? resident.getAddress() : request.address().trim(),
+                assignedAgentId,
                 assignedAgentName,
+                vehicleId,
                 vehiclePlate
         );
-        return incidentRepository.save(incident);
+        Incident savedIncident = incidentRepository.save(incident);
+        recordAudit(AuditActionType.INCIDENT_WORKFLOW, "Incident", savedIncident.getId(), "Atualizacao da ocorrencia " + savedIncident.getId() + " para status " + savedIncident.getStatus());
+        return savedIncident;
     }
 
     @Transactional
     public void deleteIncident(Long id) {
         Incident incident = getIncident(id);
         incidentRepository.delete(incident);
+        recordAudit(AuditActionType.DELETE, "Incident", id, "Exclusao da ocorrencia " + incident.getId());
+    }
+
+    @Transactional
+    public Incident dispatchIncident(Long id, DispatchIncidentRequest request) {
+        // Formaliza o despacho da equipe para a ocorrencia com trilha de quem foi enviado.
+        Incident incident = getIncident(id);
+        if (incident.getStatus() == IncidentStatus.CLOSED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nao e possivel despachar uma ocorrencia encerrada.");
+        }
+
+        Agent agent = getAgent(request.assignedAgentId());
+        Vehicle vehicle = getVehicle(request.vehicleId());
+
+        incident.dispatch(
+                agent.getId(),
+                agent.getFullName(),
+                vehicle.getId(),
+                vehicle.getPlate(),
+                OffsetDateTime.now(ZoneOffset.UTC),
+                request.dispatchNotes() != null ? request.dispatchNotes().trim() : null
+        );
+        Incident savedIncident = incidentRepository.save(incident);
+        recordAudit(AuditActionType.INCIDENT_WORKFLOW, "Incident", savedIncident.getId(), "Despacho da ocorrencia " + savedIncident.getId() + " para " + savedIncident.getAssignedAgentName());
+        return savedIncident;
+    }
+
+    @Transactional
+    public Incident markIncidentOnSite(Long id, OnSiteIncidentRequest request) {
+        // Registra a chegada da equipe no local da ocorrencia.
+        Incident incident = getIncident(id);
+        if (incident.getStatus() != IncidentStatus.DISPATCHED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A ocorrencia precisa estar despachada para registrar chegada.");
+        }
+
+        incident.markOnSite(
+                OffsetDateTime.now(ZoneOffset.UTC),
+                request.arrivalNotes() != null ? request.arrivalNotes().trim() : null
+        );
+        Incident savedIncident = incidentRepository.save(incident);
+        recordAudit(AuditActionType.INCIDENT_WORKFLOW, "Incident", savedIncident.getId(), "Chegada ao local da ocorrencia " + savedIncident.getId());
+        return savedIncident;
+    }
+
+    @Transactional
+    public Incident closeIncident(Long id, CloseIncidentRequest request) {
+        // Encerra a ocorrencia quando o atendimento foi concluido e documentado.
+        Incident incident = getIncident(id);
+        if (incident.getStatus() == IncidentStatus.OPEN) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nao e possivel encerrar uma ocorrencia que ainda nao foi despachada.");
+        }
+
+        incident.close(
+                OffsetDateTime.now(ZoneOffset.UTC),
+                request.closureNotes() != null ? request.closureNotes().trim() : null
+        );
+        Incident savedIncident = incidentRepository.save(incident);
+        recordAudit(AuditActionType.INCIDENT_WORKFLOW, "Incident", savedIncident.getId(), "Encerramento da ocorrencia " + savedIncident.getId());
+        return savedIncident;
     }
 
     @Transactional(readOnly = true)
@@ -593,6 +732,7 @@ public class OperationsService {
         List<Agent> agents = listAgents();
         List<Vehicle> vehicles = listVehicles();
         List<VehicleMaintenanceRecord> maintenanceRecords = listVehicleMaintenanceRecords();
+        List<AuditRecord> auditRecords = listRecentAuditRecords();
         List<Shift> shifts = listShifts();
         List<Incident> incidents = listIncidents();
 
@@ -630,6 +770,7 @@ public class OperationsService {
                 openIncidents,
                 maintenanceAlerts,
                 activePatrol,
+                auditRecords,
                 residents,
                 agents,
                 vehicles,
@@ -882,6 +1023,21 @@ public class OperationsService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ocorrencia nao encontrada"));
     }
 
+    private void validateIncidentTransition(IncidentStatus currentStatus, IncidentStatus requestedStatus) {
+        // Evita regressao de estado e saltos incoerentes no fluxo de atendimento.
+        if (currentStatus == IncidentStatus.CLOSED && requestedStatus != IncidentStatus.CLOSED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Uma ocorrencia encerrada nao pode voltar para outro status.");
+        }
+
+        if (currentStatus == IncidentStatus.OPEN && requestedStatus == IncidentStatus.ON_SITE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A ocorrencia precisa ser despachada antes de chegar ao local.");
+        }
+
+        if (currentStatus == IncidentStatus.OPEN && requestedStatus == IncidentStatus.CLOSED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A ocorrencia nao pode ser encerrada sem despacho.");
+        }
+    }
+
     private ActivePatrolResponse buildActivePatrol(List<Agent> agents, List<Vehicle> vehicles, List<Shift> shifts, List<Incident> incidents) {
         // Monta o cartao e o mapa da patrulha ativa com ultimo ponto e historico de telemetria.
         Shift activeShift = shifts.stream()
@@ -992,5 +1148,27 @@ public class OperationsService {
         }
 
         return null;
+    }
+
+    private void recordAudit(AuditActionType actionType, String entityName, Long entityId, String description) {
+        // Registra a trilha minima das acoes criticas com o usuario autenticado quando houver contexto.
+        AuditRecord record = new AuditRecord(
+                actionType,
+                entityName,
+                entityId,
+                resolveCurrentActorUsername(),
+                OffsetDateTime.now(ZoneOffset.UTC),
+                description
+        );
+        auditRecordRepository.save(record);
+    }
+
+    private String resolveCurrentActorUsername() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || authentication.getName() == null || "anonymousUser".equals(authentication.getName())) {
+            return "sistema";
+        }
+
+        return authentication.getName();
     }
 }

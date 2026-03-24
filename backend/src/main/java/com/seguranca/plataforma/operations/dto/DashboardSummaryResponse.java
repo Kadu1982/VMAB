@@ -1,6 +1,7 @@
 package com.seguranca.plataforma.operations.dto;
 
 import com.seguranca.plataforma.operations.model.Agent;
+import com.seguranca.plataforma.operations.model.AuditRecord;
 import com.seguranca.plataforma.operations.model.Incident;
 import com.seguranca.plataforma.operations.model.Resident;
 import com.seguranca.plataforma.operations.model.Shift;
@@ -20,6 +21,7 @@ public record DashboardSummaryResponse(
         long openIncidents,
         long maintenanceAlerts,
         ActivePatrolResponse activePatrol,
+        List<AuditRecord> auditRecords,
         List<Resident> residents,
         List<Agent> agents,
         List<Vehicle> vehicles,

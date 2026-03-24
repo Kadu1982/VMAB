@@ -1,6 +1,9 @@
 package com.seguranca.plataforma.operations.web;
 
 import com.seguranca.plataforma.operations.dto.CreateIncidentRequest;
+import com.seguranca.plataforma.operations.dto.CloseIncidentRequest;
+import com.seguranca.plataforma.operations.dto.DispatchIncidentRequest;
+import com.seguranca.plataforma.operations.dto.OnSiteIncidentRequest;
 import com.seguranca.plataforma.operations.dto.UpdateIncidentRequest;
 import com.seguranca.plataforma.operations.model.Incident;
 import com.seguranca.plataforma.operations.service.OperationsService;
@@ -41,6 +44,24 @@ public class IncidentController {
     @PutMapping("/{id}")
     public Incident update(@PathVariable Long id, @Valid @RequestBody UpdateIncidentRequest request) {
         return operationsService.updateIncident(id, request);
+    }
+
+    @PostMapping("/{id}/dispatch")
+    public Incident dispatch(@PathVariable Long id, @Valid @RequestBody DispatchIncidentRequest request) {
+        // Expõe o despacho formal da ocorrencia para a base operacional.
+        return operationsService.dispatchIncident(id, request);
+    }
+
+    @PostMapping("/{id}/onsite")
+    public Incident onsite(@PathVariable Long id, @Valid @RequestBody OnSiteIncidentRequest request) {
+        // Registra a chegada da equipe no local sem sobrescrever o historico anterior.
+        return operationsService.markIncidentOnSite(id, request);
+    }
+
+    @PostMapping("/{id}/close")
+    public Incident close(@PathVariable Long id, @Valid @RequestBody CloseIncidentRequest request) {
+        // Formaliza o encerramento da ocorrencia com trilha temporal.
+        return operationsService.closeIncident(id, request);
     }
 
     @DeleteMapping("/{id}")
