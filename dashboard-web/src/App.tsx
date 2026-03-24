@@ -13,6 +13,7 @@ import type {
   ClientPortal,
   DashboardSummary,
   Incident,
+  IncidentEvidence,
   IncidentPriority,
   IncidentStatus,
   IncidentType,
@@ -136,6 +137,12 @@ const initialResidentAlertForm = {
   assignedAgentId: '',
   vehicleId: '',
   actionNotes: '',
+}
+
+const initialEvidenceForm = {
+  incidentId: '',
+  notes: '',
+  file: null as File | null,
 }
 
 function formatDate(value: string) {
@@ -668,6 +675,7 @@ function App() {
   const [portal, setPortal] = useState<ClientPortal | null>(null)
   // Mantem os alertas do app do morador visiveis para a central operar o fluxo completo.
   const [residentAlerts, setResidentAlerts] = useState<ResidentAlert[]>([])
+  const [incidentEvidence, setIncidentEvidence] = useState<IncidentEvidence[]>([])
   const [users, setUsers] = useState<AppUser[]>([])
   const [lastRefreshAt, setLastRefreshAt] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -689,6 +697,7 @@ function App() {
   const [shiftForm, setShiftForm] = useState(initialShiftForm)
   const [incidentForm, setIncidentForm] = useState(initialIncidentForm)
   const [residentAlertForm, setResidentAlertForm] = useState(initialResidentAlertForm)
+  const [evidenceForm, setEvidenceForm] = useState(initialEvidenceForm)
   const [passwordResetForm, setPasswordResetForm] = useState({ username: '', resetCode: '', newPassword: '' })
   const [editingAgentId, setEditingAgentId] = useState<number | null>(null)
   const [editingUserId, setEditingUserId] = useState<number | null>(null)
@@ -699,6 +708,7 @@ function App() {
   const [editingResidentAlertId, setEditingResidentAlertId] = useState<number | null>(null)
   const [isPending, startTransition] = useTransition()
   const reportMessageTimerRef = useRef<number | null>(null)
+  const eventsStreamRef = useRef<EventSource | null>(null)
 
   // Deriva os escopos reais do usuario para nao exibir acoes que o backend vai negar.
   const isClient = currentRoles.includes('ROLE_CLIENT')
@@ -807,19 +817,23 @@ function App() {
         setPortal((await portalResponse.json()) as ClientPortal)
         setSummary(null)
         setResidentAlerts([])
+        setIncidentEvidence([])
         setUsers([])
         setLastRefreshAt(new Date().toISOString())
       } else {
-        const [summaryResponse, residentAlertsResponse, usersResponse] = await Promise.all([
+        const [summaryResponse, residentAlertsResponse, evidenceResponse, usersResponse] = await Promise.all([
           apiFetch('/api/dashboard/summary'),
           apiFetch('/api/resident-alerts'),
+          apiFetch('/api/incidents/evidence'),
           adminCanManageUsers ? apiFetch('/api/users') : Promise.resolve(null),
         ])
         if (!summaryResponse.ok) throw new Error('Nao foi possivel carregar o painel operacional.')
         if (!residentAlertsResponse.ok) throw new Error('Nao foi possivel carregar os alertas do morador.')
+        if (!evidenceResponse.ok) throw new Error('Nao foi possivel carregar as evidencias operacionais.')
         if (usersResponse && !usersResponse.ok) throw new Error('Nao foi possivel carregar a gestao de usuarios.')
         setSummary((await summaryResponse.json()) as DashboardSummary)
         setResidentAlerts((await residentAlertsResponse.json()) as ResidentAlert[])
+        setIncidentEvidence((await evidenceResponse.json()) as IncidentEvidence[])
         setUsers(usersResponse ? ((await usersResponse.json()) as AppUser[]) : [])
         setPortal(null)
         setLastRefreshAt(new Date().toISOString())
@@ -829,6 +843,7 @@ function App() {
       setSummary(null)
       setPortal(null)
       setResidentAlerts([])
+      setIncidentEvidence([])
       setUsers([])
     } finally {
       setLoading(false)
@@ -853,10 +868,37 @@ function App() {
   }, [authenticated, session])
 
   useEffect(() => {
+    // Abre um stream SSE para reduzir o atraso entre o evento operacional e a atualizacao visual do painel.
+    if (!authenticated || !session?.accessToken || isClient) {
+      eventsStreamRef.current?.close()
+      eventsStreamRef.current = null
+      return
+    }
+
+    const stream = new EventSource(`${API_BASE_URL}/api/events/stream?token=${encodeURIComponent(session.accessToken)}`)
+    eventsStreamRef.current = stream
+
+    stream.addEventListener('operations', () => {
+      void loadData()
+    })
+
+    stream.onerror = () => {
+      stream.close()
+      eventsStreamRef.current = null
+    }
+
+    return () => {
+      stream.close()
+      eventsStreamRef.current = null
+    }
+  }, [authenticated, session?.accessToken, isClient])
+
+  useEffect(() => {
     return () => {
       if (reportMessageTimerRef.current != null) {
         window.clearTimeout(reportMessageTimerRef.current)
       }
+      eventsStreamRef.current?.close()
     }
   }, [])
 
@@ -897,6 +939,10 @@ function App() {
   function resetResidentAlertForm() {
     setResidentAlertForm(initialResidentAlertForm)
     setEditingResidentAlertId(null)
+  }
+
+  function resetEvidenceForm() {
+    setEvidenceForm(initialEvidenceForm)
   }
 
   function startAgentEdit(agent: Agent) {
@@ -993,6 +1039,14 @@ function App() {
     })
   }
 
+  function startIncidentEvidenceContext(incident: Incident) {
+    // Aproveita a ocorrencia em edicao para direcionar o upload da evidencia ao chamado correto.
+    setEvidenceForm((current) => ({
+      ...current,
+      incidentId: String(incident.id),
+    }))
+  }
+
   function startIncidentEdit(incident: Incident) {
     const resident = summary?.residents.find((item) => item.fullName === incident.residentName && item.address === incident.address)
     const agent = summary?.agents.find((item) => item.fullName === incident.assignedAgentName)
@@ -1012,6 +1066,7 @@ function App() {
       arrivalNotes: incident.arrivalNotes ?? '',
       closureNotes: incident.closureNotes ?? '',
     })
+    startIncidentEvidenceContext(incident)
   }
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
@@ -1055,6 +1110,8 @@ function App() {
       setCurrentRoles([])
       setSummary(null)
       setPortal(null)
+      setResidentAlerts([])
+      setIncidentEvidence([])
       setUsers([])
       setAuthMessage('Sessao encerrada e tokens antigos invalidados.')
       setReportMessage(null)
@@ -1065,6 +1122,8 @@ function App() {
       resetMaintenanceForm()
       resetShiftForm()
       resetIncidentForm()
+      resetResidentAlertForm()
+      resetEvidenceForm()
     })().catch(() => {
       window.localStorage.removeItem(STORAGE_KEY)
       setSession(null)
@@ -1073,6 +1132,8 @@ function App() {
       setCurrentRoles([])
       setSummary(null)
       setPortal(null)
+      setResidentAlerts([])
+      setIncidentEvidence([])
       setUsers([])
       setReportMessage(null)
     })
@@ -1194,6 +1255,39 @@ function App() {
     }
 
     afterDelete()
+    startTransition(() => {
+      void loadData()
+    })
+  }
+
+  async function handleIncidentEvidenceUpload(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (!evidenceForm.incidentId || !evidenceForm.file) {
+      setError('Selecione uma ocorrencia e um arquivo para anexar a evidencia.')
+      return
+    }
+
+    const formData = new FormData()
+    formData.append('file', evidenceForm.file)
+    formData.append('notes', evidenceForm.notes)
+
+    const response = await apiFetch(`/api/incidents/${evidenceForm.incidentId}/evidence`, {
+      method: 'POST',
+      body: formData,
+    })
+
+    if (response.status === 403) {
+      setError('Seu perfil nao tem permissao para anexar evidencias.')
+      return
+    }
+
+    if (!response.ok) {
+      setError('Nao foi possivel anexar a evidencia da ocorrencia.')
+      return
+    }
+
+    resetEvidenceForm()
     startTransition(() => {
       void loadData()
     })
@@ -2207,6 +2301,54 @@ function App() {
                         <span className={`tag ${incident.priority.toLowerCase()}`}>{translateIncidentPriority(incident.priority)}</span>
                         {canUpdateOperations ? <button className="ghost-button" onClick={() => startIncidentEdit(incident)} type="button">Editar</button> : null}
                         {canCreateOperations ? <button className="ghost-button danger-button" onClick={() => void handleDelete(`/api/incidents/${incident.id}`, 'Deseja remover esta ocorrencia?', resetIncidentForm)} type="button">Excluir</button> : null}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+
+              <section className="panel">
+                <div className="panel-header">
+                  <div>
+                    <p className="eyebrow">Evidencias</p>
+                    <h3>Anexos operacionais das ocorrencias</h3>
+                  </div>
+                </div>
+                <p className="panel-note">
+                  Foto, documento ou anexo sem evidencia nao fecha prova operacional. Este bloco cobre essa lacuna.
+                </p>
+                {canUpdateOperations ? (
+                  <form className="form-grid" onSubmit={handleIncidentEvidenceUpload}>
+                    <select value={evidenceForm.incidentId} onChange={(event) => setEvidenceForm((current) => ({ ...current, incidentId: event.target.value }))}>
+                      <option value="">Ocorrencia da evidencia</option>
+                      {summary.incidents.map((incident) => <option key={incident.id} value={incident.id}>{incident.id} - {translateIncidentType(incident.type)} - {incident.residentName}</option>)}
+                    </select>
+                    <input
+                      placeholder="Observacao da evidencia"
+                      value={evidenceForm.notes}
+                      onChange={(event) => setEvidenceForm((current) => ({ ...current, notes: event.target.value }))}
+                    />
+                    <input
+                      accept="image/*,.pdf,.doc,.docx,.txt"
+                      type="file"
+                      onChange={(event) => setEvidenceForm((current) => ({ ...current, file: event.target.files?.[0] ?? null }))}
+                    />
+                    <div className="button-row">
+                      <button type="submit">Anexar evidencia</button>
+                      <button className="secondary-button" onClick={resetEvidenceForm} type="button">Limpar</button>
+                    </div>
+                  </form>
+                ) : null}
+                <div className="list">
+                  {incidentEvidence.map((evidence) => (
+                    <article className="list-row" key={evidence.id}>
+                      <div>
+                        <strong>{evidence.originalFilename}</strong>
+                        <small>Ocorrencia {evidence.incidentId} | {evidence.incidentResidentName} | envio {formatDate(evidence.uploadedAt)} | por {evidence.uploadedBy}</small>
+                        <small>{evidence.notes ?? 'Sem observacao adicional'} | {(evidence.fileSizeBytes / 1024).toFixed(1)} KB</small>
+                      </div>
+                      <div className="row-actions">
+                        <a className="ghost-button link-button" href={`${API_BASE_URL}${evidence.downloadPath}`} rel="noreferrer" target="_blank">Abrir</a>
                       </div>
                     </article>
                   ))}

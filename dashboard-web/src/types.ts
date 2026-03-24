@@ -191,6 +191,19 @@ export interface ResidentAlert {
   cancellationReason?: string | null
 }
 
+export interface IncidentEvidence {
+  id: number
+  incidentId: number
+  incidentResidentName: string
+  originalFilename: string
+  contentType: string
+  fileSizeBytes: number
+  notes?: string | null
+  uploadedBy: string
+  uploadedAt: string
+  downloadPath: string
+}
+
 export interface DashboardSummary {
   totalResidents: number
   totalAgents: number

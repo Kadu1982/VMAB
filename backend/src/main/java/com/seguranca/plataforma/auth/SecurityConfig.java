@@ -30,6 +30,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/password-reset/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/events/stream").permitAll()
                         .requestMatchers("/api/auth/**").authenticated()
                         .requestMatchers("/api/users/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/client/portal").hasAnyRole("CLIENT", "SUPERVISOR", "ADMIN")

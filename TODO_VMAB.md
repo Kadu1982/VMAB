@@ -20,8 +20,8 @@ Tabela objetiva do que ainda falta para o sistema atingir um estado forte de pro
 | 12 | Background tracking no mobile | Concluido | Alta | Rastreamento continuo e task de segundo plano estao implementados; a validacao completa depende de build nativa/dev client. |
 | 13 | Operacao offline degradada com sincronizacao posterior | Concluido | Alta | Fila local de telemetria, reenvio posterior e sincronizacao ao voltar online estao implementados. |
 | 14 | Antifraude de localizacao e contexto | Concluido | Alta | Sinais basicos de anomalia, salto geografico e GPS preso foram implementados no mobile. |
-| 15 | Evidencias de ocorrencia com fotos e anexos | Pendente | Media | Falta comprovar atendimento com mais robustez. |
-| 16 | Notificacoes em tempo real | Em andamento | Media | Painel agora tem polling automatico, mas ainda nao existe push real por WebSocket, evento ou mobile. |
+| 15 | Evidencias de ocorrencia com fotos e anexos | Em andamento | Media | Backend e painel ja suportam upload, listagem e download de evidencias por ocorrencia; ainda faltam captura mobile, exclusao controlada e politicas de retencao. |
+| 16 | Notificacoes em tempo real | Em andamento | Media | Painel agora recebe eventos por SSE e reage sem depender so de polling; ainda faltam push mobile e canal formal para cliente/morador. |
 | 17 | Auditoria de acoes criticas | Concluido | Alta | Operacoes e auth registram eventos criticos em trilha de auditoria persistida. |
 | 18 | Observabilidade, logs e monitoramento | Pendente | Alta | Falta endurecimento de producao. |
 | 19 | LGPD e politicas de retencao | Pendente | Alta | Nao esta fechado para uso real com dados sensiveis. |

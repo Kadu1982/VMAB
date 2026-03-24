@@ -9,6 +9,7 @@ import com.seguranca.plataforma.operations.dto.CreateShiftRequest;
 import com.seguranca.plataforma.operations.dto.CreateVehicleMaintenanceRequest;
 import com.seguranca.plataforma.operations.dto.CreateVehicleRequest;
 import com.seguranca.plataforma.operations.dto.DispatchIncidentRequest;
+import com.seguranca.plataforma.operations.dto.IncidentEvidenceResponse;
 import com.seguranca.plataforma.operations.dto.ClientPortalResponse;
 import com.seguranca.plataforma.operations.dto.DashboardSummaryResponse;
 import com.seguranca.plataforma.operations.dto.HandoffShiftRequest;
@@ -27,6 +28,7 @@ import com.seguranca.plataforma.operations.model.AgentStatus;
 import com.seguranca.plataforma.operations.model.AuditActionType;
 import com.seguranca.plataforma.operations.model.AuditRecord;
 import com.seguranca.plataforma.operations.model.Incident;
+import com.seguranca.plataforma.operations.model.IncidentEvidence;
 import com.seguranca.plataforma.operations.model.IncidentStatus;
 import com.seguranca.plataforma.operations.model.Resident;
 import com.seguranca.plataforma.operations.model.ResidentStatus;
@@ -41,24 +43,35 @@ import com.seguranca.plataforma.operations.model.VehicleStatus;
 import com.seguranca.plataforma.operations.repository.AgentRepository;
 import com.seguranca.plataforma.operations.repository.AuditRecordRepository;
 import com.seguranca.plataforma.operations.repository.IncidentRepository;
+import com.seguranca.plataforma.operations.repository.IncidentEvidenceRepository;
 import com.seguranca.plataforma.operations.repository.ResidentRepository;
 import com.seguranca.plataforma.operations.repository.ShiftRepository;
 import com.seguranca.plataforma.operations.repository.ShiftTelemetryRepository;
 import com.seguranca.plataforma.operations.repository.VehicleMaintenanceRecordRepository;
 import com.seguranca.plataforma.operations.repository.VehicleRepository;
 import jakarta.annotation.PostConstruct;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
@@ -73,6 +86,9 @@ public class OperationsService {
     private final ShiftRepository shiftRepository;
     private final ShiftTelemetryRepository shiftTelemetryRepository;
     private final IncidentRepository incidentRepository;
+    private final IncidentEvidenceRepository incidentEvidenceRepository;
+    private final OperationsRealtimeService operationsRealtimeService;
+    private final Path storageRoot;
 
     public OperationsService(
             AgentRepository agentRepository,
@@ -82,7 +98,10 @@ public class OperationsService {
             ResidentRepository residentRepository,
             ShiftRepository shiftRepository,
             ShiftTelemetryRepository shiftTelemetryRepository,
-            IncidentRepository incidentRepository
+            IncidentRepository incidentRepository,
+            IncidentEvidenceRepository incidentEvidenceRepository,
+            OperationsRealtimeService operationsRealtimeService,
+            @Value("${vmab.storage-root}") String storageRoot
     ) {
         this.agentRepository = agentRepository;
         this.auditRecordRepository = auditRecordRepository;
@@ -92,12 +111,16 @@ public class OperationsService {
         this.shiftRepository = shiftRepository;
         this.shiftTelemetryRepository = shiftTelemetryRepository;
         this.incidentRepository = incidentRepository;
+        this.incidentEvidenceRepository = incidentEvidenceRepository;
+        this.operationsRealtimeService = operationsRealtimeService;
+        this.storageRoot = Path.of(storageRoot).toAbsolutePath().normalize();
     }
 
     @PostConstruct
     @Transactional
     void seed() {
         // Semeia um ambiente minimo para demonstracao e testes locais.
+        initializeStorageDirectories();
         if (agentRepository.count() > 0 || vehicleRepository.count() > 0 || residentRepository.count() > 0 || shiftRepository.count() > 0 || incidentRepository.count() > 0) {
             return;
         }
@@ -602,6 +625,21 @@ public class OperationsService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<IncidentEvidenceResponse> listIncidentEvidence() {
+        return incidentEvidenceRepository.findAllByOrderByUploadedAtDesc().stream()
+                .map(this::toIncidentEvidenceResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<IncidentEvidenceResponse> listIncidentEvidenceByIncident(Long incidentId) {
+        getIncident(incidentId);
+        return incidentEvidenceRepository.findByIncidentIdOrderByUploadedAtDesc(incidentId).stream()
+                .map(this::toIncidentEvidenceResponse)
+                .toList();
+    }
+
     @Transactional
     public Incident addIncident(CreateIncidentRequest request) {
         Resident resident = resolveResident(request.residentId(), request.residentName(), request.address());
@@ -723,6 +761,59 @@ public class OperationsService {
         Incident savedIncident = incidentRepository.save(incident);
         recordAudit(AuditActionType.INCIDENT_WORKFLOW, "Incident", savedIncident.getId(), "Encerramento da ocorrencia " + savedIncident.getId());
         return savedIncident;
+    }
+
+    @Transactional
+    public IncidentEvidenceResponse addIncidentEvidence(Long incidentId, MultipartFile file, String notes) {
+        // Persiste metadados e arquivo fisico da evidencia ligada a uma ocorrencia.
+        Incident incident = getIncident(incidentId);
+        validateEvidenceFile(file);
+
+        String sanitizedFilename = sanitizeFilename(file.getOriginalFilename());
+        String storedFilename = UUID.randomUUID() + "-" + sanitizedFilename;
+        Path incidentDirectory = storageRoot.resolve("incidents").resolve(String.valueOf(incidentId));
+        Path destination = incidentDirectory.resolve(storedFilename);
+
+        try {
+            Files.createDirectories(incidentDirectory);
+            try (InputStream inputStream = file.getInputStream()) {
+                Files.copy(inputStream, destination, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (IOException exception) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Nao foi possivel armazenar a evidencia.");
+        }
+
+        IncidentEvidence evidence = new IncidentEvidence(
+                incidentId,
+                sanitizedFilename,
+                storedFilename,
+                StringUtils.hasText(file.getContentType()) ? file.getContentType() : "application/octet-stream",
+                file.getSize(),
+                normalizeOptionalText(notes, 1000),
+                resolveCurrentActorUsername(),
+                OffsetDateTime.now(ZoneOffset.UTC)
+        );
+        IncidentEvidence savedEvidence = incidentEvidenceRepository.save(evidence);
+        recordAudit(AuditActionType.UPDATE, "IncidentEvidence", savedEvidence.getId(), "Envio de evidencia para a ocorrencia " + incident.getId());
+        return toIncidentEvidenceResponse(savedEvidence);
+    }
+
+    @Transactional(readOnly = true)
+    public IncidentEvidenceDownload downloadIncidentEvidence(Long incidentId, Long evidenceId) {
+        IncidentEvidence evidence = incidentEvidenceRepository.findByIdAndIncidentId(evidenceId, incidentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Evidencia da ocorrencia nao encontrada."));
+        Path resourcePath = storageRoot.resolve("incidents").resolve(String.valueOf(incidentId)).resolve(evidence.getStoredFilename());
+        Resource resource = new FileSystemResource(resourcePath);
+
+        if (!resource.exists()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Arquivo fisico da evidencia nao encontrado.");
+        }
+
+        return new IncidentEvidenceDownload(
+                resource,
+                evidence.getOriginalFilename(),
+                StringUtils.hasText(evidence.getContentType()) ? evidence.getContentType() : "application/octet-stream"
+        );
     }
 
     @Transactional(readOnly = true)
@@ -1161,6 +1252,60 @@ public class OperationsService {
                 description
         );
         auditRecordRepository.save(record);
+        operationsRealtimeService.publish(actionType.name(), entityName, entityId, description);
+    }
+
+    private IncidentEvidenceResponse toIncidentEvidenceResponse(IncidentEvidence evidence) {
+        Incident incident = getIncident(evidence.getIncidentId());
+        return new IncidentEvidenceResponse(
+                evidence.getId(),
+                evidence.getIncidentId(),
+                incident.getResidentName(),
+                evidence.getOriginalFilename(),
+                evidence.getContentType(),
+                evidence.getFileSizeBytes(),
+                evidence.getNotes(),
+                evidence.getUploadedBy(),
+                evidence.getUploadedAt(),
+                "/api/incidents/" + evidence.getIncidentId() + "/evidence/" + evidence.getId() + "/download"
+        );
+    }
+
+    private void validateEvidenceFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selecione um arquivo de evidencia.");
+        }
+
+        if (file.getSize() > 15L * 1024 * 1024) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A evidencia excede o limite de 15 MB.");
+        }
+    }
+
+    private void initializeStorageDirectories() {
+        try {
+            Files.createDirectories(storageRoot.resolve("incidents"));
+        } catch (IOException exception) {
+            throw new IllegalStateException("Nao foi possivel inicializar o diretorio de evidencias.", exception);
+        }
+    }
+
+    private String sanitizeFilename(String originalFilename) {
+        String fallback = "evidencia.bin";
+        if (!StringUtils.hasText(originalFilename)) {
+            return fallback;
+        }
+
+        String sanitized = originalFilename.replaceAll("[^a-zA-Z0-9._-]", "_");
+        return StringUtils.hasText(sanitized) ? sanitized : fallback;
+    }
+
+    private String normalizeOptionalText(String value, int maxLength) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+
+        String normalized = value.trim();
+        return normalized.length() > maxLength ? normalized.substring(0, maxLength) : normalized;
     }
 
     private String resolveCurrentActorUsername() {
@@ -1170,5 +1315,12 @@ public class OperationsService {
         }
 
         return authentication.getName();
+    }
+
+    public record IncidentEvidenceDownload(
+            Resource resource,
+            String originalFilename,
+            String contentType
+    ) {
     }
 }

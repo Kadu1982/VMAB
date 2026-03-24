@@ -283,6 +283,12 @@ button {
   font-size: 13px;
 }
 
+.link-button {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+
 .refresh-button:hover,
 .form-grid button:hover,
 .login-form button:hover,

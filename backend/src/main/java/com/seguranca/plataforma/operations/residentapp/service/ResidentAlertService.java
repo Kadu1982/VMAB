@@ -24,6 +24,7 @@ import com.seguranca.plataforma.operations.residentapp.model.ResidentAlertType;
 import com.seguranca.plataforma.operations.residentapp.model.ResidentSession;
 import com.seguranca.plataforma.operations.residentapp.repository.ResidentAlertRepository;
 import com.seguranca.plataforma.operations.residentapp.repository.ResidentSessionRepository;
+import com.seguranca.plataforma.operations.service.OperationsRealtimeService;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -53,6 +54,7 @@ public class ResidentAlertService {
     private final AgentRepository agentRepository;
     private final VehicleRepository vehicleRepository;
     private final AuditRecordRepository auditRecordRepository;
+    private final OperationsRealtimeService operationsRealtimeService;
 
     public ResidentAlertService(
             ResidentRepository residentRepository,
@@ -60,7 +62,8 @@ public class ResidentAlertService {
             ResidentSessionRepository residentSessionRepository,
             AgentRepository agentRepository,
             VehicleRepository vehicleRepository,
-            AuditRecordRepository auditRecordRepository
+            AuditRecordRepository auditRecordRepository,
+            OperationsRealtimeService operationsRealtimeService
     ) {
         this.residentRepository = residentRepository;
         this.residentAlertRepository = residentAlertRepository;
@@ -68,6 +71,7 @@ public class ResidentAlertService {
         this.agentRepository = agentRepository;
         this.vehicleRepository = vehicleRepository;
         this.auditRecordRepository = auditRecordRepository;
+        this.operationsRealtimeService = operationsRealtimeService;
     }
 
     @Transactional
@@ -372,6 +376,7 @@ public class ResidentAlertService {
                 description
         );
         auditRecordRepository.save(record);
+        operationsRealtimeService.publish(actionType.name(), entityName, entityId, description);
     }
 
     private String resolveCurrentActorUsername() {
