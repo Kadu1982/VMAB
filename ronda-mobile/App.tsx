@@ -34,13 +34,20 @@ import {
 } from './telemetry'
 
 const DEFAULT_API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? ''
-const API_URL_STORAGE_KEY = 'seguranca-api-url'
-const CREDENTIALS_STORAGE_KEY = 'seguranca-ronda-creds'
-const SESSION_STORAGE_KEY = 'seguranca-ronda-session'
+const API_URL_STORAGE_KEY = 'vmab-mobile-api-url'
+const MODE_STORAGE_KEY = 'vmab-mobile-mode'
+const COLLABORATOR_CREDENTIALS_STORAGE_KEY = 'vmab-mobile-collaborator-creds'
+const COLLABORATOR_SESSION_STORAGE_KEY = 'vmab-mobile-collaborator-session'
+const RESIDENT_CREDENTIALS_STORAGE_KEY = 'vmab-mobile-resident-creds'
+const RESIDENT_SESSION_STORAGE_KEY = 'vmab-mobile-resident-session'
+
+type AppMode = 'COLLABORATOR' | 'RESIDENT'
 
 type ShiftStatus = 'PLANNED' | 'ACTIVE' | 'HANDOFF' | 'CLOSED'
 type IncidentPriority = 'HIGH' | 'MEDIUM' | 'LOW'
 type IncidentStatus = 'OPEN' | 'DISPATCHED' | 'ON_SITE' | 'CLOSED'
+type ResidentAlertType = 'PANICO' | 'COACAO' | 'ESCOLTA' | 'SUSPEITA' | 'MEDICA'
+type ResidentAlertStatus = 'OPEN' | 'ACKNOWLEDGED' | 'DISPATCHED' | 'ON_SITE' | 'RESOLVED' | 'CANCELLED'
 
 type ActivePatrol = {
   shiftId: number
@@ -72,6 +79,66 @@ type AuthSession = {
   expiresAt: string
   username: string
   roles: string[]
+}
+
+type ResidentSession = {
+  tokenType: 'Bearer'
+  accessToken: string
+  expiresAt: string
+  residentId: number
+  fullName: string
+  phoneNumber: string
+  address: string
+  referenceNote?: string | null
+}
+
+type ResidentProfile = {
+  residentId: number
+  fullName: string
+  phoneNumber: string
+  address: string
+  referenceNote?: string | null
+  sessionExpiresAt: string
+}
+
+type ResidentAlert = {
+  id: number
+  residentId: number
+  residentName: string
+  residentPhoneNumber: string
+  residentAddress: string
+  type: ResidentAlertType
+  status: ResidentAlertStatus
+  latitude?: number | null
+  longitude?: number | null
+  notes?: string | null
+  silent: boolean
+  escortDestination?: string | null
+  openedAt: string
+  updatedAt: string
+  acknowledgedAt?: string | null
+  dispatchedAt?: string | null
+  onSiteAt?: string | null
+  resolvedAt?: string | null
+  cancelledAt?: string | null
+  assignedAgentName?: string | null
+  vehiclePlate?: string | null
+  acknowledgmentNotes?: string | null
+  dispatchNotes?: string | null
+  arrivalNotes?: string | null
+  resolutionNotes?: string | null
+  cancellationReason?: string | null
+}
+
+type ResidentLoginForm = {
+  residentId: string
+  accessPin: string
+}
+
+type ResidentAlertDraft = {
+  notes: string
+  escortDestination: string
+  coercionPin: string
 }
 
 type EvidenceAsset = {
@@ -115,6 +182,17 @@ type DashboardSummary = {
 const initialCredentials = {
   username: 'ronda',
   password: 'ronda123',
+}
+
+const initialResidentCredentials: ResidentLoginForm = {
+  residentId: '1',
+  accessPin: '1122',
+}
+
+const initialResidentAlertDraft: ResidentAlertDraft = {
+  notes: '',
+  escortDestination: '',
+  coercionPin: '',
 }
 
 function formatDate(value: string) {
@@ -179,14 +257,74 @@ function translateGenericOperationalText(value: string) {
   }[value] ?? value
 }
 
+function translateAlertType(type: ResidentAlertType) {
+  return {
+    PANICO: 'Panico',
+    COACAO: 'Coacao',
+    ESCOLTA: 'Escolta',
+    SUSPEITA: 'Suspeita',
+    MEDICA: 'Medica',
+  }[type]
+}
+
+function translateAlertStatus(status: ResidentAlertStatus) {
+  return {
+    OPEN: 'Aberto',
+    ACKNOWLEDGED: 'Recebido',
+    DISPATCHED: 'Despachado',
+    ON_SITE: 'No local',
+    RESOLVED: 'Resolvido',
+    CANCELLED: 'Cancelado',
+  }[status]
+}
+
+function isActiveAlert(status: ResidentAlertStatus) {
+  return status === 'OPEN' || status === 'ACKNOWLEDGED' || status === 'DISPATCHED' || status === 'ON_SITE'
+}
+
+function getAlertOperationalMessage(alert: ResidentAlert) {
+  if (alert.status === 'OPEN') {
+    return alert.silent
+      ? 'Sinal silencioso registrado. Mantenha a rotina normal enquanto a central avalia o atendimento.'
+      : 'Alerta registrado. A central ainda vai confirmar o recebimento.'
+  }
+
+  if (alert.status === 'ACKNOWLEDGED') {
+    return 'A central recebeu seu alerta e esta preparando o atendimento.'
+  }
+
+  if (alert.status === 'DISPATCHED') {
+    return `${alert.assignedAgentName ?? 'Equipe'} em deslocamento${alert.vehiclePlate ? ` com viatura ${alert.vehiclePlate}` : ''}.`
+  }
+
+  if (alert.status === 'ON_SITE') {
+    return 'A equipe ja esta no local.'
+  }
+
+  if (alert.status === 'RESOLVED') {
+    return 'Atendimento encerrado pela operacao.'
+  }
+
+  return 'Alerta cancelado.'
+}
+
 function normalizeApiUrl(value: string) {
   return normalizeApiBaseUrl(value)
 }
 
 export default function App() {
   // Estado do app da ronda: sessao, telemetria, fila offline e resumo operacional.
+  const [mode, setMode] = useState<AppMode>('COLLABORATOR')
   const [credentials, setCredentials] = useState(initialCredentials)
   const [session, setSession] = useState<AuthSession | null>(null)
+  const [residentCredentials, setResidentCredentials] = useState(initialResidentCredentials)
+  const [residentSession, setResidentSession] = useState<ResidentSession | null>(null)
+  const [residentProfile, setResidentProfile] = useState<ResidentProfile | null>(null)
+  const [residentAlerts, setResidentAlerts] = useState<ResidentAlert[]>([])
+  const [residentAlertDraft, setResidentAlertDraft] = useState(initialResidentAlertDraft)
+  const [residentSendingAlert, setResidentSendingAlert] = useState<ResidentAlertType | null>(null)
+  const [residentCountdownType, setResidentCountdownType] = useState<ResidentAlertType | null>(null)
+  const [residentCountdownSeconds, setResidentCountdownSeconds] = useState(0)
   const [apiBaseUrl, setApiBaseUrl] = useState(DEFAULT_API_BASE_URL)
   const [authenticated, setAuthenticated] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -201,19 +339,34 @@ export default function App() {
   const [evidenceNotes, setEvidenceNotes] = useState('')
   const [evidenceAsset, setEvidenceAsset] = useState<EvidenceAsset | null>(null)
   const foregroundSubscriptionRef = useRef<Location.LocationSubscription | null>(null)
+  const activeResidentAlert = residentAlerts.find((alert) => isActiveAlert(alert.status)) ?? null
 
   useEffect(() => {
     // Restaura URL da API, credenciais e sessao para nao exigir reconfiguracao a cada abertura.
     async function hydrateSession() {
       try {
-        const [storedApiUrl, storedCredentials, storedSession] = await Promise.all([
+        const [
+          storedApiUrl,
+          storedMode,
+          storedCredentials,
+          storedSession,
+          storedResidentCredentials,
+          storedResidentSession,
+        ] = await Promise.all([
           AsyncStorage.getItem(API_URL_STORAGE_KEY),
-          AsyncStorage.getItem(CREDENTIALS_STORAGE_KEY),
-          AsyncStorage.getItem(SESSION_STORAGE_KEY),
+          AsyncStorage.getItem(MODE_STORAGE_KEY),
+          AsyncStorage.getItem(COLLABORATOR_CREDENTIALS_STORAGE_KEY),
+          AsyncStorage.getItem(COLLABORATOR_SESSION_STORAGE_KEY),
+          AsyncStorage.getItem(RESIDENT_CREDENTIALS_STORAGE_KEY),
+          AsyncStorage.getItem(RESIDENT_SESSION_STORAGE_KEY),
         ])
 
         if (storedApiUrl) {
           setApiBaseUrl(storedApiUrl)
+        }
+
+        if (storedMode === 'COLLABORATOR' || storedMode === 'RESIDENT') {
+          setMode(storedMode)
         }
 
         if (storedCredentials) {
@@ -224,6 +377,14 @@ export default function App() {
           const parsedSession = JSON.parse(storedSession) as AuthSession
           setSession(parsedSession)
           setAuthenticated(true)
+        }
+
+        if (storedResidentCredentials) {
+          setResidentCredentials(JSON.parse(storedResidentCredentials) as ResidentLoginForm)
+        }
+
+        if (storedResidentSession) {
+          setResidentSession(JSON.parse(storedResidentSession) as ResidentSession)
         }
 
         const queue = await loadTelemetryQueue()
@@ -241,17 +402,34 @@ export default function App() {
   }, [apiBaseUrl])
 
   useEffect(() => {
-    void AsyncStorage.setItem(CREDENTIALS_STORAGE_KEY, JSON.stringify(credentials))
+    void AsyncStorage.setItem(MODE_STORAGE_KEY, mode)
+  }, [mode])
+
+  useEffect(() => {
+    void AsyncStorage.setItem(COLLABORATOR_CREDENTIALS_STORAGE_KEY, JSON.stringify(credentials))
   }, [credentials])
 
   useEffect(() => {
     if (session) {
-      void AsyncStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session))
+      void AsyncStorage.setItem(COLLABORATOR_SESSION_STORAGE_KEY, JSON.stringify(session))
       return
     }
 
-    void AsyncStorage.removeItem(SESSION_STORAGE_KEY)
+    void AsyncStorage.removeItem(COLLABORATOR_SESSION_STORAGE_KEY)
   }, [session])
+
+  useEffect(() => {
+    void AsyncStorage.setItem(RESIDENT_CREDENTIALS_STORAGE_KEY, JSON.stringify(residentCredentials))
+  }, [residentCredentials])
+
+  useEffect(() => {
+    if (residentSession) {
+      void AsyncStorage.setItem(RESIDENT_SESSION_STORAGE_KEY, JSON.stringify(residentSession))
+      return
+    }
+
+    void AsyncStorage.removeItem(RESIDENT_SESSION_STORAGE_KEY)
+  }, [residentSession])
 
   async function refreshOfflineQueueCount() {
     const queue = await loadTelemetryQueue()
@@ -450,6 +628,9 @@ export default function App() {
       const nextSession = (await response.json()) as AuthSession
       setSession(nextSession)
       setAuthenticated(true)
+      setResidentSession(null)
+      setResidentProfile(null)
+      setResidentAlerts([])
       await fetchSummary(nextSession)
       await flushOfflineQueue()
     } catch (cause) {
@@ -487,6 +668,203 @@ export default function App() {
       setOfflineQueueCount(0)
       setTrackingStatus('GPS inativo')
       setError(null)
+    }
+  }
+
+  async function residentApiFetch(path: string, init?: RequestInit, accessToken?: string) {
+    const baseUrl = normalizeApiUrl(apiBaseUrl)
+    if (!baseUrl) {
+      throw new Error('Informe a URL da API antes de continuar.')
+    }
+
+    const headers = new Headers(init?.headers)
+    headers.set('Content-Type', 'application/json')
+    const token = accessToken ?? residentSession?.accessToken
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`)
+    }
+
+    return fetch(`${baseUrl}${path}`, {
+      ...init,
+      headers,
+    })
+  }
+
+  async function refreshResidentData(nextSession = residentSession) {
+    // Carrega ficha e alertas do morador autenticado.
+    if (!nextSession?.accessToken) {
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      const profileResponse = await residentApiFetch('/api/resident-app/me', undefined, nextSession.accessToken)
+      if (!profileResponse.ok) {
+        throw new Error('Nao foi possivel validar sua sessao de morador.')
+      }
+      setResidentProfile((await profileResponse.json()) as ResidentProfile)
+
+      const alertsResponse = await residentApiFetch('/api/resident-app/alerts', undefined, nextSession.accessToken)
+      if (!alertsResponse.ok) {
+        throw new Error('Nao foi possivel carregar seus alertas.')
+      }
+      setResidentAlerts((await alertsResponse.json()) as ResidentAlert[])
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Falha inesperada ao atualizar o app do morador.')
+      setResidentSession(null)
+      setResidentProfile(null)
+      setResidentAlerts([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleResidentLogin() {
+    // Autentica o morador com PIN dedicado e abre a tela de alerta.
+    setLoading(true)
+    setError(null)
+
+    try {
+      const response = await residentApiFetch('/api/resident-app/session', {
+        method: 'POST',
+        body: JSON.stringify({
+          residentId: Number(residentCredentials.residentId),
+          accessPin: residentCredentials.accessPin,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Nao foi possivel entrar. Verifique o ID e o PIN do morador.')
+      }
+
+      const nextSession = (await response.json()) as ResidentSession
+      setResidentSession(nextSession)
+      setMode('RESIDENT')
+      setSession(null)
+      setAuthenticated(false)
+      setSummary(null)
+      setTelemetrySignals([])
+      setOfflineQueueCount(0)
+      setTrackingStatus('GPS inativo')
+      await refreshResidentData(nextSession)
+    } catch (cause) {
+      setResidentSession(null)
+      setResidentProfile(null)
+      setResidentAlerts([])
+      setError(cause instanceof Error ? cause.message : 'Falha inesperada ao autenticar morador.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleResidentLogout() {
+    // Revoga a sessao do morador no backend antes de limpar o estado local.
+    try {
+      if (residentSession?.accessToken) {
+        await residentApiFetch('/api/resident-app/session/logout', {
+          method: 'POST',
+        })
+      }
+    } catch {
+      // Se a sessao ja expirou, o logout local continua acontecendo.
+    } finally {
+      setResidentSession(null)
+      setResidentProfile(null)
+      setResidentAlerts([])
+      setResidentAlertDraft(initialResidentAlertDraft)
+      setResidentCountdownType(null)
+      setResidentCountdownSeconds(0)
+      setError(null)
+    }
+  }
+
+  async function submitResidentAlert(type: ResidentAlertType) {
+    // Abre o alerta do morador com localizacao opcional e sem misturar com o fluxo do colaborador.
+    if (!residentSession?.accessToken) {
+      setError('Sua sessao de morador expirou. Entre novamente.')
+      return
+    }
+
+    setResidentSendingAlert(type)
+    setError(null)
+
+    try {
+      let latitude: number | null = null
+      let longitude: number | null = null
+
+      const permission = await Location.requestForegroundPermissionsAsync()
+      if (permission.status === 'granted') {
+        const currentPosition = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        })
+        latitude = currentPosition.coords.latitude
+        longitude = currentPosition.coords.longitude
+      }
+
+      const response = await residentApiFetch('/api/resident-app/alerts', {
+        method: 'POST',
+        body: JSON.stringify({
+          type,
+          notes: residentAlertDraft.notes,
+          escortDestination: type === 'ESCOLTA' ? residentAlertDraft.escortDestination : null,
+          coercionPin: type === 'COACAO' ? residentAlertDraft.coercionPin : null,
+          latitude,
+          longitude,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Nao foi possivel abrir o alerta.')
+      }
+
+      setResidentAlertDraft(initialResidentAlertDraft)
+      setResidentCountdownType(null)
+      setResidentCountdownSeconds(0)
+      await refreshResidentData()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Falha inesperada ao abrir o alerta.')
+    } finally {
+      setResidentSendingAlert(null)
+    }
+  }
+
+  function beginResidentAlertCountdown(type: ResidentAlertType) {
+    // Aplica uma pequena janela de cancelamento para evitar disparos acidentais.
+    if (residentCountdownType === type) {
+      setResidentCountdownType(null)
+      setResidentCountdownSeconds(0)
+      return
+    }
+
+    if (activeResidentAlert) {
+      return
+    }
+
+    setResidentCountdownType(type)
+    setResidentCountdownSeconds(5)
+  }
+
+  async function cancelResidentAlert(alertId: number) {
+    // Cancela o proprio alerta enquanto ainda esta em estado recuperavel.
+    setError(null)
+
+    try {
+      const response = await residentApiFetch(`/api/resident-app/alerts/${alertId}/cancel`, {
+        method: 'POST',
+        body: JSON.stringify({
+          cancellationReason: 'Cancelado pelo morador no app unificado',
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Nao foi possivel cancelar o alerta.')
+      }
+
+      await refreshResidentData()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Falha inesperada ao cancelar o alerta.')
     }
   }
 
@@ -618,33 +996,83 @@ export default function App() {
   }, [authenticated, summary?.activePatrol?.shiftId, apiBaseUrl, session?.accessToken])
 
   useEffect(() => {
+    if (!residentCountdownType || residentCountdownSeconds <= 0) {
+      return
+    }
+
+    const timeoutId = setTimeout(() => {
+      setResidentCountdownSeconds((current) => current - 1)
+    }, 1000)
+
+    return () => {
+      clearTimeout(timeoutId)
+    }
+  }, [residentCountdownType, residentCountdownSeconds])
+
+  useEffect(() => {
+    if (!residentCountdownType || residentCountdownSeconds !== 0) {
+      return
+    }
+
+    void submitResidentAlert(residentCountdownType)
+  }, [residentCountdownType, residentCountdownSeconds])
+
+  useEffect(() => {
+    // Mantem o morador sincronizado com o status do atendimento.
+    if (!residentSession?.accessToken) return
+
+    void refreshResidentData(residentSession)
+
+    const intervalId = setInterval(() => {
+      void refreshResidentData(residentSession)
+    }, activeResidentAlert ? 8_000 : 20_000)
+
+    return () => {
+      clearInterval(intervalId)
+    }
+  }, [activeResidentAlert, residentSession?.accessToken])
+
+  useEffect(() => {
     // Quando o app volta ao primeiro plano, tenta drenar a fila offline e revalidar o resumo.
     const subscription = AppState.addEventListener('change', (state) => {
-      if (state !== 'active' || !authenticated) return
+      if (state !== 'active') return
 
-      void refreshOfflineQueueCount()
-      void flushOfflineQueue()
-      void fetchSummary()
+      if (authenticated) {
+        void refreshOfflineQueueCount()
+        void flushOfflineQueue()
+        void fetchSummary()
+      }
+
+      if (residentSession?.accessToken) {
+        void refreshResidentData()
+      }
     })
 
     return () => {
       subscription.remove()
     }
-  }, [authenticated, apiBaseUrl, session?.accessToken])
+  }, [authenticated, residentSession?.accessToken, apiBaseUrl, session?.accessToken])
 
-  if (!authenticated) {
-    // Tela de acesso do app da ronda com configuracao da URL da API.
+  if (!authenticated && !residentSession) {
+    // Tela de acesso unificada com selecao de perfil antes de entrar.
     return (
       <SafeAreaView style={styles.safeArea}>
         <StatusBar style="light" />
         <View style={styles.loginShell}>
-          <Text style={styles.eyebrow}>Ronda Mobile</Text>
-          <Text style={styles.title}>Painel da Equipe</Text>
-          <Text style={styles.copy}>
-            Entre com o perfil da ronda para acompanhar turnos, incidentes, frota e manter a telemetria ativa.
-          </Text>
+          <Text style={styles.eyebrow}>VMAB Mobile</Text>
+          <Text style={styles.title}>Um app. Dois perfis.</Text>
+          <Text style={styles.copy}>Escolha se o acesso sera de morador ou colaborador e entre com as credenciais desse perfil.</Text>
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+          <View style={styles.modeSwitcher}>
+            <Pressable style={[styles.modeButton, mode === 'COLLABORATOR' ? styles.modeButtonActive : null]} onPress={() => setMode('COLLABORATOR')}>
+              <Text style={[styles.modeButtonText, mode === 'COLLABORATOR' ? styles.modeButtonTextActive : null]}>Colaborador</Text>
+            </Pressable>
+            <Pressable style={[styles.modeButton, mode === 'RESIDENT' ? styles.modeButtonActive : null]} onPress={() => setMode('RESIDENT')}>
+              <Text style={[styles.modeButtonText, mode === 'RESIDENT' ? styles.modeButtonTextActive : null]}>Morador</Text>
+            </Pressable>
+          </View>
 
           <View style={styles.formCard}>
             <TextInput
@@ -656,34 +1084,189 @@ export default function App() {
               value={apiBaseUrl}
               onChangeText={setApiBaseUrl}
             />
-            <TextInput
-              autoCapitalize="none"
-              placeholder="Usuario"
-              placeholderTextColor="#857759"
-              style={styles.input}
-              value={credentials.username}
-              onChangeText={(value) => setCredentials((current) => ({ ...current, username: value }))}
-            />
-            <TextInput
-              secureTextEntry
-              placeholder="Senha"
-              placeholderTextColor="#857759"
-              style={styles.input}
-              value={credentials.password}
-              onChangeText={(value) => setCredentials((current) => ({ ...current, password: value }))}
-            />
-            <Pressable style={styles.primaryButton} onPress={() => void handleLogin()}>
-              <Text style={styles.primaryButtonText}>{loading ? 'Entrando...' : 'Entrar'}</Text>
-            </Pressable>
+
+            {mode === 'COLLABORATOR' ? (
+              <>
+                <TextInput
+                  autoCapitalize="none"
+                  placeholder="Usuario"
+                  placeholderTextColor="#857759"
+                  style={styles.input}
+                  value={credentials.username}
+                  onChangeText={(value) => setCredentials((current) => ({ ...current, username: value }))}
+                />
+                <TextInput
+                  secureTextEntry
+                  placeholder="Senha"
+                  placeholderTextColor="#857759"
+                  style={styles.input}
+                  value={credentials.password}
+                  onChangeText={(value) => setCredentials((current) => ({ ...current, password: value }))}
+                />
+                <Pressable style={styles.primaryButton} onPress={() => void handleLogin()}>
+                  <Text style={styles.primaryButtonText}>{loading ? 'Entrando...' : 'Entrar como colaborador'}</Text>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <TextInput
+                  keyboardType="numeric"
+                  placeholder="ID do morador"
+                  placeholderTextColor="#857759"
+                  style={styles.input}
+                  value={residentCredentials.residentId}
+                  onChangeText={(value) => setResidentCredentials((current) => ({ ...current, residentId: value }))}
+                />
+                <TextInput
+                  keyboardType="numeric"
+                  placeholder="PIN de acesso"
+                  placeholderTextColor="#857759"
+                  style={styles.input}
+                  value={residentCredentials.accessPin}
+                  onChangeText={(value) => setResidentCredentials((current) => ({ ...current, accessPin: value }))}
+                />
+                <Pressable style={styles.primaryButton} onPress={() => void handleResidentLogin()}>
+                  <Text style={styles.primaryButtonText}>{loading ? 'Entrando...' : 'Entrar como morador'}</Text>
+                </Pressable>
+              </>
+            )}
           </View>
 
           <View style={styles.infoBlock}>
             <Text style={styles.infoTitle}>Credenciais iniciais</Text>
-            <Text style={styles.infoText}>usuario: ronda</Text>
-            <Text style={styles.infoText}>senha: ronda123</Text>
+            {mode === 'COLLABORATOR' ? (
+              <>
+                <Text style={styles.infoText}>usuario: ronda</Text>
+                <Text style={styles.infoText}>senha: ronda123</Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.infoText}>ID: 1</Text>
+                <Text style={styles.infoText}>PIN padrao local: 1122</Text>
+              </>
+            )}
             <Text style={styles.infoText}>API atual: {normalizeApiUrl(apiBaseUrl) || 'nao configurada'}</Text>
           </View>
         </View>
+      </SafeAreaView>
+    )
+  }
+
+  if (residentSession) {
+    // Tela do morador: alerta, cancelamento, contagem regressiva e historico.
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar style="light" />
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={styles.headerRow}>
+            <View>
+              <Text style={styles.eyebrow}>Atendimento do morador</Text>
+              <Text style={styles.title}>{residentProfile?.fullName ?? residentSession.fullName}</Text>
+              <Text style={styles.copy}>{residentProfile?.address ?? residentSession.address}</Text>
+            </View>
+            <Pressable style={styles.secondaryButton} onPress={() => void handleResidentLogout()}>
+              <Text style={styles.secondaryButtonText}>Sair</Text>
+            </Pressable>
+          </View>
+
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          {loading ? <ActivityIndicator size="large" color="#d8b468" /> : null}
+
+          <View style={styles.profileCard}>
+            <Text style={styles.sectionTitle}>Sessao ativa</Text>
+            <Text style={styles.meta}>Telefone: {residentProfile?.phoneNumber ?? residentSession.phoneNumber}</Text>
+            <Text style={styles.meta}>Validade: {residentProfile?.sessionExpiresAt ? formatDate(residentProfile.sessionExpiresAt) : formatDate(residentSession.expiresAt)}</Text>
+            {residentProfile?.referenceNote ? <Text style={styles.meta}>Referencia: {residentProfile.referenceNote}</Text> : null}
+          </View>
+
+          {activeResidentAlert ? (
+            <View style={styles.activeAlertCard}>
+              <Text style={styles.sectionTitle}>Atendimento em andamento</Text>
+              <Text style={styles.activeAlertTitle}>{activeResidentAlert.silent ? 'Emergencia silenciosa' : translateAlertType(activeResidentAlert.type)}</Text>
+              <Text style={styles.body}>{getAlertOperationalMessage(activeResidentAlert)}</Text>
+              {activeResidentAlert.escortDestination ? <Text style={styles.meta}>Destino da escolta: {activeResidentAlert.escortDestination}</Text> : null}
+              <Text style={styles.meta}>Ultima atualizacao: {formatDate(activeResidentAlert.updatedAt)}</Text>
+              <Pressable style={styles.secondaryButtonSmall} onPress={() => void cancelResidentAlert(activeResidentAlert.id)}>
+                <Text style={styles.secondaryButtonText}>Cancelar alerta atual</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Abrir alerta</Text>
+            <Text style={styles.meta}>
+              {activeResidentAlert
+                ? 'Ja existe um alerta em atendimento. Aguarde a central concluir ou cancele o alerta atual.'
+                : 'A localizacao e opcional, mas ajuda a central a encurtar o atendimento.'}
+            </Text>
+            <TextInput
+              multiline
+              placeholder="Observacao do alerta"
+              placeholderTextColor="#8c8e92"
+              style={[styles.input, styles.textArea]}
+              value={residentAlertDraft.notes}
+              onChangeText={(value) => setResidentAlertDraft((current) => ({ ...current, notes: value }))}
+            />
+            <TextInput
+              placeholder="Destino da escolta"
+              placeholderTextColor="#8c8e92"
+              style={styles.input}
+              value={residentAlertDraft.escortDestination}
+              onChangeText={(value) => setResidentAlertDraft((current) => ({ ...current, escortDestination: value }))}
+            />
+            <TextInput
+              keyboardType="numeric"
+              placeholder="PIN de coacao"
+              placeholderTextColor="#8c8e92"
+              style={styles.input}
+              value={residentAlertDraft.coercionPin}
+              onChangeText={(value) => setResidentAlertDraft((current) => ({ ...current, coercionPin: value }))}
+            />
+            {residentCountdownType ? <Text style={styles.meta}>Alerta {translateAlertType(residentCountdownType)} sera enviado em {residentCountdownSeconds}s. Toque no mesmo botao para cancelar.</Text> : null}
+            <View style={styles.alertGrid}>
+              {(['PANICO', 'COACAO', 'ESCOLTA', 'SUSPEITA', 'MEDICA'] as ResidentAlertType[]).map((type) => (
+                <Pressable
+                  key={type}
+                  disabled={Boolean(activeResidentAlert) && residentCountdownType !== type}
+                  style={[styles.alertButton, Boolean(activeResidentAlert) && residentCountdownType !== type ? styles.alertButtonDisabled : null]}
+                  onPress={() => beginResidentAlertCountdown(type)}
+                >
+                  <Text style={styles.alertButtonLabel}>
+                    {residentSendingAlert === type
+                      ? 'Enviando...'
+                      : residentCountdownType === type
+                        ? `Cancelar ${translateAlertType(type)}`
+                        : translateAlertType(type)}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Alertas recentes</Text>
+            {residentAlerts.length === 0 ? <Text style={styles.meta}>Nenhum alerta registrado ainda.</Text> : null}
+            {residentAlerts.map((alert) => (
+              <View key={alert.id} style={styles.alertItem}>
+                <View style={styles.alertHeader}>
+                  <Text style={styles.alertTitle}>{translateAlertType(alert.type)}</Text>
+                  <Text style={styles.statusPill}>{translateAlertStatus(alert.status)}</Text>
+                </View>
+                <Text style={styles.meta}>{formatDate(alert.openedAt)}</Text>
+                {alert.notes ? <Text style={styles.body}>{alert.notes}</Text> : null}
+                <Text style={styles.meta}>
+                  {alert.assignedAgentName ? `${alert.assignedAgentName} • ` : ''}
+                  {alert.vehiclePlate ?? 'Sem viatura'}
+                </Text>
+                {isActiveAlert(alert.status) ? (
+                  <Pressable style={styles.secondaryButtonSmall} onPress={() => void cancelResidentAlert(alert.id)}>
+                    <Text style={styles.secondaryButtonText}>Cancelar</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ))}
+          </View>
+        </ScrollView>
       </SafeAreaView>
     )
   }
@@ -913,6 +1496,37 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: '#b9c2cf',
   },
+  body: {
+    color: '#dbe1e8',
+    lineHeight: 20,
+  },
+  meta: {
+    color: '#9ba7b7',
+  },
+  modeSwitcher: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  modeButton: {
+    flex: 1,
+    borderRadius: 16,
+    paddingVertical: 12,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(228,188,116,0.12)',
+  },
+  modeButtonActive: {
+    backgroundColor: 'rgba(225,183,103,0.18)',
+    borderColor: 'rgba(225,183,103,0.35)',
+  },
+  modeButtonText: {
+    color: '#f5f0e5',
+    fontWeight: '700',
+  },
+  modeButtonTextActive: {
+    color: '#f9e6bf',
+  },
   formCard: {
     padding: 18,
     borderRadius: 22,
@@ -920,6 +1534,35 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(228,188,116,0.12)',
     gap: 12,
+  },
+  card: {
+    padding: 18,
+    borderRadius: 22,
+    backgroundColor: '#11151c',
+    borderWidth: 1,
+    borderColor: 'rgba(216,180,104,0.12)',
+    gap: 10,
+  },
+  profileCard: {
+    padding: 18,
+    borderRadius: 22,
+    backgroundColor: '#10141b',
+    borderWidth: 1,
+    borderColor: 'rgba(216,180,104,0.12)',
+    gap: 4,
+  },
+  activeAlertCard: {
+    padding: 18,
+    borderRadius: 22,
+    backgroundColor: '#161014',
+    borderWidth: 1,
+    borderColor: 'rgba(216,104,104,0.24)',
+    gap: 8,
+  },
+  activeAlertTitle: {
+    color: '#ffd6d0',
+    fontWeight: '800',
+    fontSize: 18,
   },
   input: {
     borderWidth: 1,
@@ -929,6 +1572,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     backgroundColor: 'rgba(255,255,255,0.03)',
     color: '#f7f4ec',
+  },
+  textArea: {
+    minHeight: 88,
+    textAlignVertical: 'top',
   },
   primaryButton: {
     borderRadius: 16,
@@ -947,6 +1594,15 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(228,188,116,0.12)',
     paddingHorizontal: 14,
     paddingVertical: 12,
+  },
+  secondaryButtonSmall: {
+    alignSelf: 'flex-start',
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.025)',
+    borderWidth: 1,
+    borderColor: 'rgba(228,188,116,0.12)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   secondaryButtonText: {
     color: '#f5f0e5',
@@ -1060,6 +1716,46 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.04)',
     padding: 12,
     gap: 4,
+  },
+  alertItem: {
+    padding: 14,
+    borderRadius: 18,
+    backgroundColor: '#171c25',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+    gap: 6,
+  },
+  alertHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    alignItems: 'center',
+  },
+  alertTitle: {
+    color: '#f7f5ef',
+    fontWeight: '800',
+  },
+  statusPill: {
+    color: '#d8b468',
+    fontWeight: '800',
+  },
+  alertGrid: {
+    gap: 10,
+  },
+  alertButton: {
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: 'center',
+    backgroundColor: '#171c25',
+    borderWidth: 1,
+    borderColor: 'rgba(216,180,104,0.18)',
+  },
+  alertButtonDisabled: {
+    opacity: 0.45,
+  },
+  alertButtonLabel: {
+    color: '#f7f5ef',
+    fontWeight: '800',
   },
   formStack: {
     gap: 10,
