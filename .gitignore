@@ -2,3 +2,4 @@
 .env
 .env.production
 .playwright-cli/
+backend/logs/*.log

@@ -23,11 +23,11 @@ Tabela objetiva do que ainda falta para o sistema atingir um estado forte de pro
 | 15 | Evidencias de ocorrencia com fotos e anexos | Em andamento | Media | Backend e painel ja suportam upload, listagem e download de evidencias por ocorrencia; ainda faltam captura mobile, exclusao controlada e politicas de retencao. |
 | 16 | Notificacoes em tempo real | Em andamento | Media | Painel agora recebe eventos por SSE e reage sem depender so de polling; ainda faltam push mobile e canal formal para cliente/morador. |
 | 17 | Auditoria de acoes criticas | Concluido | Alta | Operacoes e auth registram eventos criticos em trilha de auditoria persistida. |
-| 18 | Observabilidade, logs e monitoramento | Em andamento | Alta | Logs estruturados, correlation id, actuator, readiness e metrics basicas ja foram entregues. |
+| 18 | Observabilidade, logs e monitoramento | Concluido | Alta | Logs estruturados, correlation id, actuator, readiness/liveness, metricas e healthcheck real em Docker foram validados tecnicamente. |
 | 19 | LGPD e politicas de retencao | Em andamento | Alta | Limpeza tecnica configuravel, exportacao/exclusao solicitavel e trilha auditavel ja existem; ainda falta revisao juridica e integracao de interface. |
 | 20 | Deploy definitivo na VPS com dominio fixo | Pendente | Alta | Estrutura existe, mas ainda nao foi concluida na VPS real. |
-| 21 | Testes automatizados de backend | Pendente | Media | Existe teste unitario inicial de JWT, mas a suite ainda nao esta confiavel nem abrangente. |
-| 22 | Testes automatizados de frontend | Pendente | Media | Falta regressao basica da interface. |
+| 21 | Testes automatizados de backend | Em andamento | Media | A suite de auth e frota foi escrita, mas o runner do Gradle ainda apresenta instabilidade de classpath neste ambiente Windows e nao pode ser tratado como totalmente confiavel. |
+| 22 | Testes automatizados de frontend | Concluido | Media | Vitest com regressao basica da tela de login e limpeza de sessao invalida foi implementado e validado com sucesso. |
 | 23 | Refino visual final do painel web | Em andamento | Media | Painel ficou mais limpo com relatorios executivos e exportacao, mas ainda pode ganhar ajustes finos de hierarquia e espacamento. |
 | 24 | Refino visual final do app da ronda | Em andamento | Media | Ja melhorou, mas ainda pode ficar mais leve e mais objetivo. |
 
