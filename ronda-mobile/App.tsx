@@ -370,6 +370,7 @@ export default function App() {
     }
   }
 
+
   async function fetchSummary(activeSession = session) {
     // Carrega o resumo que alimenta a tela da ronda usando a sessao autenticada.
     setLoading(true)
