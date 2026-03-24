@@ -4,6 +4,7 @@ export type ResidentStatus = 'ACTIVE' | 'INACTIVE'
 export type VehicleStatus = 'AVAILABLE' | 'IN_OPERATION' | 'MAINTENANCE' | 'BLOCKED'
 export type ShiftStatus = 'PLANNED' | 'ACTIVE' | 'HANDOFF' | 'CLOSED'
 export type ShiftAttendanceStatus = 'PENDING' | 'ON_TIME' | 'LATE' | 'ABSENT' | 'COVERED'
+export type VehicleMaintenanceType = 'PREVENTIVE' | 'CORRECTIVE' | 'INSPECTION' | 'DOCUMENTATION'
 export type IncidentStatus = 'OPEN' | 'DISPATCHED' | 'ON_SITE' | 'CLOSED'
 export type IncidentType = 'PANIC' | 'SUSPICIOUS_ACTIVITY' | 'MEDICAL' | 'ESCORT'
 export type IncidentPriority = 'HIGH' | 'MEDIUM' | 'LOW'
@@ -43,6 +44,22 @@ export interface Vehicle {
   lastMaintenanceAt?: string | null
   maintenanceNotes?: string | null
   status: VehicleStatus
+}
+
+export interface VehicleMaintenanceRecord {
+  id: number
+  vehicleId: number
+  vehiclePlate: string
+  type: VehicleMaintenanceType
+  openedAt: string
+  completedAt?: string | null
+  serviceDate?: string | null
+  kmAtService?: number | null
+  nextMaintenanceKm?: number | null
+  costAmount?: number | null
+  supplierName?: string | null
+  description: string
+  resolved: boolean
 }
 
 export interface Shift {
@@ -138,6 +155,7 @@ export interface DashboardSummary {
   residents: Resident[]
   agents: Agent[]
   vehicles: Vehicle[]
+  maintenanceRecords: VehicleMaintenanceRecord[]
   shifts: Shift[]
   incidents: Incident[]
 }

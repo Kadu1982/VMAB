@@ -22,6 +22,8 @@ import type {
   ShiftAttendanceStatus,
   ShiftStatus,
   Vehicle,
+  VehicleMaintenanceRecord,
+  VehicleMaintenanceType,
   VehicleStatus,
 } from './types'
 
@@ -31,6 +33,7 @@ const STORAGE_KEY = 'seguranca-auth'
 const agentStatusOptions: AgentStatus[] = ['ACTIVE', 'ON_DUTY', 'OFF_DUTY', 'BLOCKED']
 const residentStatusOptions: ResidentStatus[] = ['ACTIVE', 'INACTIVE']
 const vehicleStatusOptions: VehicleStatus[] = ['AVAILABLE', 'IN_OPERATION', 'MAINTENANCE', 'BLOCKED']
+const vehicleMaintenanceTypeOptions: VehicleMaintenanceType[] = ['PREVENTIVE', 'CORRECTIVE', 'INSPECTION', 'DOCUMENTATION']
 const shiftStatusOptions: ShiftStatus[] = ['PLANNED', 'ACTIVE', 'HANDOFF', 'CLOSED']
 const shiftAttendanceOptions: ShiftAttendanceStatus[] = ['PENDING', 'ON_TIME', 'LATE', 'ABSENT', 'COVERED']
 const incidentTypeOptions: IncidentType[] = ['PANIC', 'SUSPICIOUS_ACTIVITY', 'MEDICAL', 'ESCORT']
@@ -70,6 +73,18 @@ const initialVehicleForm = {
   lastMaintenanceAt: '',
   maintenanceNotes: '',
   status: 'AVAILABLE' as VehicleStatus,
+}
+
+const initialMaintenanceForm = {
+  vehicleId: '',
+  type: 'PREVENTIVE' as VehicleMaintenanceType,
+  serviceDate: '',
+  kmAtService: '',
+  nextMaintenanceKm: '',
+  costAmount: '',
+  supplierName: '',
+  description: '',
+  resolved: false,
 }
 
 const initialResidentForm = {
@@ -167,6 +182,15 @@ function translateShiftAttendanceStatus(status: ShiftAttendanceStatus) {
     ABSENT: 'Falta',
     COVERED: 'Cobertura',
   }[status]
+}
+
+function translateVehicleMaintenanceType(type: VehicleMaintenanceType) {
+  return {
+    PREVENTIVE: 'Preventiva',
+    CORRECTIVE: 'Corretiva',
+    INSPECTION: 'Inspecao',
+    DOCUMENTATION: 'Documentacao',
+  }[type]
 }
 
 function translateIncidentType(type: IncidentType) {
@@ -390,6 +414,7 @@ function App() {
   const [userForm, setUserForm] = useState(initialUserForm)
   const [residentForm, setResidentForm] = useState(initialResidentForm)
   const [vehicleForm, setVehicleForm] = useState(initialVehicleForm)
+  const [maintenanceForm, setMaintenanceForm] = useState(initialMaintenanceForm)
   const [shiftForm, setShiftForm] = useState(initialShiftForm)
   const [incidentForm, setIncidentForm] = useState(initialIncidentForm)
   const [editingAgentId, setEditingAgentId] = useState<number | null>(null)
@@ -498,6 +523,10 @@ function App() {
   function resetVehicleForm() {
     setVehicleForm(initialVehicleForm)
     setEditingVehicleId(null)
+  }
+
+  function resetMaintenanceForm() {
+    setMaintenanceForm(initialMaintenanceForm)
   }
 
   function resetShiftForm() {
@@ -755,6 +784,27 @@ function App() {
     }
     const payload = editingVehicleId === null ? basePayload : { ...basePayload, status: vehicleForm.status }
     await saveEntity(path, method, payload, 'Nao foi possivel salvar a viatura.', resetVehicleForm)
+  }
+
+  async function handleMaintenanceSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    await saveEntity(
+      `/api/vehicles/${Number(maintenanceForm.vehicleId)}/maintenance`,
+      'POST',
+      {
+        type: maintenanceForm.type,
+        serviceDate: maintenanceForm.serviceDate || null,
+        kmAtService: maintenanceForm.kmAtService ? Number(maintenanceForm.kmAtService) : null,
+        nextMaintenanceKm: maintenanceForm.nextMaintenanceKm ? Number(maintenanceForm.nextMaintenanceKm) : null,
+        costAmount: maintenanceForm.costAmount ? Number(maintenanceForm.costAmount) : null,
+        supplierName: maintenanceForm.supplierName || null,
+        description: maintenanceForm.description,
+        resolved: maintenanceForm.resolved,
+      },
+      'Nao foi possivel registrar a manutencao.',
+      resetMaintenanceForm,
+    )
   }
 
   async function handleResidentSubmit(event: FormEvent<HTMLFormElement>) {
@@ -1237,6 +1287,32 @@ function App() {
                     </div>
                   </form>
                 ) : null}
+                {/* OS de manutencao para vincular custo, KM e liberacao da viatura ao cadastro da frota. */}
+                {canManageCatalog ? (
+                  <form className="form-grid maintenance-form" onSubmit={handleMaintenanceSubmit}>
+                    <select required value={maintenanceForm.vehicleId} onChange={(event) => setMaintenanceForm((current) => ({ ...current, vehicleId: event.target.value }))}>
+                      <option value="">Viatura da manutencao</option>
+                      {summary.vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.plate} - {vehicle.model}</option>)}
+                    </select>
+                    <select value={maintenanceForm.type} onChange={(event) => setMaintenanceForm((current) => ({ ...current, type: event.target.value as VehicleMaintenanceType }))}>
+                      {vehicleMaintenanceTypeOptions.map((type) => <option key={type} value={type}>{translateVehicleMaintenanceType(type)}</option>)}
+                    </select>
+                    <input type="date" value={maintenanceForm.serviceDate} onChange={(event) => setMaintenanceForm((current) => ({ ...current, serviceDate: event.target.value }))} />
+                    <input min="0" type="number" placeholder="KM da manutencao" value={maintenanceForm.kmAtService} onChange={(event) => setMaintenanceForm((current) => ({ ...current, kmAtService: event.target.value }))} />
+                    <input min="0" type="number" placeholder="Proxima revisao (km)" value={maintenanceForm.nextMaintenanceKm} onChange={(event) => setMaintenanceForm((current) => ({ ...current, nextMaintenanceKm: event.target.value }))} />
+                    <input min="0" step="0.01" type="number" placeholder="Custo (R$)" value={maintenanceForm.costAmount} onChange={(event) => setMaintenanceForm((current) => ({ ...current, costAmount: event.target.value }))} />
+                    <input placeholder="Fornecedor / oficina" value={maintenanceForm.supplierName} onChange={(event) => setMaintenanceForm((current) => ({ ...current, supplierName: event.target.value }))} />
+                    <input required placeholder="Descricao do servico" value={maintenanceForm.description} onChange={(event) => setMaintenanceForm((current) => ({ ...current, description: event.target.value }))} />
+                    <label className="checkbox-field">
+                      <input checked={maintenanceForm.resolved} type="checkbox" onChange={(event) => setMaintenanceForm((current) => ({ ...current, resolved: event.target.checked }))} />
+                      <span>Servico concluido e viatura liberada</span>
+                    </label>
+                    <div className="button-row">
+                      <button type="submit">Registrar manutencao</button>
+                      <button className="secondary-button" onClick={resetMaintenanceForm} type="button">Limpar</button>
+                    </div>
+                  </form>
+                ) : null}
                 <div className="list">
                   {summary.vehicles.map((vehicle) => (
                     <article className="list-row" key={vehicle.id}>
@@ -1248,6 +1324,21 @@ function App() {
                         <span className={`tag ${vehicle.status.toLowerCase()}`}>{translateVehicleStatus(vehicle.status)}</span>
                         {canManageCatalog ? <button className="ghost-button" onClick={() => startVehicleEdit(vehicle)} type="button">Editar</button> : null}
                         {canManageCatalog ? <button className="ghost-button danger-button" onClick={() => void handleDelete(`/api/vehicles/${vehicle.id}`, 'Deseja remover esta viatura?', resetVehicleForm)} type="button">Excluir</button> : null}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+                {/* Historico resumido da manutencao para consulta rapida da equipe operacional. */}
+                <div className="list maintenance-list">
+                  {summary.maintenanceRecords.map((record: VehicleMaintenanceRecord) => (
+                    <article className="list-row" key={record.id}>
+                      <div>
+                        <strong>{translateVehicleMaintenanceType(record.type)} | {record.vehiclePlate}</strong>
+                        <small>{record.serviceDate ?? 'sem data'} | {record.kmAtService != null ? `${record.kmAtService.toLocaleString('pt-BR')} km` : 'km nao informado'} | {record.supplierName ?? 'fornecedor nao informado'} | {record.costAmount != null ? `R$ ${record.costAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'sem custo informado'}</small>
+                        <small>{record.description}</small>
+                      </div>
+                      <div className="row-actions">
+                        <span className={`tag ${record.resolved ? 'active' : 'maintenance'}`}>{record.resolved ? 'Concluida' : 'Em aberto'}</span>
                       </div>
                     </article>
                   ))}

@@ -1,8 +1,11 @@
 package com.seguranca.plataforma.operations.web;
 
+import com.seguranca.plataforma.operations.dto.CreateVehicleMaintenanceRequest;
 import com.seguranca.plataforma.operations.dto.CreateVehicleRequest;
+import com.seguranca.plataforma.operations.dto.UpdateVehicleMaintenanceRequest;
 import com.seguranca.plataforma.operations.dto.UpdateVehicleRequest;
 import com.seguranca.plataforma.operations.model.Vehicle;
+import com.seguranca.plataforma.operations.model.VehicleMaintenanceRecord;
 import com.seguranca.plataforma.operations.service.OperationsService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -41,6 +44,18 @@ public class VehicleController {
     @PutMapping("/{id}")
     public Vehicle update(@PathVariable Long id, @Valid @RequestBody UpdateVehicleRequest request) {
         return operationsService.updateVehicle(id, request);
+    }
+
+    @PostMapping("/{id}/maintenance")
+    public VehicleMaintenanceRecord createMaintenance(@PathVariable Long id, @Valid @RequestBody CreateVehicleMaintenanceRequest request) {
+        // Registra uma OS de manutencao vinculada a viatura.
+        return operationsService.addVehicleMaintenance(id, request);
+    }
+
+    @PutMapping("/maintenance/{maintenanceId}")
+    public VehicleMaintenanceRecord updateMaintenance(@PathVariable Long maintenanceId, @Valid @RequestBody UpdateVehicleMaintenanceRequest request) {
+        // Atualiza o desfecho da manutencao sem apagar o historico anterior.
+        return operationsService.updateVehicleMaintenance(maintenanceId, request);
     }
 
     @DeleteMapping("/{id}")

@@ -5,6 +5,7 @@ import com.seguranca.plataforma.operations.dto.ActivePatrolResponse;
 import com.seguranca.plataforma.operations.dto.CreateIncidentRequest;
 import com.seguranca.plataforma.operations.dto.CreateResidentRequest;
 import com.seguranca.plataforma.operations.dto.CreateShiftRequest;
+import com.seguranca.plataforma.operations.dto.CreateVehicleMaintenanceRequest;
 import com.seguranca.plataforma.operations.dto.CreateVehicleRequest;
 import com.seguranca.plataforma.operations.dto.ClientPortalResponse;
 import com.seguranca.plataforma.operations.dto.DashboardSummaryResponse;
@@ -15,6 +16,7 @@ import com.seguranca.plataforma.operations.dto.UpdateAgentRequest;
 import com.seguranca.plataforma.operations.dto.UpdateIncidentRequest;
 import com.seguranca.plataforma.operations.dto.UpdateResidentRequest;
 import com.seguranca.plataforma.operations.dto.UpdateShiftRequest;
+import com.seguranca.plataforma.operations.dto.UpdateVehicleMaintenanceRequest;
 import com.seguranca.plataforma.operations.dto.UpdateVehicleRequest;
 import com.seguranca.plataforma.operations.dto.UpsertShiftTelemetryRequest;
 import com.seguranca.plataforma.operations.model.Agent;
@@ -28,12 +30,15 @@ import com.seguranca.plataforma.operations.model.ShiftAttendanceStatus;
 import com.seguranca.plataforma.operations.model.ShiftStatus;
 import com.seguranca.plataforma.operations.model.ShiftTelemetry;
 import com.seguranca.plataforma.operations.model.Vehicle;
+import com.seguranca.plataforma.operations.model.VehicleMaintenanceRecord;
+import com.seguranca.plataforma.operations.model.VehicleMaintenanceType;
 import com.seguranca.plataforma.operations.model.VehicleStatus;
 import com.seguranca.plataforma.operations.repository.AgentRepository;
 import com.seguranca.plataforma.operations.repository.IncidentRepository;
 import com.seguranca.plataforma.operations.repository.ResidentRepository;
 import com.seguranca.plataforma.operations.repository.ShiftRepository;
 import com.seguranca.plataforma.operations.repository.ShiftTelemetryRepository;
+import com.seguranca.plataforma.operations.repository.VehicleMaintenanceRecordRepository;
 import com.seguranca.plataforma.operations.repository.VehicleRepository;
 import jakarta.annotation.PostConstruct;
 import java.time.LocalDate;
@@ -54,6 +59,7 @@ public class OperationsService {
 
     private final AgentRepository agentRepository;
     private final VehicleRepository vehicleRepository;
+    private final VehicleMaintenanceRecordRepository vehicleMaintenanceRecordRepository;
     private final ResidentRepository residentRepository;
     private final ShiftRepository shiftRepository;
     private final ShiftTelemetryRepository shiftTelemetryRepository;
@@ -62,6 +68,7 @@ public class OperationsService {
     public OperationsService(
             AgentRepository agentRepository,
             VehicleRepository vehicleRepository,
+            VehicleMaintenanceRecordRepository vehicleMaintenanceRecordRepository,
             ResidentRepository residentRepository,
             ShiftRepository shiftRepository,
             ShiftTelemetryRepository shiftTelemetryRepository,
@@ -69,6 +76,7 @@ public class OperationsService {
     ) {
         this.agentRepository = agentRepository;
         this.vehicleRepository = vehicleRepository;
+        this.vehicleMaintenanceRecordRepository = vehicleMaintenanceRecordRepository;
         this.residentRepository = residentRepository;
         this.shiftRepository = shiftRepository;
         this.shiftTelemetryRepository = shiftTelemetryRepository;
@@ -91,6 +99,21 @@ public class OperationsService {
 
         Vehicle alpha = vehicleRepository.save(new Vehicle("ABC1D23", "Renault Duster", 48241, 49000, VehicleStatus.IN_OPERATION, LocalDate.now().plusMonths(7), LocalDate.now().plusMonths(7), LocalDate.now().plusMonths(10), LocalDate.now().minusMonths(2), "Manutencao preventiva realizada na ultima troca de oleo"));
         Vehicle beta = vehicleRepository.save(new Vehicle("FGH4J56", "Chevrolet Spin", 61120, 62000, VehicleStatus.AVAILABLE, LocalDate.now().plusMonths(2), LocalDate.now().plusMonths(2), LocalDate.now().plusMonths(6), LocalDate.now().minusMonths(1), "Verificar desgaste de pneus no proximo ciclo"));
+
+        vehicleMaintenanceRecordRepository.save(new VehicleMaintenanceRecord(
+                beta.getId(),
+                beta.getPlate(),
+                VehicleMaintenanceType.PREVENTIVE,
+                OffsetDateTime.now().minusDays(10),
+                OffsetDateTime.now().minusDays(9),
+                LocalDate.now().minusDays(9),
+                60500L,
+                62000L,
+                new java.math.BigDecimal("850.00"),
+                "Oficina Central",
+                "Troca de oleo, filtros e alinhamento preventivo.",
+                true
+        ));
 
         Shift activeSeedShift = new Shift(
                 carlos.getId(),
@@ -208,6 +231,13 @@ public class OperationsService {
     }
 
     @Transactional(readOnly = true)
+    public List<VehicleMaintenanceRecord> listVehicleMaintenanceRecords() {
+        return vehicleMaintenanceRecordRepository.findAll().stream()
+                .sorted(Comparator.comparing(VehicleMaintenanceRecord::getOpenedAt).reversed())
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
     public List<Resident> listResidents() {
         return residentRepository.findAll().stream()
                 .sorted(Comparator.comparing(Resident::getId))
@@ -278,6 +308,55 @@ public class OperationsService {
                 request.maintenanceNotes()
         );
         return vehicleRepository.save(vehicle);
+    }
+
+    @Transactional
+    public VehicleMaintenanceRecord addVehicleMaintenance(Long vehicleId, CreateVehicleMaintenanceRequest request) {
+        // Registra manutencao com historico, custo e efeito operacional na viatura.
+        Vehicle vehicle = getVehicle(vehicleId);
+        validateVehicleMaintenanceRequest(request.kmAtService(), request.nextMaintenanceKm(), request.costAmount());
+
+        VehicleMaintenanceRecord record = new VehicleMaintenanceRecord(
+                vehicle.getId(),
+                vehicle.getPlate(),
+                request.type(),
+                OffsetDateTime.now(ZoneOffset.UTC),
+                request.resolved() ? OffsetDateTime.now(ZoneOffset.UTC) : null,
+                request.serviceDate(),
+                request.kmAtService(),
+                request.nextMaintenanceKm(),
+                request.costAmount(),
+                request.supplierName(),
+                request.description().trim(),
+                request.resolved()
+        );
+
+        applyMaintenanceImpact(vehicle, request.type(), request.serviceDate(), request.kmAtService(), request.nextMaintenanceKm(), request.description(), request.resolved());
+        vehicleRepository.save(vehicle);
+        return vehicleMaintenanceRecordRepository.save(record);
+    }
+
+    @Transactional
+    public VehicleMaintenanceRecord updateVehicleMaintenance(Long maintenanceId, UpdateVehicleMaintenanceRequest request) {
+        VehicleMaintenanceRecord record = getVehicleMaintenanceRecord(maintenanceId);
+        Vehicle vehicle = getVehicle(record.getVehicleId());
+        validateVehicleMaintenanceRequest(request.kmAtService(), request.nextMaintenanceKm(), request.costAmount());
+
+        record.update(
+                request.type(),
+                request.resolved() ? OffsetDateTime.now(ZoneOffset.UTC) : null,
+                request.serviceDate(),
+                request.kmAtService(),
+                request.nextMaintenanceKm(),
+                request.costAmount(),
+                request.supplierName(),
+                request.description().trim(),
+                request.resolved()
+        );
+
+        applyMaintenanceImpact(vehicle, request.type(), request.serviceDate(), request.kmAtService(), request.nextMaintenanceKm(), request.description(), request.resolved());
+        vehicleRepository.save(vehicle);
+        return vehicleMaintenanceRecordRepository.save(record);
     }
 
     @Transactional
@@ -513,6 +592,7 @@ public class OperationsService {
         List<Resident> residents = listResidents();
         List<Agent> agents = listAgents();
         List<Vehicle> vehicles = listVehicles();
+        List<VehicleMaintenanceRecord> maintenanceRecords = listVehicleMaintenanceRecords();
         List<Shift> shifts = listShifts();
         List<Incident> incidents = listIncidents();
 
@@ -553,6 +633,7 @@ public class OperationsService {
                 residents,
                 agents,
                 vehicles,
+                maintenanceRecords,
                 shifts,
                 incidents
         );
@@ -600,6 +681,11 @@ public class OperationsService {
     private Vehicle getVehicle(Long id) {
         return vehicleRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Viatura nao encontrada"));
+    }
+
+    private VehicleMaintenanceRecord getVehicleMaintenanceRecord(Long id) {
+        return vehicleMaintenanceRecordRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Registro de manutencao nao encontrado"));
     }
 
     private boolean hasVehicleAlert(Vehicle vehicle) {
@@ -675,6 +761,57 @@ public class OperationsService {
         if (hasOverlappingShift) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A viatura selecionada ja esta comprometida em outro turno nesse intervalo.");
         }
+    }
+
+    private void validateVehicleMaintenanceRequest(Long kmAtService, Long nextMaintenanceKm, java.math.BigDecimal costAmount) {
+        // Impede historico financeiro e de quilometragem inconsistente na ordem de servico.
+        if (kmAtService != null && kmAtService < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A quilometragem da manutencao nao pode ser negativa.");
+        }
+
+        if (nextMaintenanceKm != null && nextMaintenanceKm < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A proxima manutencao nao pode ter quilometragem negativa.");
+        }
+
+        if (costAmount != null && costAmount.signum() < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O custo da manutencao nao pode ser negativo.");
+        }
+    }
+
+    private void applyMaintenanceImpact(
+            Vehicle vehicle,
+            VehicleMaintenanceType type,
+            LocalDate serviceDate,
+            Long kmAtService,
+            Long nextMaintenanceKm,
+            String description,
+            boolean resolved
+    ) {
+        // Reflete o andamento da manutencao no cadastro principal da viatura.
+        long updatedCurrentKm = kmAtService != null ? Math.max(vehicle.getCurrentKm(), kmAtService) : vehicle.getCurrentKm();
+        long updatedNextMaintenanceKm = nextMaintenanceKm != null ? nextMaintenanceKm : vehicle.getNextMaintenanceKm();
+        LocalDate updatedLastMaintenanceAt = serviceDate != null ? serviceDate : vehicle.getLastMaintenanceAt();
+        String updatedNotes = StringUtils.hasText(description) ? description.trim() : vehicle.getMaintenanceNotes();
+        VehicleStatus updatedStatus = vehicle.getStatus();
+
+        if (!resolved && (type == VehicleMaintenanceType.CORRECTIVE || type == VehicleMaintenanceType.INSPECTION)) {
+            updatedStatus = VehicleStatus.MAINTENANCE;
+        } else if (resolved && vehicle.getStatus() == VehicleStatus.MAINTENANCE) {
+            updatedStatus = VehicleStatus.AVAILABLE;
+        }
+
+        vehicle.update(
+                vehicle.getPlate(),
+                vehicle.getModel(),
+                updatedCurrentKm,
+                updatedNextMaintenanceKm,
+                updatedStatus,
+                vehicle.getIpvaExpiry(),
+                vehicle.getLicensingExpiry(),
+                vehicle.getInsuranceExpiry(),
+                updatedLastMaintenanceAt,
+                updatedNotes
+        );
     }
 
     private void activateShiftIfNeeded(Shift shift, Vehicle vehicle) {

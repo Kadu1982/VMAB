@@ -12,9 +12,9 @@ Tabela objetiva do que ainda falta para o sistema atingir um estado forte de pro
 | 04 | App do morador | Pendente | Alta | Ainda nao existe como app real, so como escopo e referencias. |
 | 05 | Fluxo real de alerta, panico, coacao e escolta | Pendente | Alta | Backend e UI ainda nao fecham a experiencia completa do morador. |
 | 06 | Operacao de ronda com aceite, despacho e encerramento mais completos | Pendente | Alta | Existe base de ocorrencias, mas o fluxo ainda esta simplificado. |
-| 07 | Troca de turno com aceite duplo e trilha formal | Em andamento | Alta | Ja existe registro de passagem de responsabilidade, horario e observacao, mas o fluxo ainda precisa amadurecer. |
-| 08 | Escala, falta, atraso e cobertura | Em andamento | Alta | Turno agora guarda inicio/fim previsto, status de presenca, atraso em minutos e agente coberto, mas ainda faltam workflows dedicados de supervisao. |
-| 09 | Quilometragem percorrida, checklist e manutencao mais profundos | Em andamento | Alta | Ja existe KM por turno, checklist basico e bloqueio de alocacao para viatura irregular, mas ainda falta fluxo completo de manutencao preventiva/corretiva. |
+| 07 | Troca de turno com aceite duplo e trilha formal | Em andamento | Alta | Ja existe registro de passagem de responsabilidade, horario e observacao, mas ainda falta aceite duplo separado por perfil e historico mais claro. |
+| 08 | Escala, falta, atraso e cobertura | Em andamento | Alta | Turno agora guarda inicio/fim previsto, status de presenca, atraso em minutos e agente coberto, mas ainda faltam workflows dedicados de supervisao e notificacao. |
+| 09 | Quilometragem percorrida, checklist e manutencao mais profundos | Em andamento | Alta | Ja existe KM por turno, checklist basico, bloqueio de alocacao para viatura irregular e historico de manutencao, mas ainda falta ciclo completo de OS e relatorios operacionais da frota. |
 | 10 | Relatorios executivos e prova de execucao para cliente | Pendente | Alta | Portal do cliente ainda esta superficial. |
 | 11 | Exportacao e impressao de relatorios | Pendente | Media | Falta uso comercial e operacional mais forte. |
 | 12 | Background tracking no mobile | Pendente | Alta | Hoje o GPS esta em foreground. Isso nao fecha operacao real. |
