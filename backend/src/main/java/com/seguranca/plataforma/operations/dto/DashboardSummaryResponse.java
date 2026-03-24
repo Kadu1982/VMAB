@@ -14,6 +14,8 @@ public record DashboardSummaryResponse(
         long activeAgents,
         long availableVehicles,
         long activeShifts,
+        long lateShifts,
+        long absentShifts,
         long openIncidents,
         long maintenanceAlerts,
         ActivePatrolResponse activePatrol,

@@ -302,6 +302,7 @@ public class OperationsService {
         validateShiftSchedule(request.scheduledStartAt(), request.scheduledEndAt());
         validateAttendanceConsistency(request.attendanceStatus(), request.coverageForAgentId());
         Agent coveredAgent = resolveCoveredAgent(request.attendanceStatus(), request.coverageForAgentId());
+        validateVehicleOperationalReadiness(vehicle, request.scheduledStartAt(), request.scheduledEndAt(), null);
 
         Shift shift = new Shift(
                 agent.getId(),
@@ -334,6 +335,10 @@ public class OperationsService {
         validateShiftSchedule(request.scheduledStartAt(), request.scheduledEndAt());
         validateAttendanceConsistency(request.attendanceStatus(), request.coverageForAgentId());
         Agent coveredAgent = resolveCoveredAgent(request.attendanceStatus(), request.coverageForAgentId());
+        if (request.status() != ShiftStatus.CLOSED || shift.getCheckInAt() == null) {
+            // So bloqueia a alocacao de viatura irregular antes de abrir/reatribuir o turno.
+            validateVehicleOperationalReadiness(vehicle, request.scheduledStartAt(), request.scheduledEndAt(), shift.getId());
+        }
 
         if (request.attendanceStatus() == ShiftAttendanceStatus.ABSENT
                 && (request.status() == ShiftStatus.ACTIVE || request.status() == ShiftStatus.HANDOFF || request.status() == ShiftStatus.CLOSED)) {
@@ -520,6 +525,12 @@ public class OperationsService {
         long activeShifts = shifts.stream()
                 .filter(shift -> shift.getStatus() == ShiftStatus.ACTIVE || shift.getStatus() == ShiftStatus.HANDOFF)
                 .count();
+        long lateShifts = shifts.stream()
+                .filter(shift -> shift.getAttendanceStatus() == ShiftAttendanceStatus.LATE)
+                .count();
+        long absentShifts = shifts.stream()
+                .filter(shift -> shift.getAttendanceStatus() == ShiftAttendanceStatus.ABSENT)
+                .count();
         long openIncidents = incidents.stream()
                 .filter(incident -> incident.getStatus() != IncidentStatus.CLOSED)
                 .count();
@@ -534,6 +545,8 @@ public class OperationsService {
                 activeAgents,
                 availableVehicles,
                 activeShifts,
+                lateShifts,
+                absentShifts,
                 openIncidents,
                 maintenanceAlerts,
                 activePatrol,
@@ -628,6 +641,42 @@ public class OperationsService {
         }
     }
 
+    private void validateVehicleOperationalReadiness(Vehicle vehicle, OffsetDateTime scheduledStartAt, OffsetDateTime scheduledEndAt, Long currentShiftId) {
+        // Impede uso de viatura bloqueada, com documento vencido ou manutencao estourada em novos turnos.
+        if (vehicle.getStatus() == VehicleStatus.MAINTENANCE || vehicle.getStatus() == VehicleStatus.BLOCKED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A viatura selecionada nao esta liberada para operacao.");
+        }
+
+        LocalDate referenceDate = scheduledStartAt.toLocalDate();
+        if (vehicle.getNextMaintenanceKm() <= vehicle.getCurrentKm()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A viatura selecionada esta com manutencao vencida e nao pode receber novo turno.");
+        }
+
+        if (vehicle.getIpvaExpiry() != null && vehicle.getIpvaExpiry().isBefore(referenceDate)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O IPVA da viatura selecionada estara vencido no inicio do turno.");
+        }
+
+        if (vehicle.getLicensingExpiry() != null && vehicle.getLicensingExpiry().isBefore(referenceDate)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O licenciamento da viatura selecionada estara vencido no inicio do turno.");
+        }
+
+        if (vehicle.getInsuranceExpiry() != null && vehicle.getInsuranceExpiry().isBefore(referenceDate)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O seguro da viatura selecionada estara vencido no inicio do turno.");
+        }
+
+        boolean hasOverlappingShift = shiftRepository.findAll().stream()
+                .filter(existingShift -> currentShiftId == null || !existingShift.getId().equals(currentShiftId))
+                .filter(existingShift -> existingShift.getVehicleId().equals(vehicle.getId()))
+                .filter(existingShift -> existingShift.getStatus() != ShiftStatus.CLOSED)
+                .anyMatch(existingShift ->
+                        existingShift.getScheduledStartAt().isBefore(scheduledEndAt)
+                                && scheduledStartAt.isBefore(existingShift.getScheduledEndAt()));
+
+        if (hasOverlappingShift) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A viatura selecionada ja esta comprometida em outro turno nesse intervalo.");
+        }
+    }
+
     private void activateShiftIfNeeded(Shift shift, Vehicle vehicle) {
         // Marca check-in e KM inicial apenas quando o turno efetivamente entra em operacao.
         if (shift.getCheckInAt() == null) {
@@ -676,6 +725,10 @@ public class OperationsService {
                 coveredAgent != null ? coveredAgent.getFullName() : null,
                 attendanceNotes
         );
+
+        if (coveredAgent != null && coveredAgent.getId().equals(shift.getAgentId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O vigilante de cobertura precisa ser diferente do vigilante coberto.");
+        }
     }
 
     private Integer calculateLateMinutes(Shift shift) {

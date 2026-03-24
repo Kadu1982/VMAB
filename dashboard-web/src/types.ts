@@ -130,6 +130,8 @@ export interface DashboardSummary {
   activeAgents: number
   availableVehicles: number
   activeShifts: number
+  lateShifts: number
+  absentShifts: number
   openIncidents: number
   maintenanceAlerts: number
   activePatrol?: ActivePatrol | null

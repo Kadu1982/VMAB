@@ -1073,6 +1073,8 @@ function App() {
               <article className="metric-card"><span>Agentes ativos</span><strong>{summary.activeAgents}</strong></article>
               <article className="metric-card"><span>Viaturas disponiveis</span><strong>{summary.availableVehicles}</strong></article>
               <article className="metric-card"><span>Turnos em operacao</span><strong>{summary.activeShifts}</strong></article>
+              <article className="metric-card"><span>Turnos atrasados</span><strong>{summary.lateShifts}</strong></article>
+              <article className="metric-card"><span>Faltas abertas</span><strong>{summary.absentShifts}</strong></article>
               <article className="metric-card"><span>Ocorrencias abertas</span><strong>{summary.openIncidents}</strong></article>
               <article className="metric-card"><span>Alertas de manutencao</span><strong>{summary.maintenanceAlerts}</strong></article>
             </section>
