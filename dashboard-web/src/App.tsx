@@ -16,6 +16,9 @@ import type {
   IncidentPriority,
   IncidentStatus,
   IncidentType,
+  ResidentAlert,
+  ResidentAlertStatus,
+  ResidentAlertType,
   Resident,
   ResidentStatus,
   AuditActionType,
@@ -129,6 +132,12 @@ const initialIncidentForm = {
   closureNotes: '',
 }
 
+const initialResidentAlertForm = {
+  assignedAgentId: '',
+  vehicleId: '',
+  actionNotes: '',
+}
+
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
 }
@@ -219,6 +228,16 @@ function translateIncidentType(type: IncidentType) {
   }[type]
 }
 
+function translateResidentAlertType(type: ResidentAlertType) {
+  return {
+    PANIC: 'Panico',
+    COERCION: 'Coacao',
+    ESCORT: 'Escolta',
+    SUSPICIOUS_ACTIVITY: 'Atitude suspeita',
+    MEDICAL: 'Emergencia medica',
+  }[type]
+}
+
 function translateIncidentPriority(priority: IncidentPriority) {
   return {
     HIGH: 'Alta',
@@ -233,6 +252,17 @@ function translateIncidentStatus(status: IncidentStatus) {
     DISPATCHED: 'Despachada',
     ON_SITE: 'No local',
     CLOSED: 'Encerrada',
+  }[status]
+}
+
+function translateResidentAlertStatus(status: ResidentAlertStatus) {
+  return {
+    OPEN: 'Aberto',
+    ACKNOWLEDGED: 'Recebido',
+    DISPATCHED: 'Despachado',
+    ON_SITE: 'No local',
+    RESOLVED: 'Resolvido',
+    CANCELLED: 'Cancelado',
   }[status]
 }
 
@@ -636,6 +666,8 @@ function App() {
   // Estado da sessao, dados operacionais e formularios de manutencao do painel.
   const [summary, setSummary] = useState<DashboardSummary | null>(null)
   const [portal, setPortal] = useState<ClientPortal | null>(null)
+  // Mantem os alertas do app do morador visiveis para a central operar o fluxo completo.
+  const [residentAlerts, setResidentAlerts] = useState<ResidentAlert[]>([])
   const [users, setUsers] = useState<AppUser[]>([])
   const [lastRefreshAt, setLastRefreshAt] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -656,6 +688,7 @@ function App() {
   const [maintenanceForm, setMaintenanceForm] = useState(initialMaintenanceForm)
   const [shiftForm, setShiftForm] = useState(initialShiftForm)
   const [incidentForm, setIncidentForm] = useState(initialIncidentForm)
+  const [residentAlertForm, setResidentAlertForm] = useState(initialResidentAlertForm)
   const [passwordResetForm, setPasswordResetForm] = useState({ username: '', resetCode: '', newPassword: '' })
   const [editingAgentId, setEditingAgentId] = useState<number | null>(null)
   const [editingUserId, setEditingUserId] = useState<number | null>(null)
@@ -663,6 +696,7 @@ function App() {
   const [editingVehicleId, setEditingVehicleId] = useState<number | null>(null)
   const [editingShiftId, setEditingShiftId] = useState<number | null>(null)
   const [editingIncidentId, setEditingIncidentId] = useState<number | null>(null)
+  const [editingResidentAlertId, setEditingResidentAlertId] = useState<number | null>(null)
   const [isPending, startTransition] = useTransition()
   const reportMessageTimerRef = useRef<number | null>(null)
 
@@ -772,16 +806,20 @@ function App() {
         if (!portalResponse.ok) throw new Error('Nao foi possivel carregar o portal do cliente.')
         setPortal((await portalResponse.json()) as ClientPortal)
         setSummary(null)
+        setResidentAlerts([])
         setUsers([])
         setLastRefreshAt(new Date().toISOString())
       } else {
-        const [summaryResponse, usersResponse] = await Promise.all([
+        const [summaryResponse, residentAlertsResponse, usersResponse] = await Promise.all([
           apiFetch('/api/dashboard/summary'),
+          apiFetch('/api/resident-alerts'),
           adminCanManageUsers ? apiFetch('/api/users') : Promise.resolve(null),
         ])
         if (!summaryResponse.ok) throw new Error('Nao foi possivel carregar o painel operacional.')
+        if (!residentAlertsResponse.ok) throw new Error('Nao foi possivel carregar os alertas do morador.')
         if (usersResponse && !usersResponse.ok) throw new Error('Nao foi possivel carregar a gestao de usuarios.')
         setSummary((await summaryResponse.json()) as DashboardSummary)
+        setResidentAlerts((await residentAlertsResponse.json()) as ResidentAlert[])
         setUsers(usersResponse ? ((await usersResponse.json()) as AppUser[]) : [])
         setPortal(null)
         setLastRefreshAt(new Date().toISOString())
@@ -790,6 +828,7 @@ function App() {
       setError(cause instanceof Error ? cause.message : 'Falha inesperada ao carregar a interface.')
       setSummary(null)
       setPortal(null)
+      setResidentAlerts([])
       setUsers([])
     } finally {
       setLoading(false)
@@ -853,6 +892,11 @@ function App() {
   function resetIncidentForm() {
     setIncidentForm(initialIncidentForm)
     setEditingIncidentId(null)
+  }
+
+  function resetResidentAlertForm() {
+    setResidentAlertForm(initialResidentAlertForm)
+    setEditingResidentAlertId(null)
   }
 
   function startAgentEdit(agent: Agent) {
@@ -937,6 +981,16 @@ function App() {
       residentName: resident ? resident.fullName : current.residentName,
       address: resident ? resident.address : current.address,
     }))
+  }
+
+  function startResidentAlertEdit(alert: ResidentAlert) {
+    // Carrega o alerta do morador no contexto operacional para a central responder sem sair do painel.
+    setEditingResidentAlertId(alert.id)
+    setResidentAlertForm({
+      assignedAgentId: alert.assignedAgentId != null ? String(alert.assignedAgentId) : '',
+      vehicleId: alert.vehicleId != null ? String(alert.vehicleId) : '',
+      actionNotes: alert.dispatchNotes ?? alert.acknowledgmentNotes ?? alert.arrivalNotes ?? alert.resolutionNotes ?? '',
+    })
   }
 
   function startIncidentEdit(incident: Incident) {
@@ -1342,6 +1396,65 @@ function App() {
       },
       'Nao foi possivel encerrar a ocorrencia.',
       resetIncidentForm,
+    )
+  }
+
+  async function handleResidentAlertAcknowledge(alertId: number) {
+    // Registra que a central recebeu o alerta e assumiu a responsabilidade inicial.
+    await saveEntity(
+      `/api/resident-alerts/${alertId}/acknowledge`,
+      'POST',
+      {
+        notes: residentAlertForm.actionNotes || null,
+      },
+      'Nao foi possivel registrar o recebimento do alerta do morador.',
+      resetResidentAlertForm,
+    )
+  }
+
+  async function handleResidentAlertDispatch(alertId: number) {
+    if (!residentAlertForm.assignedAgentId || !residentAlertForm.vehicleId) {
+      setError('Selecione agente e viatura para despachar o alerta do morador.')
+      return
+    }
+
+    // O despacho vincula equipe e viatura ao alerta vindo do app do morador.
+    await saveEntity(
+      `/api/resident-alerts/${alertId}/dispatch`,
+      'POST',
+      {
+        assignedAgentId: Number(residentAlertForm.assignedAgentId),
+        vehicleId: Number(residentAlertForm.vehicleId),
+        dispatchNotes: residentAlertForm.actionNotes || null,
+      },
+      'Nao foi possivel despachar o alerta do morador.',
+      resetResidentAlertForm,
+    )
+  }
+
+  async function handleResidentAlertOnSite(alertId: number) {
+    // Marca a chegada da equipe ao local para fechar a trilha operacional do alerta.
+    await saveEntity(
+      `/api/resident-alerts/${alertId}/onsite`,
+      'POST',
+      {
+        notes: residentAlertForm.actionNotes || null,
+      },
+      'Nao foi possivel registrar a chegada ao local do alerta.',
+      resetResidentAlertForm,
+    )
+  }
+
+  async function handleResidentAlertResolve(alertId: number) {
+    // Finaliza o atendimento do morador com observacao operacional e status resolvido.
+    await saveEntity(
+      `/api/resident-alerts/${alertId}/resolve`,
+      'POST',
+      {
+        notes: residentAlertForm.actionNotes || null,
+      },
+      'Nao foi possivel resolver o alerta do morador.',
+      resetResidentAlertForm,
     )
   }
 
@@ -2094,6 +2207,57 @@ function App() {
                         <span className={`tag ${incident.priority.toLowerCase()}`}>{translateIncidentPriority(incident.priority)}</span>
                         {canUpdateOperations ? <button className="ghost-button" onClick={() => startIncidentEdit(incident)} type="button">Editar</button> : null}
                         {canCreateOperations ? <button className="ghost-button danger-button" onClick={() => void handleDelete(`/api/incidents/${incident.id}`, 'Deseja remover esta ocorrencia?', resetIncidentForm)} type="button">Excluir</button> : null}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+
+              <section className="panel">
+                <div className="panel-header">
+                  <div>
+                    <p className="eyebrow">Alertas do morador</p>
+                    <h3>{editingResidentAlertId === null ? 'Central de resposta do app do morador' : 'Operar alerta do morador'}</h3>
+                  </div>
+                </div>
+                <p className="panel-note">
+                  O backend do morador ja existe. Sem este bloco, a central continua sem interface real para operar panico, coacao e escolta.
+                </p>
+                {canUpdateOperations ? (
+                  <form className="form-grid" onSubmit={(event) => event.preventDefault()}>
+                    <select value={residentAlertForm.assignedAgentId} onChange={(event) => setResidentAlertForm((current) => ({ ...current, assignedAgentId: event.target.value }))}>
+                      <option value="">Agente para despacho</option>
+                      {summary.agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.fullName}</option>)}
+                    </select>
+                    <select value={residentAlertForm.vehicleId} onChange={(event) => setResidentAlertForm((current) => ({ ...current, vehicleId: event.target.value }))}>
+                      <option value="">Viatura para despacho</option>
+                      {summary.vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.plate} - {vehicle.model}</option>)}
+                    </select>
+                    <input
+                      placeholder="Observacao operacional do alerta"
+                      value={residentAlertForm.actionNotes}
+                      onChange={(event) => setResidentAlertForm((current) => ({ ...current, actionNotes: event.target.value }))}
+                    />
+                    <div className="button-row">
+                      {editingResidentAlertId !== null ? <button className="secondary-button" onClick={() => void handleResidentAlertAcknowledge(editingResidentAlertId)} type="button">Receber</button> : null}
+                      {editingResidentAlertId !== null ? <button className="secondary-button" onClick={() => void handleResidentAlertDispatch(editingResidentAlertId)} type="button">Despachar</button> : null}
+                      {editingResidentAlertId !== null ? <button className="secondary-button" onClick={() => void handleResidentAlertOnSite(editingResidentAlertId)} type="button">Chegada no local</button> : null}
+                      {editingResidentAlertId !== null ? <button className="secondary-button" onClick={() => void handleResidentAlertResolve(editingResidentAlertId)} type="button">Resolver</button> : null}
+                      {editingResidentAlertId !== null ? <button className="secondary-button" onClick={resetResidentAlertForm} type="button">Cancelar</button> : null}
+                    </div>
+                  </form>
+                ) : null}
+                <div className="list">
+                  {residentAlerts.map((alert) => (
+                    <article className="list-row" key={alert.id}>
+                      <div>
+                        <strong>{translateResidentAlertType(alert.type)} | {alert.residentName}</strong>
+                        <small>{alert.residentAddress} | {alert.residentPhoneNumber} | abertura {formatDate(alert.openedAt)} | agente {alert.assignedAgentName ?? 'nao definido'} | viatura {alert.vehiclePlate ?? 'nao definida'}</small>
+                        <small>{alert.notes ?? alert.dispatchNotes ?? alert.arrivalNotes ?? alert.resolutionNotes ?? alert.cancellationReason ?? 'Sem observacao adicional'}</small>
+                      </div>
+                      <div className="row-actions">
+                        <span className={`tag ${alert.status.toLowerCase()}`}>{translateResidentAlertStatus(alert.status)}</span>
+                        {canUpdateOperations ? <button className="ghost-button" onClick={() => startResidentAlertEdit(alert)} type="button">Operar</button> : null}
                       </div>
                     </article>
                   ))}

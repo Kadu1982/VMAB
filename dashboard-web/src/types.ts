@@ -10,6 +10,8 @@ export type IncidentStatus = 'OPEN' | 'DISPATCHED' | 'ON_SITE' | 'CLOSED'
 export type IncidentType = 'PANIC' | 'SUSPICIOUS_ACTIVITY' | 'MEDICAL' | 'ESCORT'
 export type IncidentPriority = 'HIGH' | 'MEDIUM' | 'LOW'
 export type AppUserRole = 'ADMIN' | 'SUPERVISOR' | 'CLIENT' | 'RONDA'
+export type ResidentAlertType = 'PANIC' | 'COERCION' | 'ESCORT' | 'SUSPICIOUS_ACTIVITY' | 'MEDICAL'
+export type ResidentAlertStatus = 'OPEN' | 'ACKNOWLEDGED' | 'DISPATCHED' | 'ON_SITE' | 'RESOLVED' | 'CANCELLED'
 
 export interface Agent {
   id: number
@@ -158,6 +160,35 @@ export interface Incident {
   dispatchNotes?: string | null
   arrivalNotes?: string | null
   closureNotes?: string | null
+}
+
+export interface ResidentAlert {
+  id: number
+  residentId: number
+  residentName: string
+  residentPhoneNumber: string
+  residentAddress: string
+  type: ResidentAlertType
+  status: ResidentAlertStatus
+  latitude?: number | null
+  longitude?: number | null
+  notes?: string | null
+  openedAt: string
+  updatedAt: string
+  acknowledgedAt?: string | null
+  dispatchedAt?: string | null
+  onSiteAt?: string | null
+  resolvedAt?: string | null
+  cancelledAt?: string | null
+  assignedAgentId?: number | null
+  assignedAgentName?: string | null
+  vehicleId?: number | null
+  vehiclePlate?: string | null
+  acknowledgmentNotes?: string | null
+  dispatchNotes?: string | null
+  arrivalNotes?: string | null
+  resolutionNotes?: string | null
+  cancellationReason?: string | null
 }
 
 export interface DashboardSummary {
