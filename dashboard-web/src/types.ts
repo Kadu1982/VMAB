@@ -5,6 +5,8 @@ export type VehicleStatus = 'AVAILABLE' | 'IN_OPERATION' | 'MAINTENANCE' | 'BLOC
 export type ShiftStatus = 'PLANNED' | 'ACTIVE' | 'HANDOFF_PENDING' | 'HANDOFF' | 'CLOSED'
 export type ShiftAttendanceStatus = 'PENDING' | 'ON_TIME' | 'LATE' | 'ABSENT' | 'COVERED'
 export type VehicleMaintenanceType = 'PREVENTIVE' | 'CORRECTIVE' | 'INSPECTION' | 'DOCUMENTATION'
+export type VehicleMaintenancePriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+export type VehicleMaintenanceStatus = 'OPEN' | 'IN_PROGRESS' | 'WAITING_PARTS' | 'COMPLETED' | 'CANCELLED'
 export type AuditActionType = 'CREATE' | 'UPDATE' | 'DELETE' | 'HANDOFF' | 'MAINTENANCE' | 'TELEMETRY' | 'INCIDENT_WORKFLOW' | 'AUTH'
 export type IncidentStatus = 'OPEN' | 'DISPATCHED' | 'ON_SITE' | 'CLOSED'
 export type IncidentType = 'PANIC' | 'SUSPICIOUS_ACTIVITY' | 'MEDICAL' | 'ESCORT'
@@ -53,14 +55,19 @@ export interface VehicleMaintenanceRecord {
   id: number
   vehicleId: number
   vehiclePlate: string
+  maintenanceCode: string
   type: VehicleMaintenanceType
+  priority: VehicleMaintenancePriority
+  status: VehicleMaintenanceStatus
   openedAt: string
   completedAt?: string | null
   serviceDate?: string | null
+  dueDate?: string | null
   kmAtService?: number | null
   nextMaintenanceKm?: number | null
   costAmount?: number | null
   supplierName?: string | null
+  resolutionNotes?: string | null
   description: string
   resolved: boolean
 }
@@ -219,6 +226,8 @@ export interface DashboardSummary {
   absentShifts: number
   openIncidents: number
   maintenanceAlerts: number
+  openMaintenanceOrders: number
+  criticalMaintenanceOrders: number
   activePatrol?: ActivePatrol | null
   auditRecords: AuditRecord[]
   residents: Resident[]
@@ -234,6 +243,7 @@ export interface ClientPortal {
   openIncidents: number
   availableVehicles: number
   maintenanceAlerts: number
+  openMaintenanceOrders: number
   recentIncidents: Incident[]
 }
 

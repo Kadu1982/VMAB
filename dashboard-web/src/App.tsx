@@ -27,7 +27,9 @@ import type {
   ShiftAttendanceStatus,
   ShiftStatus,
   Vehicle,
+  VehicleMaintenancePriority,
   VehicleMaintenanceRecord,
+  VehicleMaintenanceStatus,
   VehicleMaintenanceType,
   VehicleStatus,
 } from './types'
@@ -39,6 +41,8 @@ const agentStatusOptions: AgentStatus[] = ['ACTIVE', 'ON_DUTY', 'OFF_DUTY', 'BLO
 const residentStatusOptions: ResidentStatus[] = ['ACTIVE', 'INACTIVE']
 const vehicleStatusOptions: VehicleStatus[] = ['AVAILABLE', 'IN_OPERATION', 'MAINTENANCE', 'BLOCKED']
 const vehicleMaintenanceTypeOptions: VehicleMaintenanceType[] = ['PREVENTIVE', 'CORRECTIVE', 'INSPECTION', 'DOCUMENTATION']
+const vehicleMaintenancePriorityOptions: VehicleMaintenancePriority[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
+const vehicleMaintenanceStatusOptions: VehicleMaintenanceStatus[] = ['OPEN', 'IN_PROGRESS', 'WAITING_PARTS', 'COMPLETED', 'CANCELLED']
 const shiftStatusOptions: ShiftStatus[] = ['PLANNED', 'ACTIVE', 'HANDOFF_PENDING', 'HANDOFF', 'CLOSED']
 const shiftAttendanceOptions: ShiftAttendanceStatus[] = ['PENDING', 'ON_TIME', 'LATE', 'ABSENT', 'COVERED']
 const incidentTypeOptions: IncidentType[] = ['PANIC', 'SUSPICIOUS_ACTIVITY', 'MEDICAL', 'ESCORT']
@@ -83,11 +87,15 @@ const initialVehicleForm = {
 const initialMaintenanceForm = {
   vehicleId: '',
   type: 'PREVENTIVE' as VehicleMaintenanceType,
+  priority: 'MEDIUM' as VehicleMaintenancePriority,
+  status: 'OPEN' as VehicleMaintenanceStatus,
   serviceDate: '',
+  dueDate: '',
   kmAtService: '',
   nextMaintenanceKm: '',
   costAmount: '',
   supplierName: '',
+  resolutionNotes: '',
   description: '',
   resolved: false,
 }
@@ -216,6 +224,25 @@ function translateVehicleMaintenanceType(type: VehicleMaintenanceType) {
   }[type]
 }
 
+function translateVehicleMaintenancePriority(priority: VehicleMaintenancePriority) {
+  return {
+    LOW: 'Baixa',
+    MEDIUM: 'Media',
+    HIGH: 'Alta',
+    CRITICAL: 'Critica',
+  }[priority]
+}
+
+function translateVehicleMaintenanceStatus(status: VehicleMaintenanceStatus) {
+  return {
+    OPEN: 'Aberta',
+    IN_PROGRESS: 'Em execucao',
+    WAITING_PARTS: 'Aguardando pecas',
+    COMPLETED: 'Concluida',
+    CANCELLED: 'Cancelada',
+  }[status]
+}
+
 function translateAuditActionType(actionType: AuditActionType) {
   return {
     CREATE: 'Criacao',
@@ -339,12 +366,16 @@ function downloadTextFile(filename: string, content: string, mimeType: string) {
 }
 
 function calculateOperationalHealth(summary: DashboardSummary) {
-  const risk = summary.openIncidents * 10 + summary.lateShifts * 8 + summary.absentShifts * 12 + summary.maintenanceAlerts * 6
+  const risk = summary.openIncidents * 10
+    + summary.lateShifts * 8
+    + summary.absentShifts * 12
+    + summary.maintenanceAlerts * 6
+    + summary.criticalMaintenanceOrders * 10
   return clampNumber(100 - risk, 0, 100)
 }
 
 function calculateContractHealth(portal: ClientPortal) {
-  const risk = portal.openIncidents * 12 + portal.maintenanceAlerts * 8
+  const risk = portal.openIncidents * 12 + portal.maintenanceAlerts * 8 + portal.openMaintenanceOrders * 4
   return clampNumber(100 - risk, 0, 100)
 }
 
@@ -361,11 +392,13 @@ function buildSummaryMarkdownReport(summary: DashboardSummary, currentUsername: 
     `- Viaturas disponiveis: ${summary.availableVehicles}`,
     `- Turnos em operacao: ${summary.activeShifts}`,
     `- Turnos atrasados: ${summary.lateShifts}`,
-    `- Faltas abertas: ${summary.absentShifts}`,
-    `- Ocorrencias abertas: ${summary.openIncidents}`,
-    `- Alertas de manutencao: ${summary.maintenanceAlerts}`,
-    `- Saude operacional estimada: ${calculateOperationalHealth(summary)}/100`,
-  ]
+      `- Faltas abertas: ${summary.absentShifts}`,
+      `- Ocorrencias abertas: ${summary.openIncidents}`,
+      `- Alertas de manutencao: ${summary.maintenanceAlerts}`,
+      `- OS em aberto: ${summary.openMaintenanceOrders}`,
+      `- OS criticas: ${summary.criticalMaintenanceOrders}`,
+      `- Saude operacional estimada: ${calculateOperationalHealth(summary)}/100`,
+    ]
 
   if (summary.activePatrol) {
     lines.push(
@@ -389,9 +422,15 @@ function buildSummaryMarkdownReport(summary: DashboardSummary, currentUsername: 
   if (summary.absentShifts > 0) {
     lines.push(`- Ha ${summary.absentShifts} falta(s) aberta(s), o que reduz previsibilidade operacional.`)
   }
-  if (summary.maintenanceAlerts > 0) {
-    lines.push(`- A frota possui ${summary.maintenanceAlerts} alerta(s) de manutencao ou documento pendente.`)
-  }
+    if (summary.maintenanceAlerts > 0) {
+      lines.push(`- A frota possui ${summary.maintenanceAlerts} alerta(s) de manutencao ou documento pendente.`)
+    }
+    if (summary.openMaintenanceOrders > 0) {
+      lines.push(`- Existem ${summary.openMaintenanceOrders} ordem(ns) de servico em aberto na frota.`)
+    }
+    if (summary.criticalMaintenanceOrders > 0) {
+      lines.push(`- ${summary.criticalMaintenanceOrders} OS critica(s) exigem acompanhamento imediato.`)
+    }
   if (lines[lines.length - 1] === '## Leituras executivas') {
     lines.push('- Nenhum alerta critico foi identificado no snapshot atual.')
   }
@@ -426,9 +465,11 @@ function buildSummaryCsvReport(summary: DashboardSummary, currentUsername: strin
     ['visao_geral', 'turnos_em_operacao', String(summary.activeShifts), 'turnos abertos'],
     ['visao_geral', 'turnos_atrasados', String(summary.lateShifts), 'exigem supervisao'],
     ['visao_geral', 'faltas_abertas', String(summary.absentShifts), 'exigem cobertura'],
-    ['visao_geral', 'ocorrencias_abertas', String(summary.openIncidents), 'casos em andamento'],
-    ['visao_geral', 'alertas_manutencao', String(summary.maintenanceAlerts), 'frota e documentos'],
-    ['visao_geral', 'saude_operacional_estimada', `${calculateOperationalHealth(summary)}/100`, 'indice calculado no frontend'],
+      ['visao_geral', 'ocorrencias_abertas', String(summary.openIncidents), 'casos em andamento'],
+      ['visao_geral', 'alertas_manutencao', String(summary.maintenanceAlerts), 'frota e documentos'],
+      ['visao_geral', 'os_abertas', String(summary.openMaintenanceOrders), 'ordens de servico'],
+      ['visao_geral', 'os_criticas', String(summary.criticalMaintenanceOrders), 'ordens urgentes'],
+      ['visao_geral', 'saude_operacional_estimada', `${calculateOperationalHealth(summary)}/100`, 'indice calculado no frontend'],
   ]
 
   if (summary.activePatrol) {
@@ -470,10 +511,11 @@ function buildClientMarkdownReport(portal: ClientPortal, currentUsername: string
     '## Resumo contratual',
     `- Turnos ativos: ${portal.activeShifts}`,
     `- Ocorrencias abertas: ${portal.openIncidents}`,
-    `- Viaturas disponiveis: ${portal.availableVehicles}`,
-    `- Alertas de manutencao: ${portal.maintenanceAlerts}`,
-    `- Saude do contrato estimada: ${calculateContractHealth(portal)}/100`,
-  ]
+      `- Viaturas disponiveis: ${portal.availableVehicles}`,
+      `- Alertas de manutencao: ${portal.maintenanceAlerts}`,
+      `- OS em aberto: ${portal.openMaintenanceOrders}`,
+      `- Saude do contrato estimada: ${calculateContractHealth(portal)}/100`,
+    ]
 
   if (portal.recentIncidents.length > 0) {
     lines.push('', '## Ocorrencias recentes')
@@ -488,9 +530,12 @@ function buildClientMarkdownReport(portal: ClientPortal, currentUsername: string
   if (portal.openIncidents > 0) {
     lines.push(`- O contrato possui ${portal.openIncidents} incidente(s) em acompanhamento, entao a supervisao deve manter atencao nas proximas horas.`)
   }
-  if (portal.maintenanceAlerts > 0) {
-    lines.push(`- Ha ${portal.maintenanceAlerts} alerta(s) de manutencao que podem afetar disponibilidade futura.`)
-  }
+    if (portal.maintenanceAlerts > 0) {
+      lines.push(`- Ha ${portal.maintenanceAlerts} alerta(s) de manutencao que podem afetar disponibilidade futura.`)
+    }
+    if (portal.openMaintenanceOrders > 0) {
+      lines.push(`- Existem ${portal.openMaintenanceOrders} OS em aberto ligadas a frota do contrato.`)
+    }
   if (portal.activeShifts === 0) {
     lines.push('- Nao ha turnos ativos no snapshot atual.')
   } else {
@@ -509,9 +554,10 @@ function buildClientCsvReport(portal: ClientPortal, currentUsername: string | nu
     ['metadados', 'gerado_em', generatedAt.toISOString(), `cliente ${currentUsername ?? 'nao identificado'}`],
     ['contrato', 'turnos_ativos', String(portal.activeShifts), 'painel do cliente'],
     ['contrato', 'ocorrencias_abertas', String(portal.openIncidents), 'painel do cliente'],
-    ['contrato', 'viaturas_disponiveis', String(portal.availableVehicles), 'painel do cliente'],
-    ['contrato', 'alertas_manutencao', String(portal.maintenanceAlerts), 'painel do cliente'],
-    ['contrato', 'saude_estimada', `${calculateContractHealth(portal)}/100`, 'indice calculado no frontend'],
+      ['contrato', 'viaturas_disponiveis', String(portal.availableVehicles), 'painel do cliente'],
+      ['contrato', 'alertas_manutencao', String(portal.maintenanceAlerts), 'painel do cliente'],
+      ['contrato', 'os_abertas', String(portal.openMaintenanceOrders), 'painel do cliente'],
+      ['contrato', 'saude_estimada', `${calculateContractHealth(portal)}/100`, 'indice calculado no frontend'],
   ]
 
   portal.recentIncidents.slice(0, 5).forEach((incident) => {
@@ -1362,13 +1408,17 @@ function App() {
       'POST',
       {
         type: maintenanceForm.type,
+        priority: maintenanceForm.priority,
+        status: maintenanceForm.status,
         serviceDate: maintenanceForm.serviceDate || null,
+        dueDate: maintenanceForm.dueDate || null,
         kmAtService: maintenanceForm.kmAtService ? Number(maintenanceForm.kmAtService) : null,
         nextMaintenanceKm: maintenanceForm.nextMaintenanceKm ? Number(maintenanceForm.nextMaintenanceKm) : null,
         costAmount: maintenanceForm.costAmount ? Number(maintenanceForm.costAmount) : null,
         supplierName: maintenanceForm.supplierName || null,
+        resolutionNotes: maintenanceForm.resolutionNotes || null,
         description: maintenanceForm.description,
-        resolved: maintenanceForm.resolved,
+        resolved: maintenanceForm.status === 'COMPLETED' || maintenanceForm.resolved,
       },
       'Nao foi possivel registrar a manutencao.',
       resetMaintenanceForm,
@@ -1701,6 +1751,7 @@ function App() {
           <article className="metric-card"><span>Ocorrencias abertas</span><strong>{portal.openIncidents}</strong></article>
           <article className="metric-card"><span>Viaturas disponiveis</span><strong>{portal.availableVehicles}</strong></article>
           <article className="metric-card"><span>Alertas de manutencao</span><strong>{portal.maintenanceAlerts}</strong></article>
+          <article className="metric-card"><span>OS em aberto</span><strong>{portal.openMaintenanceOrders}</strong></article>
         </section>
 
         <section className="panel report-panel">
@@ -1723,8 +1774,8 @@ function App() {
             </article>
             <article className="telemetry-card executive-card">
               <span>Pressao operacional</span>
-              <strong>{portal.openIncidents + portal.maintenanceAlerts}</strong>
-              <small>Soma simples de risco para leitura executiva.</small>
+              <strong>{portal.openIncidents + portal.maintenanceAlerts + portal.openMaintenanceOrders}</strong>
+              <small>Leitura rapida de incidentes, alertas e ordens abertas.</small>
             </article>
             <article className="telemetry-card executive-card">
               <span>Turnos ativos</span>
@@ -1920,10 +1971,12 @@ function App() {
               <article className="metric-card"><span>Viaturas disponiveis</span><strong>{summary.availableVehicles}</strong></article>
               <article className="metric-card"><span>Turnos em operacao</span><strong>{summary.activeShifts}</strong></article>
               <article className="metric-card"><span>Turnos atrasados</span><strong>{summary.lateShifts}</strong></article>
-              <article className="metric-card"><span>Faltas abertas</span><strong>{summary.absentShifts}</strong></article>
-              <article className="metric-card"><span>Ocorrencias abertas</span><strong>{summary.openIncidents}</strong></article>
-              <article className="metric-card"><span>Alertas de manutencao</span><strong>{summary.maintenanceAlerts}</strong></article>
-            </section>
+                <article className="metric-card"><span>Faltas abertas</span><strong>{summary.absentShifts}</strong></article>
+                <article className="metric-card"><span>Ocorrencias abertas</span><strong>{summary.openIncidents}</strong></article>
+                <article className="metric-card"><span>Alertas de manutencao</span><strong>{summary.maintenanceAlerts}</strong></article>
+                <article className="metric-card"><span>OS em aberto</span><strong>{summary.openMaintenanceOrders}</strong></article>
+                <article className="metric-card"><span>OS criticas</span><strong>{summary.criticalMaintenanceOrders}</strong></article>
+              </section>
 
             <section className="panel report-panel">
               <div className="panel-header report-header">
@@ -1945,8 +1998,8 @@ function App() {
                 </article>
                 <article className="telemetry-card executive-card">
                   <span>Pressao operacional</span>
-                  <strong>{summary.openIncidents + summary.lateShifts + summary.absentShifts + summary.maintenanceAlerts}</strong>
-                  <small>Soma simples de pontos de atencao da operacao.</small>
+                    <strong>{summary.openIncidents + summary.lateShifts + summary.absentShifts + summary.maintenanceAlerts + summary.criticalMaintenanceOrders}</strong>
+                    <small>Soma simples de atrasos, ocorrencias e criticidade de frota.</small>
                 </article>
                 <article className="telemetry-card executive-card">
                   <span>Cobertura ativa</span>
@@ -1970,10 +2023,11 @@ function App() {
                   <strong>Ultimos alertas</strong>
                   <div className="chip-row">
                     <span className="report-chip">Ocorrencias: {summary.openIncidents}</span>
-                    <span className="report-chip">Atrasos: {summary.lateShifts}</span>
-                    <span className="report-chip">Faltas: {summary.absentShifts}</span>
-                    <span className="report-chip">Manutencao: {summary.maintenanceAlerts}</span>
-                  </div>
+                      <span className="report-chip">Atrasos: {summary.lateShifts}</span>
+                      <span className="report-chip">Faltas: {summary.absentShifts}</span>
+                      <span className="report-chip">Manutencao: {summary.maintenanceAlerts}</span>
+                      <span className="report-chip">OS abertas: {summary.openMaintenanceOrders}</span>
+                    </div>
                 </article>
               </div>
             </section>
@@ -2170,14 +2224,22 @@ function App() {
                     <select value={maintenanceForm.type} onChange={(event) => setMaintenanceForm((current) => ({ ...current, type: event.target.value as VehicleMaintenanceType }))}>
                       {vehicleMaintenanceTypeOptions.map((type) => <option key={type} value={type}>{translateVehicleMaintenanceType(type)}</option>)}
                     </select>
+                    <select value={maintenanceForm.priority} onChange={(event) => setMaintenanceForm((current) => ({ ...current, priority: event.target.value as VehicleMaintenancePriority }))}>
+                      {vehicleMaintenancePriorityOptions.map((priority) => <option key={priority} value={priority}>{translateVehicleMaintenancePriority(priority)}</option>)}
+                    </select>
+                    <select value={maintenanceForm.status} onChange={(event) => setMaintenanceForm((current) => ({ ...current, status: event.target.value as VehicleMaintenanceStatus }))}>
+                      {vehicleMaintenanceStatusOptions.map((status) => <option key={status} value={status}>{translateVehicleMaintenanceStatus(status)}</option>)}
+                    </select>
                     <input type="date" value={maintenanceForm.serviceDate} onChange={(event) => setMaintenanceForm((current) => ({ ...current, serviceDate: event.target.value }))} />
+                    <input type="date" value={maintenanceForm.dueDate} onChange={(event) => setMaintenanceForm((current) => ({ ...current, dueDate: event.target.value }))} />
                     <input min="0" type="number" placeholder="KM da manutencao" value={maintenanceForm.kmAtService} onChange={(event) => setMaintenanceForm((current) => ({ ...current, kmAtService: event.target.value }))} />
                     <input min="0" type="number" placeholder="Proxima revisao (km)" value={maintenanceForm.nextMaintenanceKm} onChange={(event) => setMaintenanceForm((current) => ({ ...current, nextMaintenanceKm: event.target.value }))} />
                     <input min="0" step="0.01" type="number" placeholder="Custo (R$)" value={maintenanceForm.costAmount} onChange={(event) => setMaintenanceForm((current) => ({ ...current, costAmount: event.target.value }))} />
                     <input placeholder="Fornecedor / oficina" value={maintenanceForm.supplierName} onChange={(event) => setMaintenanceForm((current) => ({ ...current, supplierName: event.target.value }))} />
                     <input required placeholder="Descricao do servico" value={maintenanceForm.description} onChange={(event) => setMaintenanceForm((current) => ({ ...current, description: event.target.value }))} />
+                    <input placeholder="Observacoes de conclusao / pendencia" value={maintenanceForm.resolutionNotes} onChange={(event) => setMaintenanceForm((current) => ({ ...current, resolutionNotes: event.target.value }))} />
                     <label className="checkbox-field">
-                      <input checked={maintenanceForm.resolved} type="checkbox" onChange={(event) => setMaintenanceForm((current) => ({ ...current, resolved: event.target.checked }))} />
+                      <input checked={maintenanceForm.resolved || maintenanceForm.status === 'COMPLETED'} type="checkbox" onChange={(event) => setMaintenanceForm((current) => ({ ...current, resolved: event.target.checked }))} />
                       <span>Servico concluido e viatura liberada</span>
                     </label>
                     <div className="button-row">
@@ -2206,12 +2268,14 @@ function App() {
                   {summary.maintenanceRecords.map((record: VehicleMaintenanceRecord) => (
                     <article className="list-row" key={record.id}>
                       <div>
-                        <strong>{translateVehicleMaintenanceType(record.type)} | {record.vehiclePlate}</strong>
+                        <strong>{record.maintenanceCode} | {translateVehicleMaintenanceType(record.type)} | {record.vehiclePlate}</strong>
+                        <small>{translateVehicleMaintenancePriority(record.priority)} | {translateVehicleMaintenanceStatus(record.status)} | vencimento {record.dueDate ?? 'nao informado'}</small>
                         <small>{record.serviceDate ?? 'sem data'} | {record.kmAtService != null ? `${record.kmAtService.toLocaleString('pt-BR')} km` : 'km nao informado'} | {record.supplierName ?? 'fornecedor nao informado'} | {record.costAmount != null ? `R$ ${record.costAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'sem custo informado'}</small>
                         <small>{record.description}</small>
+                        {record.resolutionNotes ? <small>Fechamento: {record.resolutionNotes}</small> : null}
                       </div>
                       <div className="row-actions">
-                        <span className={`tag ${record.resolved ? 'active' : 'maintenance'}`}>{record.resolved ? 'Concluida' : 'Em aberto'}</span>
+                        <span className={`tag ${record.resolved ? 'active' : 'maintenance'}`}>{translateVehicleMaintenanceStatus(record.status)}</span>
                       </div>
                     </article>
                   ))}

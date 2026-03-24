@@ -9,6 +9,7 @@ import com.seguranca.plataforma.operations.dto.CreateShiftRequest;
 import com.seguranca.plataforma.operations.dto.CreateVehicleMaintenanceRequest;
 import com.seguranca.plataforma.operations.dto.CreateVehicleRequest;
 import com.seguranca.plataforma.operations.dto.DispatchIncidentRequest;
+import com.seguranca.plataforma.operations.dto.FleetOperationalReportResponse;
 import com.seguranca.plataforma.operations.dto.IncidentEvidenceResponse;
 import com.seguranca.plataforma.operations.dto.ClientPortalResponse;
 import com.seguranca.plataforma.operations.dto.DashboardSummaryResponse;
@@ -26,6 +27,7 @@ import com.seguranca.plataforma.operations.dto.UpdateShiftRequest;
 import com.seguranca.plataforma.operations.dto.UpdateVehicleMaintenanceRequest;
 import com.seguranca.plataforma.operations.dto.UpdateVehicleRequest;
 import com.seguranca.plataforma.operations.dto.UpsertShiftTelemetryRequest;
+import com.seguranca.plataforma.operations.dto.VehicleMaintenanceOrderResponse;
 import com.seguranca.plataforma.operations.model.Agent;
 import com.seguranca.plataforma.operations.model.AgentStatus;
 import com.seguranca.plataforma.operations.model.AuditActionType;
@@ -40,7 +42,9 @@ import com.seguranca.plataforma.operations.model.ShiftAttendanceStatus;
 import com.seguranca.plataforma.operations.model.ShiftStatus;
 import com.seguranca.plataforma.operations.model.ShiftTelemetry;
 import com.seguranca.plataforma.operations.model.Vehicle;
+import com.seguranca.plataforma.operations.model.VehicleMaintenancePriority;
 import com.seguranca.plataforma.operations.model.VehicleMaintenanceRecord;
+import com.seguranca.plataforma.operations.model.VehicleMaintenanceStatus;
 import com.seguranca.plataforma.operations.model.VehicleMaintenanceType;
 import com.seguranca.plataforma.operations.model.VehicleStatus;
 import com.seguranca.plataforma.operations.repository.AgentRepository;
@@ -65,6 +69,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Locale;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
@@ -91,6 +96,7 @@ public class OperationsService {
     private final IncidentRepository incidentRepository;
     private final IncidentEvidenceRepository incidentEvidenceRepository;
     private final OperationsRealtimeService operationsRealtimeService;
+    private final VehicleFleetReportCalculator vehicleFleetReportCalculator;
     private final Path storageRoot;
 
     public OperationsService(
@@ -104,6 +110,7 @@ public class OperationsService {
             IncidentRepository incidentRepository,
             IncidentEvidenceRepository incidentEvidenceRepository,
             OperationsRealtimeService operationsRealtimeService,
+            VehicleFleetReportCalculator vehicleFleetReportCalculator,
             @Value("${vmab.storage-root}") String storageRoot
     ) {
         this.agentRepository = agentRepository;
@@ -116,6 +123,7 @@ public class OperationsService {
         this.incidentRepository = incidentRepository;
         this.incidentEvidenceRepository = incidentEvidenceRepository;
         this.operationsRealtimeService = operationsRealtimeService;
+        this.vehicleFleetReportCalculator = vehicleFleetReportCalculator;
         this.storageRoot = Path.of(storageRoot).toAbsolutePath().normalize();
     }
 
@@ -140,14 +148,19 @@ public class OperationsService {
         vehicleMaintenanceRecordRepository.save(new VehicleMaintenanceRecord(
                 beta.getId(),
                 beta.getPlate(),
+                generateMaintenanceCode(beta),
                 VehicleMaintenanceType.PREVENTIVE,
+                VehicleMaintenancePriority.LOW,
+                VehicleMaintenanceStatus.COMPLETED,
                 OffsetDateTime.now().minusDays(10),
                 OffsetDateTime.now().minusDays(9),
                 LocalDate.now().minusDays(9),
+                LocalDate.now().plusMonths(6),
                 60500L,
                 62000L,
                 new java.math.BigDecimal("850.00"),
                 "Oficina Central",
+                "Servico concluido sem pendencias.",
                 "Troca de oleo, filtros e alinhamento preventivo.",
                 true
         ));
@@ -296,6 +309,22 @@ public class OperationsService {
     }
 
     @Transactional(readOnly = true)
+    public List<VehicleMaintenanceOrderResponse> listVehicleMaintenanceOrders() {
+        // Expõe a frota em formato de ordem de servico legivel para relatorios e paines externos.
+        List<Vehicle> vehicles = listVehicles();
+        Map<Long, Vehicle> vehiclesById = vehicles.stream().collect(java.util.stream.Collectors.toMap(Vehicle::getId, vehicle -> vehicle));
+        return listVehicleMaintenanceRecords().stream()
+                .map(record -> vehicleFleetReportCalculator.toOrderResponse(record, vehiclesById.get(record.getVehicleId())))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public FleetOperationalReportResponse fleetReport() {
+        // Consolida o relatorio operacional da frota sem misturar com o resumo geral do dashboard.
+        return vehicleFleetReportCalculator.buildReport(listVehicles(), listVehicleMaintenanceRecords());
+    }
+
+    @Transactional(readOnly = true)
     public List<AuditRecord> listRecentAuditRecords() {
         return auditRecordRepository.findTop10ByOrderByOccurredAtDesc();
     }
@@ -386,24 +415,38 @@ public class OperationsService {
     public VehicleMaintenanceRecord addVehicleMaintenance(Long vehicleId, CreateVehicleMaintenanceRequest request) {
         // Registra manutencao com historico, custo e efeito operacional na viatura.
         Vehicle vehicle = getVehicle(vehicleId);
-        validateVehicleMaintenanceRequest(request.kmAtService(), request.nextMaintenanceKm(), request.costAmount());
+        validateVehicleMaintenanceRequest(request.kmAtService(), request.nextMaintenanceKm(), request.costAmount(), request.serviceDate(), request.dueDate(), request.status(), request.resolved());
 
         VehicleMaintenanceRecord record = new VehicleMaintenanceRecord(
                 vehicle.getId(),
                 vehicle.getPlate(),
+                generateMaintenanceCode(vehicle),
                 request.type(),
+                request.priority(),
+                request.status(),
                 OffsetDateTime.now(ZoneOffset.UTC),
-                request.resolved() ? OffsetDateTime.now(ZoneOffset.UTC) : null,
+                resolveMaintenanceCompletedAt(request.status(), request.resolved()),
                 request.serviceDate(),
+                request.dueDate(),
                 request.kmAtService(),
                 request.nextMaintenanceKm(),
                 request.costAmount(),
                 request.supplierName(),
+                normalizeOptionalText(request.resolutionNotes(), 1000),
                 request.description().trim(),
-                request.resolved()
+                isMaintenanceResolved(request.status(), request.resolved())
         );
 
-        applyMaintenanceImpact(vehicle, request.type(), request.serviceDate(), request.kmAtService(), request.nextMaintenanceKm(), request.description(), request.resolved());
+        applyMaintenanceImpact(
+                vehicle,
+                request.type(),
+                request.status(),
+                request.serviceDate(),
+                request.kmAtService(),
+                request.nextMaintenanceKm(),
+                request.description(),
+                isMaintenanceResolved(request.status(), request.resolved())
+        );
         vehicleRepository.save(vehicle);
         VehicleMaintenanceRecord savedRecord = vehicleMaintenanceRecordRepository.save(record);
         recordAudit(AuditActionType.MAINTENANCE, "VehicleMaintenance", savedRecord.getId(), "Registro de manutencao " + savedRecord.getType() + " para a viatura " + savedRecord.getVehiclePlate());
@@ -414,21 +457,34 @@ public class OperationsService {
     public VehicleMaintenanceRecord updateVehicleMaintenance(Long maintenanceId, UpdateVehicleMaintenanceRequest request) {
         VehicleMaintenanceRecord record = getVehicleMaintenanceRecord(maintenanceId);
         Vehicle vehicle = getVehicle(record.getVehicleId());
-        validateVehicleMaintenanceRequest(request.kmAtService(), request.nextMaintenanceKm(), request.costAmount());
+        validateVehicleMaintenanceRequest(request.kmAtService(), request.nextMaintenanceKm(), request.costAmount(), request.serviceDate(), request.dueDate(), request.status(), request.resolved());
 
         record.update(
                 request.type(),
-                request.resolved() ? OffsetDateTime.now(ZoneOffset.UTC) : null,
+                request.priority(),
+                request.status(),
+                resolveMaintenanceCompletedAt(request.status(), request.resolved()),
                 request.serviceDate(),
+                request.dueDate(),
                 request.kmAtService(),
                 request.nextMaintenanceKm(),
                 request.costAmount(),
                 request.supplierName(),
+                normalizeOptionalText(request.resolutionNotes(), 1000),
                 request.description().trim(),
-                request.resolved()
+                isMaintenanceResolved(request.status(), request.resolved())
         );
 
-        applyMaintenanceImpact(vehicle, request.type(), request.serviceDate(), request.kmAtService(), request.nextMaintenanceKm(), request.description(), request.resolved());
+        applyMaintenanceImpact(
+                vehicle,
+                request.type(),
+                request.status(),
+                request.serviceDate(),
+                request.kmAtService(),
+                request.nextMaintenanceKm(),
+                request.description(),
+                isMaintenanceResolved(request.status(), request.resolved())
+        );
         vehicleRepository.save(vehicle);
         VehicleMaintenanceRecord savedRecord = vehicleMaintenanceRecordRepository.save(record);
         recordAudit(AuditActionType.MAINTENANCE, "VehicleMaintenance", savedRecord.getId(), "Atualizacao da manutencao " + savedRecord.getType() + " da viatura " + savedRecord.getVehiclePlate());
@@ -801,6 +857,8 @@ public class OperationsService {
     @Transactional
     public void deleteIncident(Long id) {
         Incident incident = getIncident(id);
+        // Remove os arquivos fisicos antes de apagar a ocorrencia para nao deixar evidencia solta no disco.
+        deleteIncidentEvidenceFiles(id);
         incidentRepository.delete(incident);
         recordAudit(AuditActionType.DELETE, "Incident", id, "Exclusao da ocorrencia " + incident.getId());
     }
@@ -948,6 +1006,12 @@ public class OperationsService {
         long maintenanceAlerts = vehicles.stream()
                 .filter(this::hasVehicleAlert)
                 .count();
+        long openMaintenanceOrders = maintenanceRecords.stream()
+                .filter(record -> record.getStatus() != VehicleMaintenanceStatus.COMPLETED && record.getStatus() != VehicleMaintenanceStatus.CANCELLED)
+                .count();
+        long criticalMaintenanceOrders = maintenanceRecords.stream()
+                .filter(record -> record.getPriority() == VehicleMaintenancePriority.CRITICAL || record.getStatus() == VehicleMaintenanceStatus.WAITING_PARTS)
+                .count();
         ActivePatrolResponse activePatrol = buildActivePatrol(agents, vehicles, shifts, incidents);
 
         return new DashboardSummaryResponse(
@@ -960,6 +1024,8 @@ public class OperationsService {
                 absentShifts,
                 openIncidents,
                 maintenanceAlerts,
+                openMaintenanceOrders,
+                criticalMaintenanceOrders,
                 activePatrol,
                 auditRecords,
                 residents,
@@ -990,12 +1056,16 @@ public class OperationsService {
         long maintenanceAlerts = vehicles.stream()
                 .filter(this::hasVehicleAlert)
                 .count();
+        long openMaintenanceOrders = listVehicleMaintenanceRecords().stream()
+                .filter(record -> record.getStatus() != VehicleMaintenanceStatus.COMPLETED && record.getStatus() != VehicleMaintenanceStatus.CANCELLED)
+                .count();
 
         return new ClientPortalResponse(
                 activeShifts,
                 openIncidents,
                 availableVehicles,
                 maintenanceAlerts,
+                openMaintenanceOrders,
                 incidents.stream().limit(5).toList()
         );
     }
@@ -1022,11 +1092,11 @@ public class OperationsService {
 
     private boolean hasVehicleAlert(Vehicle vehicle) {
         // Concentra os alertas de manutencao e vencimento documental da viatura no dashboard.
-        LocalDate threshold = LocalDate.now().plusDays(30);
-        return vehicle.getNextMaintenanceKm() - vehicle.getCurrentKm() <= 1000
-                || (vehicle.getIpvaExpiry() != null && !vehicle.getIpvaExpiry().isAfter(threshold))
-                || (vehicle.getLicensingExpiry() != null && !vehicle.getLicensingExpiry().isAfter(threshold))
-                || (vehicle.getInsuranceExpiry() != null && !vehicle.getInsuranceExpiry().isAfter(threshold));
+        boolean hasOpenCriticalOrder = vehicleMaintenanceRecordRepository.findByVehicleIdOrderByOpenedAtDesc(vehicle.getId()).stream()
+                .anyMatch(record -> record.getStatus() != VehicleMaintenanceStatus.COMPLETED
+                        && record.getStatus() != VehicleMaintenanceStatus.CANCELLED
+                        && record.getPriority() == VehicleMaintenancePriority.CRITICAL);
+        return vehicle.isMaintenanceDueSoon(1_000L) || hasOpenCriticalOrder || vehicle.hasDocumentAlert(LocalDate.now(), 30);
     }
 
     private Shift getShift(Long id) {
@@ -1061,12 +1131,12 @@ public class OperationsService {
 
     private void validateVehicleOperationalReadiness(Vehicle vehicle, OffsetDateTime scheduledStartAt, OffsetDateTime scheduledEndAt, Long currentShiftId) {
         // Impede uso de viatura bloqueada, com documento vencido ou manutencao estourada em novos turnos.
-        if (vehicle.getStatus() == VehicleStatus.MAINTENANCE || vehicle.getStatus() == VehicleStatus.BLOCKED) {
+        if (!vehicle.isOperationallyReady()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A viatura selecionada nao esta liberada para operacao.");
         }
 
         LocalDate referenceDate = scheduledStartAt.toLocalDate();
-        if (vehicle.getNextMaintenanceKm() <= vehicle.getCurrentKm()) {
+        if (vehicle.isMaintenanceDue()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A viatura selecionada esta com manutencao vencida e nao pode receber novo turno.");
         }
 
@@ -1095,7 +1165,15 @@ public class OperationsService {
         }
     }
 
-    private void validateVehicleMaintenanceRequest(Long kmAtService, Long nextMaintenanceKm, java.math.BigDecimal costAmount) {
+    private void validateVehicleMaintenanceRequest(
+            Long kmAtService,
+            Long nextMaintenanceKm,
+            java.math.BigDecimal costAmount,
+            LocalDate plannedServiceDate,
+            LocalDate dueDate,
+            VehicleMaintenanceStatus status,
+            boolean resolved
+    ) {
         // Impede historico financeiro e de quilometragem inconsistente na ordem de servico.
         if (kmAtService != null && kmAtService < 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A quilometragem da manutencao nao pode ser negativa.");
@@ -1108,11 +1186,20 @@ public class OperationsService {
         if (costAmount != null && costAmount.signum() < 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O custo da manutencao nao pode ser negativo.");
         }
+
+        if (plannedServiceDate != null && dueDate != null && dueDate.isBefore(plannedServiceDate)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A data de vencimento da OS nao pode ser anterior a data do servico.");
+        }
+
+        if (resolved && status != VehicleMaintenanceStatus.COMPLETED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Uma manutencao marcada como resolvida precisa estar com status concluido.");
+        }
     }
 
     private void applyMaintenanceImpact(
             Vehicle vehicle,
             VehicleMaintenanceType type,
+            VehicleMaintenanceStatus status,
             LocalDate serviceDate,
             Long kmAtService,
             Long nextMaintenanceKm,
@@ -1126,7 +1213,8 @@ public class OperationsService {
         String updatedNotes = StringUtils.hasText(description) ? description.trim() : vehicle.getMaintenanceNotes();
         VehicleStatus updatedStatus = vehicle.getStatus();
 
-        if (!resolved && (type == VehicleMaintenanceType.CORRECTIVE || type == VehicleMaintenanceType.INSPECTION)) {
+        if ((status == VehicleMaintenanceStatus.OPEN || status == VehicleMaintenanceStatus.IN_PROGRESS || status == VehicleMaintenanceStatus.WAITING_PARTS)
+                && (type == VehicleMaintenanceType.CORRECTIVE || type == VehicleMaintenanceType.INSPECTION)) {
             updatedStatus = VehicleStatus.MAINTENANCE;
         } else if (resolved && vehicle.getStatus() == VehicleStatus.MAINTENANCE) {
             updatedStatus = VehicleStatus.AVAILABLE;
@@ -1144,6 +1232,26 @@ public class OperationsService {
                 updatedLastMaintenanceAt,
                 updatedNotes
         );
+    }
+
+    private String generateMaintenanceCode(Vehicle vehicle) {
+        // Gera um identificador curto de OS que a operacao consegue citar por telefone, radio e relatorio.
+        String prefix = vehicle.getPlate().replaceAll("[^A-Z0-9]", "").toUpperCase(Locale.ROOT);
+        String suffix = UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT);
+        return "OS-" + prefix + "-" + suffix;
+    }
+
+    private OffsetDateTime resolveMaintenanceCompletedAt(VehicleMaintenanceStatus status, boolean resolved) {
+        // Centraliza a coerencia entre status da OS e carimbo de conclusao.
+        if (status == VehicleMaintenanceStatus.COMPLETED || resolved) {
+            return OffsetDateTime.now(ZoneOffset.UTC);
+        }
+
+        return null;
+    }
+
+    private boolean isMaintenanceResolved(VehicleMaintenanceStatus status, boolean resolved) {
+        return status == VehicleMaintenanceStatus.COMPLETED || resolved;
     }
 
     private void activateShiftIfNeeded(Shift shift, Vehicle vehicle) {
@@ -1386,6 +1494,31 @@ public class OperationsService {
             Files.createDirectories(storageRoot.resolve("incidents"));
         } catch (IOException exception) {
             throw new IllegalStateException("Nao foi possivel inicializar o diretorio de evidencias.", exception);
+        }
+    }
+
+    private void deleteIncidentEvidenceFiles(Long incidentId) {
+        // Faz a limpeza local do diretorio de anexos ligado a uma ocorrencia removida.
+        List<IncidentEvidence> evidences = incidentEvidenceRepository.findByIncidentIdOrderByUploadedAtDesc(incidentId);
+        for (IncidentEvidence evidence : evidences) {
+            Path evidencePath = storageRoot
+                    .resolve("incidents")
+                    .resolve(String.valueOf(incidentId))
+                    .resolve(evidence.getStoredFilename());
+            try {
+                Files.deleteIfExists(evidencePath);
+            } catch (IOException exception) {
+                // A limpeza e best effort; a varredura agendada de retencao remove sobras se algo falhar.
+            }
+        }
+
+        Path incidentDirectory = storageRoot.resolve("incidents").resolve(String.valueOf(incidentId));
+        try (var listing = Files.list(incidentDirectory)) {
+            if (!listing.findAny().isPresent()) {
+                Files.deleteIfExists(incidentDirectory);
+            }
+        } catch (IOException exception) {
+            // O diretorio vazio nao precisa bloquear a exclusao funcional da ocorrencia.
         }
     }
 

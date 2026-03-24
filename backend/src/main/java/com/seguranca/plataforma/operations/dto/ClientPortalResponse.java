@@ -8,6 +8,7 @@ public record ClientPortalResponse(
         long openIncidents,
         long availableVehicles,
         long maintenanceAlerts,
+        long openMaintenanceOrders,
         List<Incident> recentIncidents
 ) {
 }

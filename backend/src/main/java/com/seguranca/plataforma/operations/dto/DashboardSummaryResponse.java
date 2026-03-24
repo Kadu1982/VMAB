@@ -20,6 +20,8 @@ public record DashboardSummaryResponse(
         long absentShifts,
         long openIncidents,
         long maintenanceAlerts,
+        long openMaintenanceOrders,
+        long criticalMaintenanceOrders,
         ActivePatrolResponse activePatrol,
         List<AuditRecord> auditRecords,
         List<Resident> residents,
