@@ -1,9 +1,11 @@
 package com.seguranca.plataforma.operations.web;
 
+import com.seguranca.plataforma.operations.dto.FleetOperationalReportResponse;
 import com.seguranca.plataforma.operations.dto.CreateVehicleMaintenanceRequest;
 import com.seguranca.plataforma.operations.dto.CreateVehicleRequest;
 import com.seguranca.plataforma.operations.dto.UpdateVehicleMaintenanceRequest;
 import com.seguranca.plataforma.operations.dto.UpdateVehicleRequest;
+import com.seguranca.plataforma.operations.dto.VehicleMaintenanceOrderResponse;
 import com.seguranca.plataforma.operations.model.Vehicle;
 import com.seguranca.plataforma.operations.model.VehicleMaintenanceRecord;
 import com.seguranca.plataforma.operations.service.OperationsService;
@@ -34,6 +36,18 @@ public class VehicleController {
     @GetMapping
     public List<Vehicle> list() {
         return operationsService.listVehicles();
+    }
+
+    @GetMapping("/maintenance/orders")
+    public List<VehicleMaintenanceOrderResponse> maintenanceOrders() {
+        // Entrega a frota em formato de ordem de servico para leitura operacional.
+        return operationsService.listVehicleMaintenanceOrders();
+    }
+
+    @GetMapping("/report")
+    public FleetOperationalReportResponse report() {
+        // Consolida os indicadores da frota sem depender do resumo geral do dashboard.
+        return operationsService.fleetReport();
     }
 
     @PostMapping

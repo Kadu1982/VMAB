@@ -120,6 +120,34 @@ public class Vehicle {
         return maintenanceNotes;
     }
 
+    public long getRemainingMaintenanceKm() {
+        // Expõe a distancia ate a proxima revisao para relatorios e regras operacionais.
+        return nextMaintenanceKm - currentKm;
+    }
+
+    public boolean isMaintenanceDue() {
+        // Quando a margem zera ou fica negativa, a viatura ja nao pode ser tratada como pronta.
+        return getRemainingMaintenanceKm() <= 0;
+    }
+
+    public boolean isMaintenanceDueSoon(long alertThresholdKm) {
+        // Usa uma margem objetiva para alertar a base antes da manutencao vencer de fato.
+        return getRemainingMaintenanceKm() <= alertThresholdKm;
+    }
+
+    public boolean hasDocumentAlert(LocalDate referenceDate, int alertWindowDays) {
+        // Centraliza o criterio de alerta documental para evitar logica duplicada no backend.
+        LocalDate threshold = referenceDate.plusDays(alertWindowDays);
+        return (ipvaExpiry != null && !ipvaExpiry.isAfter(threshold))
+                || (licensingExpiry != null && !licensingExpiry.isAfter(threshold))
+                || (insuranceExpiry != null && !insuranceExpiry.isAfter(threshold));
+    }
+
+    public boolean isOperationallyReady() {
+        // Apenas status liberados para uso em turno sao considerados prontos para operacao.
+        return status == VehicleStatus.AVAILABLE || status == VehicleStatus.IN_OPERATION;
+    }
+
     public void update(
             String plate,
             String model,
