@@ -110,7 +110,7 @@ class VehicleFleetReportCalculatorTests {
         assertEquals(1, report.maintenanceOrdersOpen());
         assertEquals(1, report.maintenanceOrdersResolved());
         assertEquals(1, report.correctiveOrdersOpen());
-        assertEquals(1, report.preventiveOrdersOpen());
+        assertEquals(0, report.preventiveOrdersOpen());
         assertEquals(0, report.inspectionOrdersOpen());
         assertEquals(0, report.documentationOrdersOpen());
         assertEquals(2, report.latestOrders().size());
