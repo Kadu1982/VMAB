@@ -15,6 +15,8 @@ public record ResidentAlertResponse(
         Double latitude,
         Double longitude,
         String notes,
+        boolean silent,
+        String escortDestination,
         OffsetDateTime openedAt,
         OffsetDateTime updatedAt,
         OffsetDateTime acknowledgedAt,

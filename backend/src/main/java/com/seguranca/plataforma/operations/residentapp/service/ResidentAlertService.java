@@ -4,6 +4,7 @@ import com.seguranca.plataforma.operations.model.AuditActionType;
 import com.seguranca.plataforma.operations.model.AuditRecord;
 import com.seguranca.plataforma.operations.model.Agent;
 import com.seguranca.plataforma.operations.model.Resident;
+import com.seguranca.plataforma.operations.model.ResidentStatus;
 import com.seguranca.plataforma.operations.model.Vehicle;
 import com.seguranca.plataforma.operations.model.VehicleStatus;
 import com.seguranca.plataforma.operations.repository.AgentRepository;
@@ -35,6 +36,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -55,6 +57,7 @@ public class ResidentAlertService {
     private final VehicleRepository vehicleRepository;
     private final AuditRecordRepository auditRecordRepository;
     private final OperationsRealtimeService operationsRealtimeService;
+    private final PasswordEncoder passwordEncoder;
 
     public ResidentAlertService(
             ResidentRepository residentRepository,
@@ -63,7 +66,8 @@ public class ResidentAlertService {
             AgentRepository agentRepository,
             VehicleRepository vehicleRepository,
             AuditRecordRepository auditRecordRepository,
-            OperationsRealtimeService operationsRealtimeService
+            OperationsRealtimeService operationsRealtimeService,
+            PasswordEncoder passwordEncoder
     ) {
         this.residentRepository = residentRepository;
         this.residentAlertRepository = residentAlertRepository;
@@ -72,18 +76,26 @@ public class ResidentAlertService {
         this.vehicleRepository = vehicleRepository;
         this.auditRecordRepository = auditRecordRepository;
         this.operationsRealtimeService = operationsRealtimeService;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Transactional
     public ResidentSessionResponse createSession(ResidentLoginRequest request) {
-        // Cria uma sessao simples e separada para o app do morador com validade curta.
+        // Cria uma sessao do morador baseada em PIN dedicado, sem tratar telefone como segredo.
         Resident resident = getResident(request.residentId());
-        if (!normalizeDigits(resident.getPhoneNumber()).equals(normalizeDigits(request.phoneNumber()))) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Morador ou telefone invalidos.");
+        if (resident.getStatus() != ResidentStatus.ACTIVE) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "O cadastro do morador esta inativo.");
+        }
+        if (!resident.isAccessPinConfigured()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O morador ainda nao possui PIN de acesso configurado.");
+        }
+        if (!passwordEncoder.matches(normalizeResidentPin(request.accessPin()), resident.getAccessPinHash())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Morador ou PIN invalidos.");
         }
 
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         String accessToken = UUID.randomUUID().toString().replace("-", "");
+        revokePreviousSessions(resident.getId(), now);
         ResidentSession session = new ResidentSession(
                 resident.getId(),
                 hashToken(accessToken),
@@ -141,8 +153,20 @@ public class ResidentAlertService {
         // Registra o alerta com a identidade do morador e a localizacao opcional do celular.
         ResidentSession session = resolveActiveSession(authorizationHeader);
         Resident resident = getResident(session.getResidentId());
+        if (resident.getStatus() != ResidentStatus.ACTIVE) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "O cadastro do morador esta inativo.");
+        }
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         String notes = StringUtils.hasText(request.notes()) ? request.notes().trim() : null;
+        boolean silentAlert = request.type() == ResidentAlertType.COACAO;
+        String escortDestination = normalizeEscortDestination(request.escortDestination());
+
+        if (silentAlert) {
+            validateCoercionPin(resident, request.coercionPin());
+        }
+        if (request.type() == ResidentAlertType.ESCOLTA && escortDestination == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Informe o destino da escolta.");
+        }
 
         ResidentAlert alert = new ResidentAlert(
                 resident.getId(),
@@ -155,7 +179,9 @@ public class ResidentAlertService {
                 now,
                 request.latitude(),
                 request.longitude(),
-                notes
+                notes,
+                silentAlert,
+                escortDestination
         );
 
         ResidentAlert savedAlert = residentAlertRepository.save(alert);
@@ -172,6 +198,9 @@ public class ResidentAlertService {
         ResidentAlert alert = getResidentAlert(alertId, session.getResidentId());
         if (alert.getStatus() == ResidentAlertStatus.DISPATCHED || alert.getStatus() == ResidentAlertStatus.ON_SITE || alert.getStatus() == ResidentAlertStatus.RESOLVED) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nao e possivel cancelar um alerta ja despachado ou resolvido.");
+        }
+        if ((alert.getType() == ResidentAlertType.PANICO || alert.getType() == ResidentAlertType.COACAO) && alert.getStatus() == ResidentAlertStatus.ACKNOWLEDGED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Alertas criticos recebidos pela central nao podem ser cancelados pelo app.");
         }
 
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
@@ -303,8 +332,14 @@ public class ResidentAlertService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O alerta ja foi finalizado e nao pode mudar de status.");
         }
 
-        if (currentStatus == ResidentAlertStatus.OPEN && requestedStatus == ResidentAlertStatus.ON_SITE) {
+        if (currentStatus == ResidentAlertStatus.OPEN && (requestedStatus == ResidentAlertStatus.DISPATCHED || requestedStatus == ResidentAlertStatus.ON_SITE || requestedStatus == ResidentAlertStatus.RESOLVED)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O alerta precisa ser recebido pela central antes de seguir para despacho ou resolucao.");
+        }
+        if (currentStatus == ResidentAlertStatus.ACKNOWLEDGED && requestedStatus == ResidentAlertStatus.ON_SITE) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O alerta precisa ser despachado antes de registrar chegada no local.");
+        }
+        if (currentStatus == ResidentAlertStatus.ACKNOWLEDGED && requestedStatus == ResidentAlertStatus.RESOLVED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O alerta precisa passar por despacho antes da resolucao.");
         }
     }
 
@@ -320,6 +355,8 @@ public class ResidentAlertService {
                 alert.getLatitude(),
                 alert.getLongitude(),
                 alert.getNotes(),
+                alert.isSilent(),
+                alert.getEscortDestination(),
                 alert.getOpenedAt(),
                 alert.getUpdatedAt(),
                 alert.getAcknowledgedAt(),
@@ -349,6 +386,34 @@ public class ResidentAlertService {
 
     private String normalizeDigits(String value) {
         return value == null ? "" : value.replaceAll("\\D+", "");
+    }
+
+    private String normalizeResidentPin(String pin) {
+        String digitsOnly = normalizeDigits(pin);
+        if (!StringUtils.hasText(digitsOnly)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Informe o PIN do morador.");
+        }
+        return digitsOnly;
+    }
+
+    private void revokePreviousSessions(Long residentId, OffsetDateTime now) {
+        // Nova autenticacao invalida sessoes antigas para reduzir compartilhamento indevido do app.
+        residentSessionRepository.findByResidentIdOrderByCreatedAtDesc(residentId).stream()
+                .filter(existingSession -> existingSession.isActive(now))
+                .forEach(existingSession -> existingSession.revoke(now));
+    }
+
+    private void validateCoercionPin(Resident resident, String coercionPin) {
+        if (!resident.isCoercionPinConfigured()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O morador nao possui PIN de coacao configurado.");
+        }
+        if (!passwordEncoder.matches(normalizeResidentPin(coercionPin), resident.getCoercionPinHash())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "PIN de coacao invalido.");
+        }
+    }
+
+    private String normalizeEscortDestination(String escortDestination) {
+        return StringUtils.hasText(escortDestination) ? escortDestination.trim() : null;
     }
 
     private String normalizeNotes(String notes, String fallback) {

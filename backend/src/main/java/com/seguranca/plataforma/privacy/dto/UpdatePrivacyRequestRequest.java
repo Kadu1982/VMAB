@@ -5,6 +5,9 @@ import jakarta.validation.constraints.NotNull;
 
 public record UpdatePrivacyRequestRequest(
         @NotNull PrivacyRequestStatus status,
-        String notes
+        String notes,
+        boolean notifySubject,
+        String notificationChannel,
+        String notificationNotes
 ) {
 }

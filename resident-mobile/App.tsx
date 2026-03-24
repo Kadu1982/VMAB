@@ -52,6 +52,8 @@ type ResidentAlert = {
   latitude?: number | null
   longitude?: number | null
   notes?: string | null
+  silent: boolean
+  escortDestination?: string | null
   openedAt: string
   updatedAt: string
   acknowledgedAt?: string | null
@@ -70,20 +72,24 @@ type ResidentAlert = {
 
 type LoginForm = {
   residentId: string
-  phoneNumber: string
+  accessPin: string
 }
 
 type AlertDraft = {
   notes: string
+  escortDestination: string
+  coercionPin: string
 }
 
 const initialLoginForm: LoginForm = {
   residentId: '1',
-  phoneNumber: '(11) 99888-1122',
+  accessPin: '1122',
 }
 
 const initialAlertDraft: AlertDraft = {
   notes: '',
+  escortDestination: '',
+  coercionPin: '',
 }
 
 function normalizeApiBaseUrl(value: string) {
@@ -133,6 +139,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [sendingAlert, setSendingAlert] = useState<ResidentAlertType | null>(null)
+  const [countdownAlertType, setCountdownAlertType] = useState<ResidentAlertType | null>(null)
+  const [countdownSeconds, setCountdownSeconds] = useState(0)
 
   useEffect(() => {
     // Restaura configuracao local para o usuario nao precisar digitar tudo a cada abertura.
@@ -232,7 +240,7 @@ export default function App() {
   }
 
   async function handleLogin() {
-    // Autentica o morador com o cadastro e o telefone que ja existem no backend.
+    // Autentica o morador com PIN dedicado para nao tratar telefone como segredo.
     setLoading(true)
     setError(null)
 
@@ -241,12 +249,12 @@ export default function App() {
         method: 'POST',
         body: JSON.stringify({
           residentId: Number(loginForm.residentId),
-          phoneNumber: loginForm.phoneNumber,
+          accessPin: loginForm.accessPin,
         }),
       })
 
       if (!response.ok) {
-        throw new Error('Nao foi possivel entrar. Verifique o ID e o telefone do morador.')
+        throw new Error('Nao foi possivel entrar. Verifique o ID e o PIN do morador.')
       }
 
       const nextSession = (await response.json()) as ResidentSession
@@ -290,6 +298,8 @@ export default function App() {
         body: JSON.stringify({
           type,
           notes: alertDraft.notes,
+          escortDestination: type === 'ESCOLTA' ? alertDraft.escortDestination : null,
+          coercionPin: type === 'COACAO' ? alertDraft.coercionPin : null,
           latitude,
           longitude,
         }),
@@ -300,12 +310,26 @@ export default function App() {
       }
 
       setAlertDraft(initialAlertDraft)
+      setCountdownAlertType(null)
+      setCountdownSeconds(0)
       await refreshResidentData()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Falha inesperada ao abrir o alerta.')
     } finally {
       setSendingAlert(null)
     }
+  }
+
+  function beginAlertCountdown(type: ResidentAlertType) {
+    // O disparo passa por janela curta de cancelamento para reduzir acionamento acidental.
+    if (countdownAlertType === type) {
+      setCountdownAlertType(null)
+      setCountdownSeconds(0)
+      return
+    }
+
+    setCountdownAlertType(type)
+    setCountdownSeconds(5)
   }
 
   async function cancelAlert(alertId: number) {
@@ -346,6 +370,28 @@ export default function App() {
     }
   }, [session?.accessToken])
 
+  useEffect(() => {
+    if (!countdownAlertType || countdownSeconds <= 0) {
+      return
+    }
+
+    const timeoutId = setTimeout(() => {
+      setCountdownSeconds((current) => current - 1)
+    }, 1000)
+
+    return () => {
+      clearTimeout(timeoutId)
+    }
+  }, [countdownAlertType, countdownSeconds])
+
+  useEffect(() => {
+    if (!countdownAlertType || countdownSeconds !== 0) {
+      return
+    }
+
+    void submitAlert(countdownAlertType)
+  }, [countdownAlertType, countdownSeconds])
+
   if (!session) {
     // Tela de acesso enxuta para o morador iniciar o uso do app.
     return (
@@ -356,7 +402,7 @@ export default function App() {
           <Text style={styles.eyebrow}>VMAB Morador</Text>
           <Text style={styles.title}>Alerta rápido. Controle real.</Text>
           <Text style={styles.copy}>
-            Entre com o ID do morador e o telefone cadastrado para abrir alertas, acompanhar status e falar com a central.
+            Entre com o ID do morador e o PIN de acesso para abrir alertas, acompanhar status e falar com a central.
           </Text>
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -378,11 +424,12 @@ export default function App() {
               onChangeText={(value) => setLoginForm((current) => ({ ...current, residentId: value }))}
             />
             <TextInput
-              placeholder="Telefone cadastrado"
+              keyboardType="numeric"
+              placeholder="PIN de acesso"
               placeholderTextColor="#8c8e92"
               style={styles.input}
-              value={loginForm.phoneNumber}
-              onChangeText={(value) => setLoginForm((current) => ({ ...current, phoneNumber: value }))}
+              value={loginForm.accessPin}
+              onChangeText={(value) => setLoginForm((current) => ({ ...current, accessPin: value }))}
             />
             <Pressable style={styles.primaryButton} onPress={() => void handleLogin()}>
               <Text style={styles.primaryButtonText}>{loading ? 'Entrando...' : 'Entrar'}</Text>
@@ -392,7 +439,7 @@ export default function App() {
           <View style={styles.hintCard}>
             <Text style={styles.hintTitle}>Exemplo de teste</Text>
             <Text style={styles.hintText}>ID: 1</Text>
-            <Text style={styles.hintText}>Telefone: (11) 99888-1122</Text>
+            <Text style={styles.hintText}>PIN padrao local: 1122</Text>
           </View>
         </View>
       </SafeAreaView>
@@ -441,12 +488,34 @@ export default function App() {
             placeholderTextColor="#8c8e92"
             style={[styles.input, styles.textArea]}
             value={alertDraft.notes}
-            onChangeText={(value) => setAlertDraft({ notes: value })}
+            onChangeText={(value) => setAlertDraft((current) => ({ ...current, notes: value }))}
           />
+          <TextInput
+            placeholder="Destino da escolta"
+            placeholderTextColor="#8c8e92"
+            style={styles.input}
+            value={alertDraft.escortDestination}
+            onChangeText={(value) => setAlertDraft((current) => ({ ...current, escortDestination: value }))}
+          />
+          <TextInput
+            keyboardType="numeric"
+            placeholder="PIN de coacao"
+            placeholderTextColor="#8c8e92"
+            style={styles.input}
+            value={alertDraft.coercionPin}
+            onChangeText={(value) => setAlertDraft((current) => ({ ...current, coercionPin: value }))}
+          />
+          {countdownAlertType ? <Text style={styles.meta}>Alerta {translateAlertType(countdownAlertType)} sera enviado em {countdownSeconds}s. Toque no mesmo botao para cancelar.</Text> : null}
           <View style={styles.alertGrid}>
             {(['PANICO', 'COACAO', 'ESCOLTA', 'SUSPEITA', 'MEDICA'] as ResidentAlertType[]).map((type) => (
-              <Pressable key={type} style={styles.alertButton} onPress={() => void submitAlert(type)}>
-                <Text style={styles.alertButtonLabel}>{sendingAlert === type ? 'Enviando...' : translateAlertType(type)}</Text>
+              <Pressable key={type} style={styles.alertButton} onPress={() => beginAlertCountdown(type)}>
+                <Text style={styles.alertButtonLabel}>
+                  {sendingAlert === type
+                    ? 'Enviando...'
+                    : countdownAlertType === type
+                      ? `Cancelar ${translateAlertType(type)}`
+                      : translateAlertType(type)}
+                </Text>
               </Pressable>
             ))}
           </View>

@@ -106,6 +106,8 @@ const initialResidentForm = {
   phoneNumber: '',
   address: '',
   referenceNote: '',
+  accessPin: '',
+  coercionPin: '',
   status: 'ACTIVE' as ResidentStatus,
 }
 
@@ -598,6 +600,30 @@ function App() {
     return () => window.clearInterval(intervalId)
   }, [authenticated, session])
 
+  useEffect(() => {
+    // Usa SSE quando disponivel para reduzir atraso operacional no painel sem depender so de polling.
+    if (!authenticated || !session?.accessToken || typeof window === 'undefined' || typeof EventSource === 'undefined') {
+      return
+    }
+
+    const eventSource = new EventSource(`${API_BASE_URL}/api/events/stream?token=${encodeURIComponent(session.accessToken)}`)
+    const handleRealtimeRefresh = () => {
+      startTransition(() => {
+        void loadData()
+      })
+    }
+
+    eventSource.addEventListener('operations', handleRealtimeRefresh)
+    eventSource.onerror = () => {
+      // O polling de fallback continua ativo mesmo se o canal realtime cair.
+    }
+
+    return () => {
+      eventSource.removeEventListener('operations', handleRealtimeRefresh)
+      eventSource.close()
+    }
+  }, [authenticated, session?.accessToken])
+
   function resetAgentForm() {
     setAgentForm(initialAgentForm)
     setEditingAgentId(null)
@@ -681,6 +707,8 @@ function App() {
       phoneNumber: resident.phoneNumber,
       address: resident.address,
       referenceNote: resident.referenceNote ?? '',
+      accessPin: '',
+      coercionPin: '',
       status: resident.status,
     })
   }
@@ -992,6 +1020,8 @@ function App() {
       phoneNumber: residentForm.phoneNumber,
       address: residentForm.address,
       referenceNote: residentForm.referenceNote || null,
+      accessPin: residentForm.accessPin || null,
+      coercionPin: residentForm.coercionPin || null,
     }
     const payload = editingResidentId === null ? basePayload : { ...basePayload, status: residentForm.status }
     await saveEntity(path, method, payload, 'Nao foi possivel salvar o morador.', resetResidentForm)
@@ -1095,6 +1125,26 @@ function App() {
       'Nao foi possivel concluir o pedido LGPD.',
       resetPrivacyForm,
     )
+  }
+
+  async function handlePrivacyExportDownload(subjectType: PrivacySubjectType, subjectId: number) {
+    // Gera o pacote de exportacao do titular sem depender de processo manual fora do painel.
+    try {
+      const response = await apiFetch(`/api/privacy/exports/${subjectType}/${subjectId}/download`)
+      if (!response.ok) {
+        throw new Error('Nao foi possivel gerar o arquivo de exportacao.')
+      }
+
+      const blob = await response.blob()
+      const downloadUrl = window.URL.createObjectURL(blob)
+      const anchor = window.document.createElement('a')
+      anchor.href = downloadUrl
+      anchor.download = `vmab-lgpd-${subjectType.toLowerCase()}-${subjectId}.json`
+      anchor.click()
+      window.URL.revokeObjectURL(downloadUrl)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Falha inesperada ao gerar a exportacao LGPD.')
+    }
   }
 
   async function handleIncidentSubmit(event: FormEvent<HTMLFormElement>) {
@@ -1595,6 +1645,8 @@ function App() {
                     <input required placeholder="Telefone" value={residentForm.phoneNumber} onChange={(event) => setResidentForm((current) => ({ ...current, phoneNumber: event.target.value }))} />
                     <input required placeholder="Endereco" value={residentForm.address} onChange={(event) => setResidentForm((current) => ({ ...current, address: event.target.value }))} />
                     <input placeholder="Observacao / referencia" value={residentForm.referenceNote} onChange={(event) => setResidentForm((current) => ({ ...current, referenceNote: event.target.value }))} />
+                    <input placeholder="PIN de acesso (4 a 6 digitos)" value={residentForm.accessPin} onChange={(event) => setResidentForm((current) => ({ ...current, accessPin: event.target.value }))} />
+                    <input placeholder="PIN de coacao (4 a 6 digitos)" value={residentForm.coercionPin} onChange={(event) => setResidentForm((current) => ({ ...current, coercionPin: event.target.value }))} />
                     <select value={residentForm.status} onChange={(event) => setResidentForm((current) => ({ ...current, status: event.target.value as ResidentStatus }))}>
                       {residentStatusOptions.map((status) => <option key={status} value={status}>{translateResidentStatus(status)}</option>)}
                     </select>
@@ -1606,11 +1658,11 @@ function App() {
                 ) : null}
                 <div className="list">
                   {summary.residents.map((resident) => (
-                    <article className="list-row" key={resident.id}>
-                      <div>
-                        <strong>{resident.fullName}</strong>
-                        <small>{resident.phoneNumber} | {resident.address}</small>
-                      </div>
+                      <article className="list-row" key={resident.id}>
+                        <div>
+                          <strong>{resident.fullName}</strong>
+                          <small>{resident.phoneNumber} | {resident.address} | acesso {resident.accessPinConfigured ? 'configurado' : 'pendente'} | coacao {resident.coercionPinConfigured ? 'configurado' : 'pendente'}</small>
+                        </div>
                       <div className="row-actions">
                         <span className={`tag ${resident.status.toLowerCase()}`}>{translateResidentStatus(resident.status)}</span>
                         {canManageCatalog ? <button className="ghost-button" onClick={() => startResidentEdit(resident)} type="button">Editar</button> : null}
@@ -1943,9 +1995,16 @@ function App() {
                             <strong>{translatePrivacyRequestType(request.requestType)} | {translatePrivacySubjectType(request.subjectType)} #{request.subjectId} — {request.subjectLabel}</strong>
                             <small>Solicitado por {request.requestedBy} em {formatDate(request.requestedAt)}{request.handledAt ? ` • atendido por ${request.handledBy ?? '?'} em ${formatDate(request.handledAt)}` : ''}</small>
                             {request.notes ? <small>{request.notes}</small> : null}
+                            {request.subjectNotifiedAt ? <small>Titular notificado em {formatDate(request.subjectNotifiedAt)} via {request.subjectNotificationChannel ?? 'canal nao informado'}.</small> : null}
+                            {request.subjectNotificationNotes ? <small>{request.subjectNotificationNotes}</small> : null}
+                            {request.exportGeneratedAt ? <small>Exportacao gerada em {formatDate(request.exportGeneratedAt)}.</small> : null}
+                            {request.deletionAppliedAt ? <small>Anonimizacao aplicada em {formatDate(request.deletionAppliedAt)}.</small> : null}
                           </div>
                           <div className="row-actions">
                             <span className={`tag ${request.status.toLowerCase().replace('_', '-')}`}>{translatePrivacyRequestStatus(request.status)}</span>
+                            {request.requestType === 'EXPORT' ? (
+                              <button className="ghost-button" onClick={() => void handlePrivacyExportDownload(request.subjectType, request.subjectId)} type="button">Baixar JSON</button>
+                            ) : null}
                             {request.status === 'OPEN' || request.status === 'IN_PROGRESS' ? (
                               <button className="ghost-button" onClick={() => void handlePrivacyRequestComplete(request.id)} type="button">Concluir</button>
                             ) : null}

@@ -132,4 +132,14 @@ public class Agent {
         this.workExamsExpiry = workExamsExpiry;
         this.documentNotes = documentNotes;
     }
+
+    public void anonymizePersonalData() {
+        // A anonimização preserva o registro operacional, mas retira os dados pessoais diretos do vigilante.
+        this.fullName = "Agente removido #" + id;
+        this.photoUrl = null;
+        this.medicalExamExpiry = null;
+        this.workExamsExpiry = null;
+        this.documentNotes = null;
+        this.status = AgentStatus.BLOCKED;
+    }
 }

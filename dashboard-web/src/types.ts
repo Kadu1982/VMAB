@@ -39,6 +39,8 @@ export interface Resident {
   address: string
   referenceNote?: string | null
   status: ResidentStatus
+  accessPinConfigured?: boolean
+  coercionPinConfigured?: boolean
 }
 
 export interface Vehicle {
@@ -238,6 +240,8 @@ export interface ResidentAlert {
   latitude?: number | null
   longitude?: number | null
   notes?: string | null
+  silent: boolean
+  escortDestination?: string | null
   openedAt: string
   updatedAt: string
   acknowledgedAt?: string | null
@@ -339,6 +343,11 @@ export interface PrivacyRequest {
   handledBy?: string | null
   handledAt?: string | null
   notes?: string | null
+  subjectNotifiedAt?: string | null
+  subjectNotificationChannel?: string | null
+  subjectNotificationNotes?: string | null
+  exportGeneratedAt?: string | null
+  deletionAppliedAt?: string | null
 }
 
 export interface PrivacyRetentionStatus {

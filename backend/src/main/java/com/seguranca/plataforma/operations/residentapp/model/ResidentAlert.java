@@ -69,6 +69,12 @@ public class ResidentAlert {
     @Column(length = 1000)
     private String notes;
 
+    @Column(name = "silent", nullable = false)
+    private boolean silent;
+
+    @Column(name = "escort_destination", length = 255)
+    private String escortDestination;
+
     @Column(name = "acknowledgment_notes", length = 500)
     private String acknowledgmentNotes;
 
@@ -110,7 +116,9 @@ public class ResidentAlert {
             OffsetDateTime updatedAt,
             Double latitude,
             Double longitude,
-            String notes
+            String notes,
+            boolean silent,
+            String escortDestination
     ) {
         this.residentId = residentId;
         this.residentName = residentName;
@@ -123,6 +131,8 @@ public class ResidentAlert {
         this.latitude = latitude;
         this.longitude = longitude;
         this.notes = notes;
+        this.silent = silent;
+        this.escortDestination = escortDestination;
     }
 
     public Long getId() {
@@ -191,6 +201,14 @@ public class ResidentAlert {
 
     public String getNotes() {
         return notes;
+    }
+
+    public boolean isSilent() {
+        return silent;
+    }
+
+    public String getEscortDestination() {
+        return escortDestination;
     }
 
     public String getAcknowledgmentNotes() {
@@ -273,5 +291,12 @@ public class ResidentAlert {
         this.cancellationReason = cancellationReason;
         this.status = ResidentAlertStatus.CANCELLED;
         this.updatedAt = cancelledAt;
+    }
+
+    public void anonymizeResidentData(String residentName, String residentPhoneNumber, String residentAddress) {
+        // O historico operacional e preservado, mas os dados pessoais diretos do morador sao substituidos.
+        this.residentName = residentName;
+        this.residentPhoneNumber = residentPhoneNumber;
+        this.residentAddress = residentAddress;
     }
 }

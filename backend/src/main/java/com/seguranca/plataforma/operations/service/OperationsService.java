@@ -80,6 +80,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -103,6 +104,7 @@ public class OperationsService {
     private final OperationsRealtimeService operationsRealtimeService;
     private final VehicleFleetReportCalculator vehicleFleetReportCalculator;
     private final VmabRetentionProperties retentionProperties;
+    private final PasswordEncoder passwordEncoder;
     private final Path storageRoot;
 
     public OperationsService(
@@ -119,6 +121,7 @@ public class OperationsService {
             OperationsRealtimeService operationsRealtimeService,
             VehicleFleetReportCalculator vehicleFleetReportCalculator,
             VmabRetentionProperties retentionProperties,
+            PasswordEncoder passwordEncoder,
             @Value("${vmab.storage-root}") String storageRoot
     ) {
         this.agentRepository = agentRepository;
@@ -134,6 +137,7 @@ public class OperationsService {
         this.operationsRealtimeService = operationsRealtimeService;
         this.vehicleFleetReportCalculator = vehicleFleetReportCalculator;
         this.retentionProperties = retentionProperties;
+        this.passwordEncoder = passwordEncoder;
         this.storageRoot = Path.of(storageRoot).toAbsolutePath().normalize();
     }
 
@@ -149,8 +153,24 @@ public class OperationsService {
         Agent carlos = agentRepository.save(new Agent("Carlos Nunes", "ALPHA-01", "AB", LocalDate.now().plusYears(2), AgentStatus.ON_DUTY, "https://i.pravatar.cc/160?img=12", LocalDate.now().plusMonths(8), LocalDate.now().plusMonths(6), "Exames ocupacionais em dia"));
         Agent marina = agentRepository.save(new Agent("Marina Luz", "BETA-02", "AB", LocalDate.now().plusYears(3), AgentStatus.ACTIVE, "https://i.pravatar.cc/160?img=32", LocalDate.now().plusMonths(10), LocalDate.now().plusMonths(7), "Apta para cobertura noturna"));
         agentRepository.save(new Agent("Joao Prado", "SUP-01", "B", LocalDate.now().plusYears(1), AgentStatus.OFF_DUTY, null, LocalDate.now().plusMonths(4), LocalDate.now().plusMonths(5), "Necessita reciclagem semestral"));
-        Resident ana = residentRepository.save(new Resident("Ana Souza", "(11) 99888-1122", "Rua das Acacias, 85", "Casa azul com portao branco", ResidentStatus.ACTIVE));
-        Resident bruno = residentRepository.save(new Resident("Bruno Lima", "(11) 99777-6655", "Alameda Ipe, 210", "Acesso lateral pela guarita 2", ResidentStatus.ACTIVE));
+        Resident ana = residentRepository.save(new Resident(
+                "Ana Souza",
+                "(11) 99888-1122",
+                "Rua das Acacias, 85",
+                "Casa azul com portao branco",
+                ResidentStatus.ACTIVE,
+                encodeResidentPin(null, "(11) 99888-1122", false),
+                encodeResidentPin(null, "(11) 99888-1122", true)
+        ));
+        Resident bruno = residentRepository.save(new Resident(
+                "Bruno Lima",
+                "(11) 99777-6655",
+                "Alameda Ipe, 210",
+                "Acesso lateral pela guarita 2",
+                ResidentStatus.ACTIVE,
+                encodeResidentPin(null, "(11) 99777-6655", false),
+                encodeResidentPin(null, "(11) 99777-6655", true)
+        ));
 
         Vehicle alpha = vehicleRepository.save(new Vehicle("ABC1D23", "Renault Duster", 48241, 49000, VehicleStatus.IN_OPERATION, LocalDate.now().plusMonths(7), LocalDate.now().plusMonths(7), LocalDate.now().plusMonths(10), LocalDate.now().minusMonths(2), "Manutencao preventiva realizada na ultima troca de oleo"));
         Vehicle beta = vehicleRepository.save(new Vehicle("FGH4J56", "Chevrolet Spin", 61120, 62000, VehicleStatus.AVAILABLE, LocalDate.now().plusMonths(2), LocalDate.now().plusMonths(2), LocalDate.now().plusMonths(6), LocalDate.now().minusMonths(1), "Verificar desgaste de pneus no proximo ciclo"));
@@ -353,7 +373,9 @@ public class OperationsService {
                 request.phoneNumber(),
                 request.address(),
                 request.referenceNote(),
-                ResidentStatus.ACTIVE
+                ResidentStatus.ACTIVE,
+                encodeResidentPin(request.accessPin(), request.phoneNumber(), false),
+                encodeResidentPin(request.coercionPin(), request.phoneNumber(), true)
         );
         Resident savedResident = residentRepository.save(resident);
         recordAudit(AuditActionType.CREATE, "Resident", savedResident.getId(), "Cadastro do morador " + savedResident.getFullName());
@@ -368,7 +390,9 @@ public class OperationsService {
                 request.phoneNumber(),
                 request.address(),
                 request.referenceNote(),
-                request.status()
+                request.status(),
+                encodeResidentPin(request.accessPin(), request.phoneNumber(), false),
+                encodeResidentPin(request.coercionPin(), request.phoneNumber(), true)
         );
         Resident savedResident = residentRepository.save(resident);
         recordAudit(AuditActionType.UPDATE, "Resident", savedResident.getId(), "Atualizacao do morador " + savedResident.getFullName());
@@ -1568,6 +1592,37 @@ public class OperationsService {
         } catch (IOException exception) {
             // O diretorio vazio nao precisa bloquear a exclusao funcional da ocorrencia.
         }
+    }
+
+    private String encodeResidentPin(String explicitPin, String phoneNumber, boolean coercionMode) {
+        // O cadastro do morador passa a usar PIN dedicado para acesso e um PIN separado para coacao.
+        String normalizedPin = normalizeResidentPin(explicitPin);
+        if (normalizedPin == null) {
+            normalizedPin = deriveResidentPinFromPhone(phoneNumber, coercionMode);
+        }
+        return passwordEncoder.encode(normalizedPin);
+    }
+
+    private String normalizeResidentPin(String pin) {
+        if (!StringUtils.hasText(pin)) {
+            return null;
+        }
+
+        String digitsOnly = pin.replaceAll("\\D+", "");
+        if (digitsOnly.length() < 4 || digitsOnly.length() > 6) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O PIN do morador deve ter entre 4 e 6 digitos.");
+        }
+        return digitsOnly;
+    }
+
+    private String deriveResidentPinFromPhone(String phoneNumber, boolean coercionMode) {
+        String digitsOnly = phoneNumber == null ? "" : phoneNumber.replaceAll("\\D+", "");
+        if (digitsOnly.length() < 4) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nao foi possivel derivar o PIN padrao do morador a partir do telefone.");
+        }
+
+        String lastFourDigits = digitsOnly.substring(digitsOnly.length() - 4);
+        return coercionMode ? new StringBuilder(lastFourDigits).reverse().toString() : lastFourDigits;
     }
 
     private void enforceHandoffRequesterAuthorization(Shift shift) {

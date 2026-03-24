@@ -52,6 +52,21 @@ public class PrivacyRequest {
     @Column(length = 1000)
     private String notes;
 
+    @Column(name = "subject_notified_at")
+    private OffsetDateTime subjectNotifiedAt;
+
+    @Column(name = "subject_notification_channel", length = 80)
+    private String subjectNotificationChannel;
+
+    @Column(name = "subject_notification_notes", length = 1000)
+    private String subjectNotificationNotes;
+
+    @Column(name = "export_generated_at")
+    private OffsetDateTime exportGeneratedAt;
+
+    @Column(name = "deletion_applied_at")
+    private OffsetDateTime deletionAppliedAt;
+
     protected PrivacyRequest() {
     }
 
@@ -119,10 +134,44 @@ public class PrivacyRequest {
         return notes;
     }
 
+    public OffsetDateTime getSubjectNotifiedAt() {
+        return subjectNotifiedAt;
+    }
+
+    public String getSubjectNotificationChannel() {
+        return subjectNotificationChannel;
+    }
+
+    public String getSubjectNotificationNotes() {
+        return subjectNotificationNotes;
+    }
+
+    public OffsetDateTime getExportGeneratedAt() {
+        return exportGeneratedAt;
+    }
+
+    public OffsetDateTime getDeletionAppliedAt() {
+        return deletionAppliedAt;
+    }
+
     public void updateStatus(PrivacyRequestStatus status, String handledBy, OffsetDateTime handledAt, String notes) {
         this.status = status;
         this.handledBy = handledBy;
         this.handledAt = handledAt;
         this.notes = notes;
+    }
+
+    public void registerSubjectNotification(String channel, String notes, OffsetDateTime occurredAt) {
+        this.subjectNotificationChannel = channel;
+        this.subjectNotificationNotes = notes;
+        this.subjectNotifiedAt = occurredAt;
+    }
+
+    public void markExportGenerated(OffsetDateTime occurredAt) {
+        this.exportGeneratedAt = occurredAt;
+    }
+
+    public void markDeletionApplied(OffsetDateTime occurredAt) {
+        this.deletionAppliedAt = occurredAt;
     }
 }

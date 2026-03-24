@@ -119,6 +119,16 @@ public class PrivacyService {
 
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         privacyRequest.updateStatus(request.status(), resolveCurrentActorUsername(), now, normalizeNotes(request.notes()));
+        if (request.notifySubject()) {
+            privacyRequest.registerSubjectNotification(
+                    normalizeNotes(request.notificationChannel()),
+                    normalizeNotes(request.notificationNotes()),
+                    now
+            );
+        }
+        if (request.status() == PrivacyRequestStatus.COMPLETED) {
+            applyCompletionEffects(privacyRequest, now);
+        }
         PrivacyRequest savedRequest = privacyRequestRepository.save(privacyRequest);
         recordAudit(AuditActionType.UPDATE, "PrivacyRequest", savedRequest.getId(), "Pedido LGPD atualizado para " + savedRequest.getStatus());
         return PrivacyRequestResponse.fromEntity(savedRequest);
@@ -133,6 +143,12 @@ public class PrivacyService {
             case APP_USER -> buildAppUserExport(subjectId);
             case AGENT -> buildAgentExport(subjectId);
         };
+
+        privacyRequestRepository.findAllByOrderByRequestedAtDesc().stream()
+                .filter(request -> request.getRequestType() == PrivacyRequestType.EXPORT)
+                .filter(request -> request.getSubjectType() == subjectType && request.getSubjectId().equals(subjectId))
+                .findFirst()
+                .ifPresent(request -> request.markExportGenerated(OffsetDateTime.now(ZoneOffset.UTC)));
 
         recordAudit(AuditActionType.UPDATE, "PrivacyExport", subjectId, "Exportacao de dados gerada para " + snapshot.subjectLabel());
         return new PrivacyExportResponse(subjectType, subjectId, snapshot.subjectLabel(), OffsetDateTime.now(ZoneOffset.UTC), payload);
@@ -235,6 +251,58 @@ public class PrivacyService {
 
     private String normalizeNotes(String notes) {
         return notes == null || notes.isBlank() ? null : notes.trim();
+    }
+
+    private void applyCompletionEffects(PrivacyRequest privacyRequest, OffsetDateTime now) {
+        // Ao concluir o pedido, o sistema registra o efeito material aplicado ao titular.
+        if (privacyRequest.getRequestType() == PrivacyRequestType.EXPORT) {
+            privacyRequest.markExportGenerated(now);
+            return;
+        }
+
+        switch (privacyRequest.getSubjectType()) {
+            case RESIDENT -> anonymizeResident(privacyRequest.getSubjectId(), now);
+            case APP_USER -> anonymizeAppUser(privacyRequest.getSubjectId());
+            case AGENT -> anonymizeAgent(privacyRequest.getSubjectId());
+        }
+        privacyRequest.markDeletionApplied(now);
+    }
+
+    private void anonymizeResident(Long residentId, OffsetDateTime now) {
+        Resident resident = residentRepository.findById(residentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Morador nao encontrado."));
+        resident.update(
+                "Morador removido #" + residentId,
+                "anon-resident-" + residentId,
+                "Endereco anonimizado",
+                null,
+                com.seguranca.plataforma.operations.model.ResidentStatus.INACTIVE,
+                null,
+                null
+        );
+        residentRepository.save(resident);
+
+        residentSessionRepository.findByResidentIdOrderByCreatedAtDesc(residentId)
+                .forEach(session -> session.revoke(now));
+        residentAlertRepository.findByResidentIdOrderByOpenedAtDesc(residentId)
+                .forEach(alert -> alert.anonymizeResidentData("Morador removido #" + residentId, "anon-resident-" + residentId, "Endereco anonimizado"));
+    }
+
+    private void anonymizeAppUser(Long userId) {
+        AppUser user = appUserRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario nao encontrado."));
+        user.update("anon-user-" + userId, user.getRole(), false, null);
+        user.updatePasswordHash("{noop}bloqueado-" + userId);
+        user.resetSecurityState();
+        user.bumpTokenVersion();
+        appUserRepository.save(user);
+    }
+
+    private void anonymizeAgent(Long agentId) {
+        Agent agent = agentRepository.findById(agentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Agente nao encontrado."));
+        agent.anonymizePersonalData();
+        agentRepository.save(agent);
     }
 
     private Map<String, Object> residentSnapshot(Resident resident) {

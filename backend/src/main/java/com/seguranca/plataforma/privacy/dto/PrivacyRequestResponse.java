@@ -17,7 +17,12 @@ public record PrivacyRequestResponse(
         OffsetDateTime requestedAt,
         String handledBy,
         OffsetDateTime handledAt,
-        String notes
+        String notes,
+        OffsetDateTime subjectNotifiedAt,
+        String subjectNotificationChannel,
+        String subjectNotificationNotes,
+        OffsetDateTime exportGeneratedAt,
+        OffsetDateTime deletionAppliedAt
 ) {
     public static PrivacyRequestResponse fromEntity(PrivacyRequest request) {
         return new PrivacyRequestResponse(
@@ -31,7 +36,12 @@ public record PrivacyRequestResponse(
                 request.getRequestedAt(),
                 request.getHandledBy(),
                 request.getHandledAt(),
-                request.getNotes()
+                request.getNotes(),
+                request.getSubjectNotifiedAt(),
+                request.getSubjectNotificationChannel(),
+                request.getSubjectNotificationNotes(),
+                request.getExportGeneratedAt(),
+                request.getDeletionAppliedAt()
         );
     }
 }
