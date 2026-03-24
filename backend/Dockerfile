@@ -16,7 +16,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /app/logs
 
-COPY --from=build /app/build/libs/*.jar app.jar
+# O build Gradle foi movido para um path ASCII estavel; no container ele fica sob /root/.vmab-build/backend.
+COPY --from=build /root/.vmab-build/backend/libs/*.jar app.jar
 
 EXPOSE 8080
 

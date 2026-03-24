@@ -94,7 +94,7 @@ public class RetentionMaintenanceService {
                 residentSessionRepository.findByExpiresAtBeforeOrRevokedAtBefore(residentSessionCutoff, residentSessionCutoff);
         long removedResidentSessions = expiredResidentSessions.size();
         residentSessionRepository.deleteAllInBatch(expiredResidentSessions);
-        List<IncidentEvidence> expiredEvidence = incidentEvidenceRepository.findByUploadedAtBeforeOrderByUploadedAtAsc(evidenceCutoff);
+        List<IncidentEvidence> expiredEvidence = incidentEvidenceRepository.findByUploadedAtBeforeAndDeletedAtIsNullOrderByUploadedAtAsc(evidenceCutoff);
         incidentEvidenceRepository.deleteAll(expiredEvidence);
 
         int removedEvidenceFiles = deleteEvidenceFiles(expiredEvidence);
