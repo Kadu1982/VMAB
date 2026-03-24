@@ -13,6 +13,8 @@ import com.seguranca.plataforma.operations.repository.ResidentRepository;
 import com.seguranca.plataforma.operations.repository.VehicleRepository;
 import com.seguranca.plataforma.operations.residentapp.dto.CreateResidentAlertRequest;
 import com.seguranca.plataforma.operations.residentapp.dto.DispatchResidentAlertRequest;
+import com.seguranca.plataforma.operations.residentapp.dto.RegisterResidentPushTokenRequest;
+import com.seguranca.plataforma.operations.residentapp.dto.RevokeResidentPushTokenRequest;
 import com.seguranca.plataforma.operations.residentapp.dto.ResidentAlertActionNotesRequest;
 import com.seguranca.plataforma.operations.residentapp.dto.ResidentAlertCancelRequest;
 import com.seguranca.plataforma.operations.residentapp.dto.ResidentAlertResponse;
@@ -22,8 +24,10 @@ import com.seguranca.plataforma.operations.residentapp.dto.ResidentSessionRespon
 import com.seguranca.plataforma.operations.residentapp.model.ResidentAlert;
 import com.seguranca.plataforma.operations.residentapp.model.ResidentAlertStatus;
 import com.seguranca.plataforma.operations.residentapp.model.ResidentAlertType;
+import com.seguranca.plataforma.operations.residentapp.model.ResidentPushDevice;
 import com.seguranca.plataforma.operations.residentapp.model.ResidentSession;
 import com.seguranca.plataforma.operations.residentapp.repository.ResidentAlertRepository;
+import com.seguranca.plataforma.operations.residentapp.repository.ResidentPushDeviceRepository;
 import com.seguranca.plataforma.operations.residentapp.repository.ResidentSessionRepository;
 import com.seguranca.plataforma.operations.service.OperationsRealtimeService;
 import java.nio.charset.StandardCharsets;
@@ -58,6 +62,8 @@ public class ResidentAlertService {
     private final AuditRecordRepository auditRecordRepository;
     private final OperationsRealtimeService operationsRealtimeService;
     private final PasswordEncoder passwordEncoder;
+    private final ResidentPushDeviceRepository residentPushDeviceRepository;
+    private final ResidentPushNotificationService residentPushNotificationService;
 
     public ResidentAlertService(
             ResidentRepository residentRepository,
@@ -67,7 +73,9 @@ public class ResidentAlertService {
             VehicleRepository vehicleRepository,
             AuditRecordRepository auditRecordRepository,
             OperationsRealtimeService operationsRealtimeService,
-            PasswordEncoder passwordEncoder
+            PasswordEncoder passwordEncoder,
+            ResidentPushDeviceRepository residentPushDeviceRepository,
+            ResidentPushNotificationService residentPushNotificationService
     ) {
         this.residentRepository = residentRepository;
         this.residentAlertRepository = residentAlertRepository;
@@ -77,6 +85,8 @@ public class ResidentAlertService {
         this.auditRecordRepository = auditRecordRepository;
         this.operationsRealtimeService = operationsRealtimeService;
         this.passwordEncoder = passwordEncoder;
+        this.residentPushDeviceRepository = residentPushDeviceRepository;
+        this.residentPushNotificationService = residentPushNotificationService;
     }
 
     @Transactional
@@ -203,6 +213,42 @@ public class ResidentAlertService {
     }
 
     @Transactional
+    public void registerPushDevice(String authorizationHeader, RegisterResidentPushTokenRequest request) {
+        // Vincula o token Expo ao morador autenticado para permitir notificacoes reais do atendimento.
+        ResidentSession session = resolveActiveSession(authorizationHeader);
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        String token = request.expoPushToken().trim();
+
+        residentPushDeviceRepository.findByExpoPushToken(token)
+                .ifPresentOrElse(
+                        device -> {
+                            device.refresh(session.getResidentId(), normalizeDeviceLabel(request.deviceLabel()), now);
+                            residentPushDeviceRepository.save(device);
+                        },
+                        () -> residentPushDeviceRepository.save(
+                                new ResidentPushDevice(
+                                        session.getResidentId(),
+                                        token,
+                                        normalizeDeviceLabel(request.deviceLabel()),
+                                        now,
+                                        now
+                                )
+                        )
+                );
+    }
+
+    @Transactional
+    public void revokePushDevice(String authorizationHeader, RevokeResidentPushTokenRequest request) {
+        // Revoga um token especifico do morador para evitar push em aparelho que saiu de uso.
+        ResidentSession session = resolveActiveSession(authorizationHeader);
+        residentPushDeviceRepository.findByResidentIdAndExpoPushToken(session.getResidentId(), request.expoPushToken().trim())
+                .ifPresent(device -> {
+                    device.revoke(OffsetDateTime.now(ZoneOffset.UTC));
+                    residentPushDeviceRepository.save(device);
+                });
+    }
+
+    @Transactional
     public ResidentAlertResponse cancelAlert(String authorizationHeader, Long alertId, ResidentAlertCancelRequest request) {
         // Cancela apenas o proprio alerta enquanto ele ainda esta num estado recuperavel.
         ResidentSession session = resolveActiveSession(authorizationHeader);
@@ -220,6 +266,7 @@ public class ResidentAlertService {
         session.touch(now);
         residentSessionRepository.save(session);
         recordAudit(AuditActionType.RESIDENT_ALERT, "ResidentAlert", savedAlert.getId(), "Cancelamento do alerta " + savedAlert.getId());
+        residentPushNotificationService.notifyResidentAlertStatusChanged(savedAlert);
         return toResponse(savedAlert);
     }
 
@@ -241,6 +288,7 @@ public class ResidentAlertService {
         alert.acknowledge(now, normalizeNotes(request == null ? null : request.notes(), "Alerta recebido pela central."));
         ResidentAlert savedAlert = residentAlertRepository.save(alert);
         recordAudit(AuditActionType.RESIDENT_ALERT, "ResidentAlert", savedAlert.getId(), "Recebimento do alerta " + savedAlert.getId());
+        residentPushNotificationService.notifyResidentAlertStatusChanged(savedAlert);
         return toResponse(savedAlert);
     }
 
@@ -266,6 +314,7 @@ public class ResidentAlertService {
         );
         ResidentAlert savedAlert = residentAlertRepository.save(alert);
         recordAudit(AuditActionType.RESIDENT_ALERT, "ResidentAlert", savedAlert.getId(), "Despacho do alerta " + savedAlert.getId());
+        residentPushNotificationService.notifyResidentAlertStatusChanged(savedAlert);
         return toResponse(savedAlert);
     }
 
@@ -278,6 +327,7 @@ public class ResidentAlertService {
         alert.markOnSite(now, normalizeNotes(request == null ? null : request.notes(), "Equipe no local."));
         ResidentAlert savedAlert = residentAlertRepository.save(alert);
         recordAudit(AuditActionType.RESIDENT_ALERT, "ResidentAlert", savedAlert.getId(), "Chegada no local do alerta " + savedAlert.getId());
+        residentPushNotificationService.notifyResidentAlertStatusChanged(savedAlert);
         return toResponse(savedAlert);
     }
 
@@ -290,6 +340,7 @@ public class ResidentAlertService {
         alert.resolve(now, normalizeNotes(request == null ? null : request.notes(), "Alerta resolvido pela operacao."));
         ResidentAlert savedAlert = residentAlertRepository.save(alert);
         recordAudit(AuditActionType.RESIDENT_ALERT, "ResidentAlert", savedAlert.getId(), "Resolucao do alerta " + savedAlert.getId());
+        residentPushNotificationService.notifyResidentAlertStatusChanged(savedAlert);
         return toResponse(savedAlert);
     }
 
@@ -448,6 +499,10 @@ public class ResidentAlertService {
 
     private String normalizeNotes(String notes, String fallback) {
         return StringUtils.hasText(notes) ? notes.trim() : fallback;
+    }
+
+    private String normalizeDeviceLabel(String deviceLabel) {
+        return StringUtils.hasText(deviceLabel) ? deviceLabel.trim() : null;
     }
 
     private String hashToken(String token) {

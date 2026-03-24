@@ -18,11 +18,15 @@ import com.seguranca.plataforma.operations.repository.AuditRecordRepository;
 import com.seguranca.plataforma.operations.repository.ResidentRepository;
 import com.seguranca.plataforma.operations.repository.VehicleRepository;
 import com.seguranca.plataforma.operations.residentapp.dto.CreateResidentAlertRequest;
+import com.seguranca.plataforma.operations.residentapp.dto.RegisterResidentPushTokenRequest;
+import com.seguranca.plataforma.operations.residentapp.dto.RevokeResidentPushTokenRequest;
 import com.seguranca.plataforma.operations.residentapp.model.ResidentAlert;
 import com.seguranca.plataforma.operations.residentapp.model.ResidentAlertStatus;
 import com.seguranca.plataforma.operations.residentapp.model.ResidentAlertType;
+import com.seguranca.plataforma.operations.residentapp.model.ResidentPushDevice;
 import com.seguranca.plataforma.operations.residentapp.model.ResidentSession;
 import com.seguranca.plataforma.operations.residentapp.repository.ResidentAlertRepository;
+import com.seguranca.plataforma.operations.residentapp.repository.ResidentPushDeviceRepository;
 import com.seguranca.plataforma.operations.residentapp.repository.ResidentSessionRepository;
 import com.seguranca.plataforma.operations.service.OperationsRealtimeService;
 import java.security.MessageDigest;
@@ -69,6 +73,12 @@ class ResidentAlertServiceTests {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    @Mock
+    private ResidentPushDeviceRepository residentPushDeviceRepository;
+
+    @Mock
+    private ResidentPushNotificationService residentPushNotificationService;
+
     @InjectMocks
     private ResidentAlertService residentAlertService;
 
@@ -107,6 +117,40 @@ class ResidentAlertServiceTests {
     }
 
     @Test
+    void deveRegistrarTokenExpoDoMorador() {
+        when(residentSessionRepository.findByTokenHash(anyString())).thenReturn(Optional.of(residentSession));
+        when(residentPushDeviceRepository.findByExpoPushToken("ExponentPushToken[abc]")).thenReturn(Optional.empty());
+
+        assertDoesNotThrow(() -> residentAlertService.registerPushDevice(
+                "Bearer token-de-teste",
+                new RegisterResidentPushTokenRequest("ExponentPushToken[abc]", "android")
+        ));
+
+        verify(residentPushDeviceRepository).save(any(ResidentPushDevice.class));
+    }
+
+    @Test
+    void deveRevogarTokenExpoDoMoradorNoLogoutDoDispositivo() {
+        ResidentPushDevice pushDevice = new ResidentPushDevice(
+                1L,
+                "ExponentPushToken[abc]",
+                "android",
+                OffsetDateTime.now(ZoneOffset.UTC).minusHours(1),
+                OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(10)
+        );
+        when(residentSessionRepository.findByTokenHash(anyString())).thenReturn(Optional.of(residentSession));
+        when(residentPushDeviceRepository.findByResidentIdAndExpoPushToken(1L, "ExponentPushToken[abc]")).thenReturn(Optional.of(pushDevice));
+
+        assertDoesNotThrow(() -> residentAlertService.revokePushDevice(
+                "Bearer token-de-teste",
+                new RevokeResidentPushTokenRequest("ExponentPushToken[abc]")
+        ));
+
+        verify(residentPushDeviceRepository).save(pushDevice);
+        assertNotNull(pushDevice.getRevokedAt());
+    }
+
+    @Test
     void naoDeveAbrirNovoAlertaQuandoJaExisteUmAtivo() {
         when(residentSessionRepository.findByTokenHash(anyString())).thenReturn(Optional.of(residentSession));
         when(residentRepository.findById(1L)).thenReturn(Optional.of(resident));
@@ -130,6 +174,69 @@ class ResidentAlertServiceTests {
 
         assertEquals(HttpStatus.CONFLICT, exception.getStatusCode());
         verify(residentAlertRepository, never()).save(any(ResidentAlert.class));
+    }
+
+    @Test
+    void deveExigirDestinoNaEscolta() {
+        when(residentSessionRepository.findByTokenHash(anyString())).thenReturn(Optional.of(residentSession));
+        when(residentRepository.findById(1L)).thenReturn(Optional.of(resident));
+        when(residentAlertRepository.findFirstByResidentIdAndStatusInOrderByOpenedAtDesc(
+                1L,
+                List.of(
+                        ResidentAlertStatus.OPEN,
+                        ResidentAlertStatus.ACKNOWLEDGED,
+                        ResidentAlertStatus.DISPATCHED,
+                        ResidentAlertStatus.ON_SITE
+                )
+        )).thenReturn(Optional.empty());
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> residentAlertService.createAlert(
+                        "Bearer token-de-teste",
+                        new CreateResidentAlertRequest(ResidentAlertType.ESCOLTA, "Teste", null, null, null, null)
+                )
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+    }
+
+    @Test
+    void deveExigirPinDeCoacaoValido() {
+        when(residentSessionRepository.findByTokenHash(anyString())).thenReturn(Optional.of(residentSession));
+        when(residentRepository.findById(1L)).thenReturn(Optional.of(resident));
+        when(residentAlertRepository.findFirstByResidentIdAndStatusInOrderByOpenedAtDesc(
+                1L,
+                List.of(
+                        ResidentAlertStatus.OPEN,
+                        ResidentAlertStatus.ACKNOWLEDGED,
+                        ResidentAlertStatus.DISPATCHED,
+                        ResidentAlertStatus.ON_SITE
+                )
+        )).thenReturn(Optional.empty());
+        when(passwordEncoder.matches("4455", resident.getCoercionPinHash())).thenReturn(false);
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> residentAlertService.createAlert(
+                        "Bearer token-de-teste",
+                        new CreateResidentAlertRequest(ResidentAlertType.COACAO, "Teste", null, "4455", null, null)
+                )
+        );
+
+        assertEquals(HttpStatus.UNAUTHORIZED, exception.getStatusCode());
+    }
+
+    @Test
+    void deveEnviarPushAoReconhecerAlerta() {
+        ResidentAlert alert = activeAlert();
+        ReflectionTestUtils.setField(alert, "id", 10L);
+        when(residentAlertRepository.findById(10L)).thenReturn(Optional.of(alert));
+        when(residentAlertRepository.save(any(ResidentAlert.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        residentAlertService.acknowledge(10L, null);
+
+        verify(residentPushNotificationService).notifyResidentAlertStatusChanged(any(ResidentAlert.class));
     }
 
     private ResidentAlert activeAlert() {

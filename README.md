@@ -2,7 +2,7 @@
 
 Plataforma operacional de seguranca comunitaria para empresas de seguranca, condominios, loteamentos, bairros monitorados e associacoes de moradores.
 
-O projeto foi desenhado para resolver um problema real: operacoes de ronda e atendimento local normalmente funcionam com excesso de improviso, pouca rastreabilidade, baixa prova de execucao e dependencia de canais informais. O VMAB organiza essa operacao de ponta a ponta com backoffice web, app da ronda, telemetria GPS, controle de equipe, frota e ocorrencias.
+O projeto foi desenhado para resolver um problema real: operacoes de ronda e atendimento local normalmente funcionam com excesso de improviso, pouca rastreabilidade, baixa prova de execucao e dependencia de canais informais. O VMAB organiza essa operacao de ponta a ponta com backoffice web, app mobile unificado, telemetria GPS, controle de equipe, frota e ocorrencias.
 
 ## O que o VMAB entrega
 
@@ -54,14 +54,17 @@ Responsabilidades:
 - leitura da trilha percorrida por GPS;
 - gestao operacional por perfis `admin`, `supervisor` e `cliente`.
 
-### 2. App mobile da ronda
-Aplicativo usado pelo vigilante em servico.
+### 2. App mobile unificado
+Aplicativo oficial usado pelo vigilante em servico e pelo morador.
 
 Responsabilidades:
-- login operacional;
+- selecao de perfil no login (`Morador` ou `Colaborador`);
+- login operacional e login do morador com PIN dedicado;
 - configuracao persistente da URL da API;
-- envio de localizacao GPS em tempo real;
+- envio de localizacao GPS em tempo real no perfil operacional;
 - associacao da telemetria ao turno em execucao;
+- abertura, acompanhamento e cancelamento de alertas do morador;
+- notificacoes push Expo do atendimento do morador;
 - base para operacao de atendimento, deslocamento e patrulha.
 
 ### 3. Backend operacional
@@ -95,8 +98,10 @@ Responsabilidades:
 - patrulha ativa com mapa real via OpenStreetMap e Leaflet;
 - exibicao de foto do vigilante, dados da viatura e telemetria atual;
 - historico da trilha percorrida por GPS;
-- app mobile com captura de localizacao;
-- persistencia de URL da API e credenciais no app da ronda;
+- app mobile unico com selecao de perfil entre morador e colaborador;
+- captura de localizacao no perfil operacional;
+- persistencia de URL da API, sessoes e credenciais por perfil no app mobile;
+- fluxo do morador com PIN dedicado, alerta ativo unico e push Expo;
 - portal do cliente com leitura da operacao;
 - banco PostgreSQL com Flyway;
 - stack Docker para ambiente local;
@@ -106,7 +111,8 @@ Responsabilidades:
 
 - [backend](C:\Users\G15\Documents\Segurança\backend): API Spring Boot com seguranca, regras operacionais e persistencia
 - [dashboard-web](C:\Users\G15\Documents\Segurança\dashboard-web): painel React/Vite para operacao e supervisao
-- [ronda-mobile](C:\Users\G15\Documents\Segurança\ronda-mobile): app Expo/React Native da equipe de ronda
+- [ronda-mobile](C:\Users\G15\Documents\Segurança\ronda-mobile): app Expo/React Native oficial com perfis de morador e colaborador
+- [resident-mobile](C:\Users\G15\Documents\Segurança\resident-mobile): app legado congelado, mantido apenas como referencia tecnica do fluxo antigo do morador
 - [mvp-estatico](C:\Users\G15\Documents\Segurança\mvp-estatico): prototipo visual de referencia
 - [compose.yml](C:\Users\G15\Documents\Segurança\compose.yml): stack local
 - [compose.prod.yml](C:\Users\G15\Documents\Segurança\compose.prod.yml): stack de producao
@@ -164,7 +170,7 @@ Se precisar apontar para outro backend:
 $env:VITE_API_BASE_URL="http://localhost:8091"
 ```
 
-### 4. App mobile da ronda
+### 4. App mobile unificado
 
 ```powershell
 cd ronda-mobile
@@ -183,7 +189,8 @@ Observacoes objetivas:
 - `8082` ou outra porta do Expo nao e a porta da API;
 - a API da aplicacao roda em `8091`;
 - se o celular nao alcancar o backend na rede local, use uma URL HTTPS publica ou tunel;
-- o app mobile depende de permissao de localizacao para enviar telemetria.
+- o perfil de colaborador depende de permissao de localizacao para enviar telemetria;
+- o perfil de morador usa PIN dedicado e registra push Expo para receber atualizacoes do atendimento.
 
 ## Deploy em VPS com dominio e HTTPS
 
@@ -240,13 +247,12 @@ O que ja existe:
 - mapa real com telemetria GPS;
 - backend persistente;
 - dashboard operacional;
-- app da ronda funcional para teste;
+- app mobile unico funcional para morador e colaborador;
 - preparo para deploy em VPS.
 
 O que ainda falta para fechamento forte de producao:
 - autenticacao real com usuarios no banco e tokens;
-- background tracking robusto no mobile;
-- app real do morador;
+- background tracking robusto no mobile do colaborador;
 - auditoria e evidencias mais profundas;
 - antifraude operacional mais forte;
 - relatorios executivos mais completos;
@@ -289,9 +295,9 @@ Os logs do backend carregam:
 1. publicar o projeto na VPS com dominio fixo e HTTPS real;
 2. substituir credenciais fixas por autenticacao real;
 3. finalizar o fluxo operacional da ronda com mais automacao de turno;
-4. construir o app do morador;
-5. ampliar relatorios e portal do cliente;
-6. fechar requisitos de seguranca, LGPD e operacao em background.
+4. ampliar relatorios e portal do cliente;
+5. fechar requisitos de seguranca, LGPD e operacao em background;
+6. preparar o deploy final na VPS com dominio fixo e HTTPS.
 
 ## Licenciamento e uso
 

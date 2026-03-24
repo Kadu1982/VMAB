@@ -1,6 +1,8 @@
 package com.seguranca.plataforma.operations.web;
 
 import com.seguranca.plataforma.operations.residentapp.dto.CreateResidentAlertRequest;
+import com.seguranca.plataforma.operations.residentapp.dto.RegisterResidentPushTokenRequest;
+import com.seguranca.plataforma.operations.residentapp.dto.RevokeResidentPushTokenRequest;
 import com.seguranca.plataforma.operations.residentapp.dto.ResidentAlertCancelRequest;
 import com.seguranca.plataforma.operations.residentapp.dto.ResidentAlertResponse;
 import com.seguranca.plataforma.operations.residentapp.dto.ResidentLoginRequest;
@@ -40,6 +42,24 @@ public class ResidentAppController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void logout(@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
         residentAlertService.logout(authorization);
+    }
+
+    @PostMapping("/push-device")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void registerPushDevice(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
+            @Valid @RequestBody RegisterResidentPushTokenRequest request
+    ) {
+        residentAlertService.registerPushDevice(authorization, request);
+    }
+
+    @PostMapping("/push-device/revoke")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void revokePushDevice(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
+            @Valid @RequestBody RevokeResidentPushTokenRequest request
+    ) {
+        residentAlertService.revokePushDevice(authorization, request);
     }
 
     @GetMapping("/me")

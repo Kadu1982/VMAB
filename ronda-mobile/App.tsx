@@ -1,12 +1,15 @@
 import { StatusBar } from 'expo-status-bar'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import Constants from 'expo-constants'
 import * as ImagePicker from 'expo-image-picker'
 import * as Location from 'expo-location'
+import * as Notifications from 'expo-notifications'
 import { useEffect, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   AppState,
   Image,
+  Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -40,6 +43,16 @@ const COLLABORATOR_CREDENTIALS_STORAGE_KEY = 'vmab-mobile-collaborator-creds'
 const COLLABORATOR_SESSION_STORAGE_KEY = 'vmab-mobile-collaborator-session'
 const RESIDENT_CREDENTIALS_STORAGE_KEY = 'vmab-mobile-resident-creds'
 const RESIDENT_SESSION_STORAGE_KEY = 'vmab-mobile-resident-session'
+const RESIDENT_PUSH_TOKEN_STORAGE_KEY = 'vmab-mobile-resident-push-token'
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+})
 
 type AppMode = 'COLLABORATOR' | 'RESIDENT'
 
@@ -312,6 +325,55 @@ function normalizeApiUrl(value: string) {
   return normalizeApiBaseUrl(value)
 }
 
+async function registerExpoPushToken() {
+  // Solicita permissao e tenta obter o token Expo apenas em aparelho fisico.
+  if (Platform.OS === 'web' || !Constants.isDevice) {
+    return null
+  }
+
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('vmab-alertas', {
+      name: 'VMAB Alertas',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#d8b468',
+    })
+  }
+
+  const permission = await Notifications.requestPermissionsAsync()
+  if (permission.status !== 'granted') {
+    return null
+  }
+
+  const projectId =
+    Constants.easConfig?.projectId ??
+    Constants.expoConfig?.extra?.eas?.projectId ??
+    undefined
+
+  const tokenResponse = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined)
+  return tokenResponse.data
+}
+
+function translateResidentActionLabel(type: ResidentAlertType) {
+  return {
+    PANICO: 'Panico',
+    COACAO: 'Ajuda discreta',
+    ESCOLTA: 'Escolta',
+    SUSPEITA: 'Suspeita',
+    MEDICA: 'Medica',
+  }[type]
+}
+
+function getResidentActionHint(type: ResidentAlertType) {
+  return {
+    PANICO: 'Use quando precisar de atendimento urgente imediato.',
+    COACAO: 'Aciona a central de forma silenciosa e sem expor o motivo no push.',
+    ESCOLTA: 'Solicita acompanhamento ate um destino informado.',
+    SUSPEITA: 'Use para movimento ou pessoa suspeita.',
+    MEDICA: 'Use para emergencia medica.',
+  }[type]
+}
+
 export default function App() {
   // Estado do app da ronda: sessao, telemetria, fila offline e resumo operacional.
   const [mode, setMode] = useState<AppMode>('COLLABORATOR')
@@ -339,6 +401,8 @@ export default function App() {
   const [evidenceNotes, setEvidenceNotes] = useState('')
   const [evidenceAsset, setEvidenceAsset] = useState<EvidenceAsset | null>(null)
   const foregroundSubscriptionRef = useRef<Location.LocationSubscription | null>(null)
+  const residentNotificationListenerRef = useRef<Notifications.EventSubscription | null>(null)
+  const residentNotificationResponseRef = useRef<Notifications.EventSubscription | null>(null)
   const activeResidentAlert = residentAlerts.find((alert) => isActiveAlert(alert.status)) ?? null
 
   useEffect(() => {
@@ -430,6 +494,29 @@ export default function App() {
 
     void AsyncStorage.removeItem(RESIDENT_SESSION_STORAGE_KEY)
   }, [residentSession])
+
+  useEffect(() => {
+    // Quando um push chega com o app aberto, o morador recarrega o estado para refletir a mudanca real.
+    residentNotificationListenerRef.current?.remove()
+    residentNotificationResponseRef.current?.remove()
+    residentNotificationListenerRef.current = Notifications.addNotificationReceivedListener(() => {
+      if (residentSession?.accessToken) {
+        void refreshResidentData()
+      }
+    })
+    residentNotificationResponseRef.current = Notifications.addNotificationResponseReceivedListener(() => {
+      if (residentSession?.accessToken) {
+        void refreshResidentData()
+      }
+    })
+
+    return () => {
+      residentNotificationListenerRef.current?.remove()
+      residentNotificationListenerRef.current = null
+      residentNotificationResponseRef.current?.remove()
+      residentNotificationResponseRef.current = null
+    }
+  }, [residentSession?.accessToken])
 
   async function refreshOfflineQueueCount() {
     const queue = await loadTelemetryQueue()
@@ -721,6 +808,41 @@ export default function App() {
     }
   }
 
+  async function registerResidentPushToken(accessToken: string) {
+    // Registra o token Expo do aparelho atual para que o morador receba atualizacoes mesmo com o app fechado.
+    try {
+      const expoPushToken = await registerExpoPushToken()
+      if (!expoPushToken) {
+        return
+      }
+
+      const storedPushToken = await AsyncStorage.getItem(RESIDENT_PUSH_TOKEN_STORAGE_KEY)
+      if (storedPushToken === expoPushToken) {
+        return
+      }
+
+      const response = await residentApiFetch(
+        '/api/resident-app/push-device',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            expoPushToken,
+            deviceLabel: `${Platform.OS}-${Constants.deviceName ?? 'dispositivo'}`,
+          }),
+        },
+        accessToken,
+      )
+
+      if (!response.ok) {
+        throw new Error('Nao foi possivel registrar o dispositivo para notificacoes.')
+      }
+
+      await AsyncStorage.setItem(RESIDENT_PUSH_TOKEN_STORAGE_KEY, expoPushToken)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Falha ao ativar notificacoes do morador.')
+    }
+  }
+
   async function handleResidentLogin() {
     // Autentica o morador com PIN dedicado e abre a tela de alerta.
     setLoading(true)
@@ -748,6 +870,7 @@ export default function App() {
       setTelemetrySignals([])
       setOfflineQueueCount(0)
       setTrackingStatus('GPS inativo')
+      await registerResidentPushToken(nextSession.accessToken)
       await refreshResidentData(nextSession)
     } catch (cause) {
       setResidentSession(null)
@@ -763,13 +886,32 @@ export default function App() {
     // Revoga a sessao do morador no backend antes de limpar o estado local.
     try {
       if (residentSession?.accessToken) {
-        await residentApiFetch('/api/resident-app/session/logout', {
-          method: 'POST',
-        })
+        const storedPushToken = await AsyncStorage.getItem(RESIDENT_PUSH_TOKEN_STORAGE_KEY)
+        if (storedPushToken) {
+          await residentApiFetch(
+            '/api/resident-app/push-device/revoke',
+            {
+              method: 'POST',
+              body: JSON.stringify({
+                expoPushToken: storedPushToken,
+              }),
+            },
+            residentSession.accessToken,
+          )
+        }
+
+        await residentApiFetch(
+          '/api/resident-app/session/logout',
+          {
+            method: 'POST',
+          },
+          residentSession.accessToken,
+        )
       }
     } catch {
       // Se a sessao ja expirou, o logout local continua acontecendo.
     } finally {
+      await AsyncStorage.removeItem(RESIDENT_PUSH_TOKEN_STORAGE_KEY)
       setResidentSession(null)
       setResidentProfile(null)
       setResidentAlerts([])
@@ -1022,6 +1164,7 @@ export default function App() {
     if (!residentSession?.accessToken) return
 
     void refreshResidentData(residentSession)
+    void registerResidentPushToken(residentSession.accessToken)
 
     const intervalId = setInterval(() => {
       void refreshResidentData(residentSession)
@@ -1182,7 +1325,7 @@ export default function App() {
           {activeResidentAlert ? (
             <View style={styles.activeAlertCard}>
               <Text style={styles.sectionTitle}>Atendimento em andamento</Text>
-              <Text style={styles.activeAlertTitle}>{activeResidentAlert.silent ? 'Emergencia silenciosa' : translateAlertType(activeResidentAlert.type)}</Text>
+              <Text style={styles.activeAlertTitle}>{activeResidentAlert.silent ? 'Solicitacao silenciosa' : translateResidentActionLabel(activeResidentAlert.type)}</Text>
               <Text style={styles.body}>{getAlertOperationalMessage(activeResidentAlert)}</Text>
               {activeResidentAlert.escortDestination ? <Text style={styles.meta}>Destino da escolta: {activeResidentAlert.escortDestination}</Text> : null}
               <Text style={styles.meta}>Ultima atualizacao: {formatDate(activeResidentAlert.updatedAt)}</Text>
@@ -1215,14 +1358,19 @@ export default function App() {
               onChangeText={(value) => setResidentAlertDraft((current) => ({ ...current, escortDestination: value }))}
             />
             <TextInput
+              secureTextEntry
               keyboardType="numeric"
-              placeholder="PIN de coacao"
+              placeholder="PIN discreto"
               placeholderTextColor="#8c8e92"
               style={styles.input}
               value={residentAlertDraft.coercionPin}
               onChangeText={(value) => setResidentAlertDraft((current) => ({ ...current, coercionPin: value }))}
             />
-            {residentCountdownType ? <Text style={styles.meta}>Alerta {translateAlertType(residentCountdownType)} sera enviado em {residentCountdownSeconds}s. Toque no mesmo botao para cancelar.</Text> : null}
+            {residentCountdownType ? (
+              <Text style={styles.meta}>
+                Alerta {translateResidentActionLabel(residentCountdownType)} sera enviado em {residentCountdownSeconds}s. Toque no mesmo botao para cancelar.
+              </Text>
+            ) : null}
             <View style={styles.alertGrid}>
               {(['PANICO', 'COACAO', 'ESCOLTA', 'SUSPEITA', 'MEDICA'] as ResidentAlertType[]).map((type) => (
                 <Pressable
@@ -1235,9 +1383,10 @@ export default function App() {
                     {residentSendingAlert === type
                       ? 'Enviando...'
                       : residentCountdownType === type
-                        ? `Cancelar ${translateAlertType(type)}`
-                        : translateAlertType(type)}
+                        ? `Cancelar ${translateResidentActionLabel(type)}`
+                        : translateResidentActionLabel(type)}
                   </Text>
+                  <Text style={styles.alertButtonHint}>{getResidentActionHint(type)}</Text>
                 </Pressable>
               ))}
             </View>
@@ -1249,7 +1398,7 @@ export default function App() {
             {residentAlerts.map((alert) => (
               <View key={alert.id} style={styles.alertItem}>
                 <View style={styles.alertHeader}>
-                  <Text style={styles.alertTitle}>{translateAlertType(alert.type)}</Text>
+                  <Text style={styles.alertTitle}>{alert.silent ? 'Solicitacao silenciosa' : translateResidentActionLabel(alert.type)}</Text>
                   <Text style={styles.statusPill}>{translateAlertStatus(alert.status)}</Text>
                 </View>
                 <Text style={styles.meta}>{formatDate(alert.openedAt)}</Text>
@@ -1756,6 +1905,14 @@ const styles = StyleSheet.create({
   alertButtonLabel: {
     color: '#f7f5ef',
     fontWeight: '800',
+    marginBottom: 4,
+  },
+  alertButtonHint: {
+    color: '#9ba7bf',
+    fontSize: 12,
+    lineHeight: 17,
+    paddingHorizontal: 12,
+    textAlign: 'center',
   },
   formStack: {
     gap: 10,
