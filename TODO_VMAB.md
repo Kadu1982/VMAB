@@ -9,8 +9,8 @@ Tabela objetiva do que ainda falta para o sistema atingir um estado forte de pro
 | 01 | Autenticacao com usuarios persistidos e JWT | Concluido | Alta | Entregue no backend, web e mobile. |
 | 02 | Gestao real de usuarios e perfis no painel | Concluido | Alta | CRUD minimo entregue no backend e no painel, restrito ao perfil administrador, com vinculo opcional entre usuario operacional e vigilante. |
 | 03 | Recuperacao de senha, bloqueio e ciclo de sessao | Concluido | Alta | Fluxo de reset, bloqueio por tentativas, logout, invalidacao por versao de token e integracao basica no painel web estao entregues. |
-| 04 | App do morador | Em andamento | Alta | O `resident-mobile` agora usa PIN dedicado, restaura sessao/configuracao local, faz contagem regressiva antes do disparo e exige destino/PIN nos fluxos sensiveis; ainda faltam push, hardening final e validacao de uso real. |
-| 05 | Fluxo real de alerta, panico, coacao e escolta | Em andamento | Alta | O backend agora diferencia alerta silencioso de coacao, exige PIN de coacao, exige destino na escolta e bloqueia transicoes/cancelamentos incoerentes; ainda faltam push, antifraude mais forte e regras operacionais finais. |
+| 04 | App do morador | Em andamento | Alta | O acesso do morador foi incorporado ao app unico em `ronda-mobile`, com selecao de perfil no login, PIN dedicado, sessao separada e painel proprio de alertas; ainda faltam push, hardening final e validacao de uso real. |
+| 05 | Fluxo real de alerta, panico, coacao e escolta | Em andamento | Alta | O backend agora impede segundo alerta ativo, exige PIN de coacao, exige destino na escolta, faz logout real do morador e o app unico destaca o atendimento em andamento; ainda faltam push, antifraude mais forte e regras operacionais finais. |
 | 06 | Operacao de ronda com aceite, despacho e encerramento mais completos | Em andamento | Alta | Despacho, chegada ao local, encerramento e trilha de auditoria ja existem no backend e no painel; ainda faltam mobile, notificacao e refinamento de regras operacionais. |
 | 07 | Troca de turno com aceite duplo e trilha formal | Concluido | Alta | Pedido de troca via /handoff-request, com aceite e rejeicao amarrados ao usuario de ronda vinculado ao vigilante designado; status HANDOFF_PENDING visivel na lista de turnos com botoes coerentes com a permissao real. |
 | 08 | Escala, falta, atraso e cobertura | Em andamento | Alta | O painel e o backend ja suportam marcacao formal de atraso, falta, normalizacao e cobertura; ainda faltam notificacoes e regras mais fortes de supervisao. |
@@ -29,7 +29,7 @@ Tabela objetiva do que ainda falta para o sistema atingir um estado forte de pro
 | 21 | Testes automatizados de backend | Concluido | Media | A suite de auth e frota foi validada tecnicamente; o runner do Gradle foi estabilizado ao mover o build para um caminho ASCII fora do workspace com acento. |
 | 22 | Testes automatizados de frontend | Concluido | Media | Vitest com regressao basica da tela de login e limpeza de sessao invalida foi implementado e validado com sucesso. |
 | 23 | Refino visual final do painel web | Em andamento | Media | Painel ficou mais limpo com relatorios executivos e exportacao, mas ainda pode ganhar ajustes finos de hierarquia e espacamento. |
-| 24 | Refino visual final do app da ronda | Em andamento | Media | Ja melhorou, mas ainda pode ficar mais leve e mais objetivo. |
+| 24 | Refino visual final do app da ronda | Em andamento | Media | O app unico ja atende morador e colaborador, mas ainda precisa refino visual final para ficar mais leve, mais consistente e com hierarquia melhor entre os dois perfis. |
 
 ## Sequencia recomendada
 

@@ -128,6 +128,32 @@ function isActiveAlert(status: ResidentAlertStatus) {
   return status === 'OPEN' || status === 'ACKNOWLEDGED' || status === 'DISPATCHED' || status === 'ON_SITE'
 }
 
+function getAlertOperationalMessage(alert: ResidentAlert) {
+  if (alert.status === 'OPEN') {
+    return alert.silent
+      ? 'Sinal silencioso registrado. Mantenha a rotina normal enquanto a central avalia o atendimento.'
+      : 'Alerta registrado. A central ainda vai confirmar o recebimento.'
+  }
+
+  if (alert.status === 'ACKNOWLEDGED') {
+    return 'A central recebeu seu alerta e esta preparando o atendimento.'
+  }
+
+  if (alert.status === 'DISPATCHED') {
+    return `${alert.assignedAgentName ?? 'Equipe'} em deslocamento${alert.vehiclePlate ? ` com viatura ${alert.vehiclePlate}` : ''}.`
+  }
+
+  if (alert.status === 'ON_SITE') {
+    return 'A equipe ja esta no local.'
+  }
+
+  if (alert.status === 'RESOLVED') {
+    return 'Atendimento encerrado pela operacao.'
+  }
+
+  return 'Alerta cancelado.'
+}
+
 export default function App() {
   // Estado do app do morador: sessao, abertura de alerta e historico de atendimento.
   const [apiBaseUrl, setApiBaseUrl] = useState(DEFAULT_API_BASE_URL)
@@ -141,6 +167,7 @@ export default function App() {
   const [sendingAlert, setSendingAlert] = useState<ResidentAlertType | null>(null)
   const [countdownAlertType, setCountdownAlertType] = useState<ResidentAlertType | null>(null)
   const [countdownSeconds, setCountdownSeconds] = useState(0)
+  const activeAlert = alerts.find((alert) => isActiveAlert(alert.status)) ?? null
 
   useEffect(() => {
     // Restaura configuracao local para o usuario nao precisar digitar tudo a cada abertura.
@@ -354,6 +381,24 @@ export default function App() {
     }
   }
 
+  async function handleLogout() {
+    // Encerra a sessao no backend antes de limpar o estado local do aparelho.
+    try {
+      if (session?.accessToken) {
+        await apiFetch('/api/resident-app/session/logout', {
+          method: 'POST',
+        })
+      }
+    } catch {
+      // Mesmo que a sessao ja esteja expirada, o app precisa permitir a saida local.
+    } finally {
+      setSession(null)
+      setProfile(null)
+      setAlerts([])
+      setError(null)
+    }
+  }
+
   useEffect(() => {
     // Mantem o painel do morador sincronizado sem depender de acao manual o tempo todo.
     if (!session?.accessToken) {
@@ -363,12 +408,12 @@ export default function App() {
     void refreshResidentData(session)
     const intervalId = setInterval(() => {
       void refreshResidentData(session)
-    }, 20000)
+    }, activeAlert ? 8000 : 20000)
 
     return () => {
       clearInterval(intervalId)
     }
-  }, [session?.accessToken])
+  }, [activeAlert, session?.accessToken])
 
   useEffect(() => {
     if (!countdownAlertType || countdownSeconds <= 0) {
@@ -458,12 +503,7 @@ export default function App() {
           </View>
           <Pressable
             style={styles.secondaryButton}
-            onPress={() => {
-              setSession(null)
-              setProfile(null)
-              setAlerts([])
-              setError(null)
-            }}
+            onPress={() => void handleLogout()}
           >
             <Text style={styles.secondaryButtonText}>Sair</Text>
           </Pressable>
@@ -479,9 +519,28 @@ export default function App() {
           {profile?.referenceNote ? <Text style={styles.meta}>Referencia: {profile.referenceNote}</Text> : null}
         </View>
 
+        {activeAlert ? (
+          <View style={styles.activeAlertCard}>
+            <Text style={styles.sectionTitle}>Atendimento em andamento</Text>
+            <Text style={styles.activeAlertTitle}>{activeAlert.silent ? 'Emergencia silenciosa' : translateAlertType(activeAlert.type)}</Text>
+            <Text style={styles.body}>{getAlertOperationalMessage(activeAlert)}</Text>
+            {activeAlert.escortDestination ? <Text style={styles.meta}>Destino da escolta: {activeAlert.escortDestination}</Text> : null}
+            <Text style={styles.meta}>Ultima atualizacao: {formatDate(activeAlert.updatedAt)}</Text>
+            {isActiveAlert(activeAlert.status) ? (
+              <Pressable style={styles.secondaryButtonSmall} onPress={() => void cancelAlert(activeAlert.id)}>
+                <Text style={styles.secondaryButtonText}>Cancelar alerta atual</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
+
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Abrir alerta</Text>
-          <Text style={styles.meta}>A localizacao e opcional, mas ajuda a central a encurtar o atendimento.</Text>
+          <Text style={styles.meta}>
+            {activeAlert
+              ? 'Ja existe um alerta em atendimento. Aguarde a central concluir ou cancele o alerta atual.'
+              : 'A localizacao e opcional, mas ajuda a central a encurtar o atendimento.'}
+          </Text>
           <TextInput
             multiline
             placeholder="Observacao do alerta"
@@ -508,7 +567,7 @@ export default function App() {
           {countdownAlertType ? <Text style={styles.meta}>Alerta {translateAlertType(countdownAlertType)} sera enviado em {countdownSeconds}s. Toque no mesmo botao para cancelar.</Text> : null}
           <View style={styles.alertGrid}>
             {(['PANICO', 'COACAO', 'ESCOLTA', 'SUSPEITA', 'MEDICA'] as ResidentAlertType[]).map((type) => (
-              <Pressable key={type} style={styles.alertButton} onPress={() => beginAlertCountdown(type)}>
+              <Pressable key={type} disabled={Boolean(activeAlert) && countdownAlertType !== type} style={[styles.alertButton, Boolean(activeAlert) && countdownAlertType !== type ? styles.alertButtonDisabled : null]} onPress={() => beginAlertCountdown(type)}>
                 <Text style={styles.alertButtonLabel}>
                   {sendingAlert === type
                     ? 'Enviando...'
@@ -606,6 +665,19 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(216,180,104,0.12)',
     gap: 4,
   },
+  activeAlertCard: {
+    padding: 18,
+    borderRadius: 22,
+    backgroundColor: '#161014',
+    borderWidth: 1,
+    borderColor: 'rgba(216,104,104,0.24)',
+    gap: 8,
+  },
+  activeAlertTitle: {
+    color: '#ffd6d0',
+    fontWeight: '800',
+    fontSize: 18,
+  },
   input: {
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
@@ -697,6 +769,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#171c25',
     borderWidth: 1,
     borderColor: 'rgba(216,180,104,0.18)',
+  },
+  alertButtonDisabled: {
+    opacity: 0.45,
   },
   alertButtonLabel: {
     color: '#f7f5ef',
