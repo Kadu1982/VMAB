@@ -15,8 +15,8 @@ Tabela objetiva do que ainda falta para o sistema atingir um estado forte de pro
 | 07 | Troca de turno com aceite duplo e trilha formal | Em andamento | Alta | Ja existe registro de passagem de responsabilidade, horario e observacao, mas ainda falta aceite duplo separado por perfil e historico mais claro. |
 | 08 | Escala, falta, atraso e cobertura | Em andamento | Alta | Turno agora guarda inicio/fim previsto, status de presenca, atraso em minutos e agente coberto, mas ainda faltam workflows dedicados de supervisao e notificacao. |
 | 09 | Quilometragem percorrida, checklist e manutencao mais profundos | Em andamento | Alta | Ja existe KM por turno, checklist basico, bloqueio de alocacao para viatura irregular e historico de manutencao, mas ainda falta ciclo completo de OS e relatorios operacionais da frota. |
-| 10 | Relatorios executivos e prova de execucao para cliente | Pendente | Alta | Portal do cliente ainda esta superficial. |
-| 11 | Exportacao e impressao de relatorios | Pendente | Media | Falta uso comercial e operacional mais forte. |
+| 10 | Relatorios executivos e prova de execucao para cliente | Em andamento | Alta | Portal do cliente ganhou leitura executiva, saude do contrato e visao consolidada, mas ainda falta backend dedicado para relatórios formais. |
+| 11 | Exportacao e impressao de relatorios | Em andamento | Media | Exportacao local em Markdown e CSV ja existe no painel; ainda falta exportacao com impressao formal e pipeline de producao. |
 | 12 | Background tracking no mobile | Pendente | Alta | Hoje o GPS esta em foreground. Isso nao fecha operacao real. |
 | 13 | Operacao offline degradada com sincronizacao posterior | Pendente | Alta | Requisito do PRD ainda nao implementado corretamente. |
 | 14 | Antifraude de localizacao e contexto | Pendente | Alta | Falta deteccao de GPS falso, ausencia de sincronizacao e anomalias. |
@@ -28,7 +28,7 @@ Tabela objetiva do que ainda falta para o sistema atingir um estado forte de pro
 | 20 | Deploy definitivo na VPS com dominio fixo | Pendente | Alta | Estrutura existe, mas ainda nao foi concluida na VPS real. |
 | 21 | Testes automatizados de backend | Pendente | Media | Existe teste unitario inicial de JWT, mas a suite ainda nao esta confiavel nem abrangente. |
 | 22 | Testes automatizados de frontend | Pendente | Media | Falta regressao basica da interface. |
-| 23 | Refino visual final do painel web | Em andamento | Media | Ja melhorou, mas ainda pode ficar mais limpo e mais comercial. |
+| 23 | Refino visual final do painel web | Em andamento | Media | Painel ficou mais limpo com relatorios executivos e exportacao, mas ainda pode ganhar ajustes finos de hierarquia e espacamento. |
 | 24 | Refino visual final do app da ronda | Em andamento | Media | Ja melhorou, mas ainda pode ficar mais leve e mais objetivo. |
 
 ## Sequencia recomendada

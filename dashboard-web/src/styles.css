@@ -202,6 +202,13 @@ button {
   pointer-events: none;
 }
 
+.client-shell .workspace::before {
+  background:
+    radial-gradient(circle at 18% 0%, rgba(125, 184, 199, 0.1), transparent 24%),
+    radial-gradient(circle at 100% 12%, rgba(228, 188, 116, 0.12), transparent 22%),
+    radial-gradient(circle at bottom left, rgba(125, 184, 199, 0.06), transparent 30%);
+}
+
 .workspace > * {
   position: relative;
   z-index: 1;
@@ -326,6 +333,17 @@ button {
   backdrop-filter: blur(16px);
 }
 
+.report-panel {
+  background:
+    linear-gradient(180deg, rgba(18, 31, 45, 0.96), rgba(10, 18, 28, 0.98));
+  border-color: rgba(228, 188, 116, 0.18);
+}
+
+.client-shell .report-panel {
+  background:
+    linear-gradient(180deg, rgba(15, 24, 34, 0.94), rgba(10, 17, 25, 0.98));
+}
+
 .panel {
   padding: 22px;
 }
@@ -336,6 +354,87 @@ button {
 
 .panel-note {
   margin: 0 0 16px;
+}
+
+.report-header {
+  margin-bottom: 10px;
+}
+
+.report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.executive-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.executive-card {
+  min-height: 146px;
+}
+
+.executive-card strong {
+  font-size: 28px;
+}
+
+.executive-card small {
+  display: block;
+  margin-top: 10px;
+  color: var(--muted);
+}
+
+.report-narrative {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.insight-card {
+  padding: 16px 18px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.insight-card strong {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--text);
+}
+
+.insight-card ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+}
+
+.insight-card li + li {
+  margin-top: 8px;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.report-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--gold-soft);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .patrol-layout {
@@ -977,6 +1076,14 @@ button {
   .patrol-telemetry {
     grid-template-columns: 1fr;
   }
+
+  .executive-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .report-narrative {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 720px) {
@@ -987,7 +1094,8 @@ button {
   .hero,
   .form-grid,
   .stats-grid,
-  .stats-grid-client {
+  .stats-grid-client,
+  .executive-grid {
     grid-template-columns: 1fr;
   }
 

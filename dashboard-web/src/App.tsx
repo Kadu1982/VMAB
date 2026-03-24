@@ -267,6 +267,225 @@ function translateGenericOperationalText(value: string) {
   return lookup[value] ?? value
 }
 
+function clampNumber(value: number, minimum: number, maximum: number) {
+  return Math.min(maximum, Math.max(minimum, value))
+}
+
+function slugifyFilename(value: string) {
+  // Gera nomes de arquivo seguros para exportacao local no navegador.
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'vmab'
+}
+
+function escapeCsvField(value: string) {
+  const escaped = value.replace(/"/g, '""')
+  return /[;"\n]/.test(escaped) ? `"${escaped}"` : escaped
+}
+
+function downloadTextFile(filename: string, content: string, mimeType: string) {
+  const blob = new Blob([content], { type: mimeType })
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+
+  link.href = url
+  link.download = filename
+  link.click()
+
+  window.setTimeout(() => window.URL.revokeObjectURL(url), 0)
+}
+
+function calculateOperationalHealth(summary: DashboardSummary) {
+  const risk = summary.openIncidents * 10 + summary.lateShifts * 8 + summary.absentShifts * 12 + summary.maintenanceAlerts * 6
+  return clampNumber(100 - risk, 0, 100)
+}
+
+function calculateContractHealth(portal: ClientPortal) {
+  const risk = portal.openIncidents * 12 + portal.maintenanceAlerts * 8
+  return clampNumber(100 - risk, 0, 100)
+}
+
+function buildSummaryMarkdownReport(summary: DashboardSummary, currentUsername: string | null, generatedAt: Date) {
+  const lines = [
+    '# VMAB - Relatorio executivo operacional',
+    `Gerado em: ${formatDate(generatedAt.toISOString())}`,
+    `Usuario logado: ${currentUsername ?? 'nao identificado'}`,
+    '',
+    '## Visao geral',
+    `- Moradores cadastrados: ${summary.totalResidents}`,
+    `- Agentes cadastrados: ${summary.totalAgents}`,
+    `- Agentes ativos: ${summary.activeAgents}`,
+    `- Viaturas disponiveis: ${summary.availableVehicles}`,
+    `- Turnos em operacao: ${summary.activeShifts}`,
+    `- Turnos atrasados: ${summary.lateShifts}`,
+    `- Faltas abertas: ${summary.absentShifts}`,
+    `- Ocorrencias abertas: ${summary.openIncidents}`,
+    `- Alertas de manutencao: ${summary.maintenanceAlerts}`,
+    `- Saude operacional estimada: ${calculateOperationalHealth(summary)}/100`,
+  ]
+
+  if (summary.activePatrol) {
+    lines.push(
+      '',
+      '## Patrulha ativa',
+      `- Vigilante: ${summary.activePatrol.agentName}`,
+      `- Viatura: ${summary.activePatrol.vehiclePlate} / ${summary.activePatrol.vehicleModel}`,
+      `- Velocidade atual: ${summary.activePatrol.speedKmh.toFixed(0)} km/h`,
+      `- KM percorridos no turno: ${summary.activePatrol.traveledKmInShift.toFixed(2)} km`,
+      `- Ultima atualizacao: ${formatDate(summary.activePatrol.updatedAt)}`,
+    )
+  }
+
+  lines.push('', '## Leituras executivas')
+  if (summary.openIncidents > 0) {
+    lines.push(`- A operacao tem ${summary.openIncidents} ocorrencia(s) aberta(s) em acompanhamento.`)
+  }
+  if (summary.lateShifts > 0) {
+    lines.push(`- Existem ${summary.lateShifts} turno(s) com atraso que exigem atencao da supervisao.`)
+  }
+  if (summary.absentShifts > 0) {
+    lines.push(`- Ha ${summary.absentShifts} falta(s) aberta(s), o que reduz previsibilidade operacional.`)
+  }
+  if (summary.maintenanceAlerts > 0) {
+    lines.push(`- A frota possui ${summary.maintenanceAlerts} alerta(s) de manutencao ou documento pendente.`)
+  }
+  if (lines[lines.length - 1] === '## Leituras executivas') {
+    lines.push('- Nenhum alerta critico foi identificado no snapshot atual.')
+  }
+
+  if (summary.incidents.length > 0) {
+    lines.push('', '## Ocorrencias recentes')
+    summary.incidents.slice(0, 5).forEach((incident) => {
+      lines.push(
+        `- ${translateIncidentType(incident.type)} | ${incident.residentName} | ${translateIncidentStatus(incident.status)} | ${incident.address}`,
+      )
+    })
+  }
+
+  if (summary.auditRecords.length > 0) {
+    lines.push('', '## Auditoria recente')
+    summary.auditRecords.slice(0, 5).forEach((record) => {
+      lines.push(`- ${translateAuditActionType(record.actionType)} | ${record.entityName}${record.entityId != null ? ` #${record.entityId}` : ''} | ${record.actorUsername}`)
+    })
+  }
+
+  return `${lines.join('\n')}\n`
+}
+
+function buildSummaryCsvReport(summary: DashboardSummary, currentUsername: string | null, generatedAt: Date) {
+  const rows = [
+    ['secao', 'indicador', 'valor', 'observacao'],
+    ['metadados', 'gerado_em', generatedAt.toISOString(), `usuario ${currentUsername ?? 'nao identificado'}`],
+    ['visao_geral', 'moradores', String(summary.totalResidents), 'cadastro total'],
+    ['visao_geral', 'agentes', String(summary.totalAgents), 'cadastro total'],
+    ['visao_geral', 'agentes_ativos', String(summary.activeAgents), 'ativos no momento'],
+    ['visao_geral', 'viaturas_disponiveis', String(summary.availableVehicles), 'prontas para uso'],
+    ['visao_geral', 'turnos_em_operacao', String(summary.activeShifts), 'turnos abertos'],
+    ['visao_geral', 'turnos_atrasados', String(summary.lateShifts), 'exigem supervisao'],
+    ['visao_geral', 'faltas_abertas', String(summary.absentShifts), 'exigem cobertura'],
+    ['visao_geral', 'ocorrencias_abertas', String(summary.openIncidents), 'casos em andamento'],
+    ['visao_geral', 'alertas_manutencao', String(summary.maintenanceAlerts), 'frota e documentos'],
+    ['visao_geral', 'saude_operacional_estimada', `${calculateOperationalHealth(summary)}/100`, 'indice calculado no frontend'],
+  ]
+
+  if (summary.activePatrol) {
+    rows.push(
+      ['patrulha_ativa', 'vigilante', summary.activePatrol.agentName, summary.activePatrol.agentBadgeCode],
+      ['patrulha_ativa', 'viatura', summary.activePatrol.vehiclePlate, summary.activePatrol.vehicleModel],
+      ['patrulha_ativa', 'velocidade_kmh', summary.activePatrol.speedKmh.toFixed(0), 'telemetria atual'],
+      ['patrulha_ativa', 'km_no_turno', summary.activePatrol.traveledKmInShift.toFixed(2), 'trilha GPS consolidada'],
+    )
+  }
+
+  summary.incidents.slice(0, 5).forEach((incident) => {
+    rows.push([
+      'ocorrencias_recentes',
+      `${translateIncidentType(incident.type)} / ${translateIncidentStatus(incident.status)}`,
+      incident.residentName,
+      `${incident.address} | ${incident.assignedAgentName ?? 'sem agente'} | ${incident.vehiclePlate ?? 'sem viatura'}`,
+    ])
+  })
+
+  summary.auditRecords.slice(0, 5).forEach((record) => {
+    rows.push([
+      'auditoria',
+      translateAuditActionType(record.actionType),
+      record.entityName,
+      `${record.actorUsername} | ${formatDate(record.occurredAt)}`,
+    ])
+  })
+
+  return rows.map((row) => row.map((value) => escapeCsvField(value)).join(';')).join('\n')
+}
+
+function buildClientMarkdownReport(portal: ClientPortal, currentUsername: string | null, generatedAt: Date) {
+  const lines = [
+    '# VMAB - Relatorio executivo do cliente',
+    `Gerado em: ${formatDate(generatedAt.toISOString())}`,
+    `Cliente autenticado: ${currentUsername ?? 'nao identificado'}`,
+    '',
+    '## Resumo contratual',
+    `- Turnos ativos: ${portal.activeShifts}`,
+    `- Ocorrencias abertas: ${portal.openIncidents}`,
+    `- Viaturas disponiveis: ${portal.availableVehicles}`,
+    `- Alertas de manutencao: ${portal.maintenanceAlerts}`,
+    `- Saude do contrato estimada: ${calculateContractHealth(portal)}/100`,
+  ]
+
+  if (portal.recentIncidents.length > 0) {
+    lines.push('', '## Ocorrencias recentes')
+    portal.recentIncidents.slice(0, 5).forEach((incident) => {
+      lines.push(`- ${translateIncidentType(incident.type)} | ${incident.residentName} | ${translateIncidentStatus(incident.status)} | ${incident.address}`)
+    })
+  } else {
+    lines.push('', '## Ocorrencias recentes', '- Nenhuma ocorrencia recente no snapshot atual.')
+  }
+
+  lines.push('', '## Leitura executiva')
+  if (portal.openIncidents > 0) {
+    lines.push(`- O contrato possui ${portal.openIncidents} incidente(s) em acompanhamento, entao a supervisao deve manter atencao nas proximas horas.`)
+  }
+  if (portal.maintenanceAlerts > 0) {
+    lines.push(`- Ha ${portal.maintenanceAlerts} alerta(s) de manutencao que podem afetar disponibilidade futura.`)
+  }
+  if (portal.activeShifts === 0) {
+    lines.push('- Nao ha turnos ativos no snapshot atual.')
+  } else {
+    lines.push(`- Existem ${portal.activeShifts} turno(s) ativos sustentando a operacao no momento.`)
+  }
+  if (lines[lines.length - 1] === '## Leitura executiva') {
+    lines.push('- Snapshot operacional sem riscos relevantes no momento.')
+  }
+
+  return `${lines.join('\n')}\n`
+}
+
+function buildClientCsvReport(portal: ClientPortal, currentUsername: string | null, generatedAt: Date) {
+  const rows = [
+    ['secao', 'indicador', 'valor', 'observacao'],
+    ['metadados', 'gerado_em', generatedAt.toISOString(), `cliente ${currentUsername ?? 'nao identificado'}`],
+    ['contrato', 'turnos_ativos', String(portal.activeShifts), 'painel do cliente'],
+    ['contrato', 'ocorrencias_abertas', String(portal.openIncidents), 'painel do cliente'],
+    ['contrato', 'viaturas_disponiveis', String(portal.availableVehicles), 'painel do cliente'],
+    ['contrato', 'alertas_manutencao', String(portal.maintenanceAlerts), 'painel do cliente'],
+    ['contrato', 'saude_estimada', `${calculateContractHealth(portal)}/100`, 'indice calculado no frontend'],
+  ]
+
+  portal.recentIncidents.slice(0, 5).forEach((incident) => {
+    rows.push([
+      'ocorrencias_recentes',
+      `${translateIncidentType(incident.type)} / ${translateIncidentStatus(incident.status)}`,
+      incident.residentName,
+      `${incident.address} | ${incident.assignedAgentName ?? 'sem agente'} | ${incident.vehiclePlate ?? 'sem viatura'}`,
+    ])
+  })
+
+  return rows.map((row) => row.map((value) => escapeCsvField(value)).join(';')).join('\n')
+}
+
 function readStoredSession(): AuthSession | null {
   const saved = window.localStorage.getItem(STORAGE_KEY)
   if (!saved) return null
@@ -422,6 +641,7 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [authMessage, setAuthMessage] = useState<string | null>(null)
+  const [reportMessage, setReportMessage] = useState<string | null>(null)
   const [session, setSession] = useState<AuthSession | null>(() => readStoredSession() ?? initialSession)
   const [credentials, setCredentials] = useState(() => {
     return initialCredentials
@@ -444,6 +664,7 @@ function App() {
   const [editingShiftId, setEditingShiftId] = useState<number | null>(null)
   const [editingIncidentId, setEditingIncidentId] = useState<number | null>(null)
   const [isPending, startTransition] = useTransition()
+  const reportMessageTimerRef = useRef<number | null>(null)
 
   // Deriva os escopos reais do usuario para nao exibir acoes que o backend vai negar.
   const isClient = currentRoles.includes('ROLE_CLIENT')
@@ -455,6 +676,58 @@ function App() {
 
   const shiftSubmitDisabled = !canCreateOperations && editingShiftId === null
   const incidentSubmitDisabled = !canCreateOperations && editingIncidentId === null
+  const operationalHealthScore = summary ? calculateOperationalHealth(summary) : 0
+  const contractHealthScore = portal ? calculateContractHealth(portal) : 0
+  const operationalHighlights = summary
+    ? [
+        summary.openIncidents > 0
+          ? `Ha ${summary.openIncidents} ocorrencia(s) aberta(s) em acompanhamento.`
+          : 'Nao ha ocorrencias abertas no snapshot atual.',
+        summary.lateShifts > 0
+          ? `Existem ${summary.lateShifts} turno(s) atrasado(s) e ${summary.absentShifts} falta(s) abertas.`
+          : 'Nao ha atrasos relevantes no momento.',
+        summary.maintenanceAlerts > 0
+          ? `A frota possui ${summary.maintenanceAlerts} alerta(s) de manutencao ou documento.`
+          : 'A frota nao tem alertas imediatos de manutencao.',
+        summary.activePatrol
+          ? `A patrulha ativa esta com ${summary.activePatrol.speedKmh.toFixed(0)} km/h e ${summary.activePatrol.traveledKmInShift.toFixed(2)} km no turno.`
+          : 'Nao existe patrulha ativa no momento.',
+      ]
+    : []
+  const portalHighlights = portal
+    ? [
+        portal.openIncidents > 0
+          ? `O contrato tem ${portal.openIncidents} incidente(s) em acompanhamento.`
+          : 'Nenhuma ocorrencia aberta na visao do cliente.',
+        portal.maintenanceAlerts > 0
+          ? `${portal.maintenanceAlerts} alerta(s) de manutencao podem afetar a disponibilidade futura.`
+          : 'Nao ha alertas criticos de manutencao no snapshot.',
+        portal.activeShifts > 0
+          ? `${portal.activeShifts} turno(s) estao sustentando a operacao em tempo real.`
+          : 'Nao ha turnos ativos agora.',
+      ]
+    : []
+  const portalIncidentBreakdown = portal
+    ? Object.entries(
+        portal.recentIncidents.reduce<Record<string, number>>((accumulator, incident) => {
+          accumulator[incident.type] = (accumulator[incident.type] ?? 0) + 1
+          return accumulator
+        }, {}),
+      ).sort((left, right) => right[1] - left[1])
+    : []
+
+  function setTransientReportMessage(message: string) {
+    // Mantem o feedback de exportacao curto para nao poluir o painel.
+    if (reportMessageTimerRef.current != null) {
+      window.clearTimeout(reportMessageTimerRef.current)
+    }
+
+    setReportMessage(message)
+    reportMessageTimerRef.current = window.setTimeout(() => {
+      setReportMessage(null)
+      reportMessageTimerRef.current = null
+    }, 5000)
+  }
 
   async function apiFetch(path: string, init?: RequestInit) {
     // Wrapper unico para chamadas autenticadas e expiracao de sessao.
@@ -539,6 +812,14 @@ function App() {
 
     return () => window.clearInterval(intervalId)
   }, [authenticated, session])
+
+  useEffect(() => {
+    return () => {
+      if (reportMessageTimerRef.current != null) {
+        window.clearTimeout(reportMessageTimerRef.current)
+      }
+    }
+  }, [])
 
   function resetAgentForm() {
     setAgentForm(initialAgentForm)
@@ -683,6 +964,7 @@ function App() {
     event.preventDefault()
     setError(null)
     setAuthMessage(null)
+    setReportMessage(null)
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
@@ -721,6 +1003,7 @@ function App() {
       setPortal(null)
       setUsers([])
       setAuthMessage('Sessao encerrada e tokens antigos invalidados.')
+      setReportMessage(null)
       resetAgentForm()
       resetUserForm()
       resetResidentForm()
@@ -737,6 +1020,7 @@ function App() {
       setSummary(null)
       setPortal(null)
       setUsers([])
+      setReportMessage(null)
     })
   }
 
@@ -783,6 +1067,36 @@ function App() {
 
     setAuthMessage('Senha redefinida com sucesso. Todas as sessoes anteriores foram invalidadas.')
     setPasswordResetForm({ username: '', resetCode: '', newPassword: '' })
+  }
+
+  function handleExportMarkdownReport() {
+    if (summary) {
+      const filename = `vmab-relatorio-operacional-${slugifyFilename(new Date().toISOString())}.md`
+      downloadTextFile(filename, buildSummaryMarkdownReport(summary, currentUsername, new Date()), 'text/markdown;charset=utf-8')
+      setTransientReportMessage('Relatorio operacional exportado em Markdown.')
+      return
+    }
+
+    if (portal) {
+      const filename = `vmab-relatorio-cliente-${slugifyFilename(new Date().toISOString())}.md`
+      downloadTextFile(filename, buildClientMarkdownReport(portal, currentUsername, new Date()), 'text/markdown;charset=utf-8')
+      setTransientReportMessage('Relatorio do cliente exportado em Markdown.')
+    }
+  }
+
+  function handleExportCsvReport() {
+    if (summary) {
+      const filename = `vmab-indicadores-operacionais-${slugifyFilename(new Date().toISOString())}.csv`
+      downloadTextFile(filename, buildSummaryCsvReport(summary, currentUsername, new Date()), 'text/csv;charset=utf-8')
+      setTransientReportMessage('Indicadores operacionais exportados em CSV.')
+      return
+    }
+
+    if (portal) {
+      const filename = `vmab-indicadores-cliente-${slugifyFilename(new Date().toISOString())}.csv`
+      downloadTextFile(filename, buildClientCsvReport(portal, currentUsername, new Date()), 'text/csv;charset=utf-8')
+      setTransientReportMessage('Indicadores do cliente exportados em CSV.')
+    }
   }
 
   async function saveEntity(path: string, method: 'POST' | 'PUT', payload: unknown, failMessage: string, onSuccess: () => void) {
@@ -1113,20 +1427,79 @@ function App() {
             </div>
           </header>
 
-          {error ? <div className="alert error">{error}</div> : null}
-          {loading ? <div className="alert">Carregando portal...</div> : null}
+        {error ? <div className="alert error">{error}</div> : null}
+        {loading ? <div className="alert">Carregando portal...</div> : null}
+        {reportMessage ? <div className="alert success">{reportMessage}</div> : null}
 
-          <section className="stats-grid stats-grid-client">
-            <article className="metric-card"><span>Turnos ativos</span><strong>{portal.activeShifts}</strong></article>
-            <article className="metric-card"><span>Ocorrencias abertas</span><strong>{portal.openIncidents}</strong></article>
-            <article className="metric-card"><span>Viaturas disponiveis</span><strong>{portal.availableVehicles}</strong></article>
-            <article className="metric-card"><span>Alertas de manutencao</span><strong>{portal.maintenanceAlerts}</strong></article>
-          </section>
+        <section className="stats-grid stats-grid-client">
+          <article className="metric-card"><span>Turnos ativos</span><strong>{portal.activeShifts}</strong></article>
+          <article className="metric-card"><span>Ocorrencias abertas</span><strong>{portal.openIncidents}</strong></article>
+          <article className="metric-card"><span>Viaturas disponiveis</span><strong>{portal.availableVehicles}</strong></article>
+          <article className="metric-card"><span>Alertas de manutencao</span><strong>{portal.maintenanceAlerts}</strong></article>
+        </section>
 
-          <section className="panel">
-            <div className="panel-header">
-              <div>
-                <p className="eyebrow">Incidentes recentes</p>
+        <section className="panel report-panel">
+          <div className="panel-header report-header">
+            <div>
+              <p className="eyebrow">Leitura executiva</p>
+              <h3>Saude do contrato e exportacao</h3>
+            </div>
+            <div className="report-actions">
+              <button className="secondary-button" onClick={handleExportMarkdownReport} type="button">Exportar relatorio</button>
+              <button className="secondary-button" onClick={handleExportCsvReport} type="button">Exportar CSV</button>
+            </div>
+          </div>
+          <p className="panel-note">Resumo calculado no frontend a partir do snapshot atual. Serve para leitura rapida, repasse interno e envio ao cliente sem expor o cadastro completo.</p>
+          <div className="executive-grid executive-grid-client">
+            <article className="telemetry-card executive-card">
+              <span>Saude estimada</span>
+              <strong>{contractHealthScore}/100</strong>
+              <small>Indice calculado com base em incidentes e manutencao.</small>
+            </article>
+            <article className="telemetry-card executive-card">
+              <span>Pressao operacional</span>
+              <strong>{portal.openIncidents + portal.maintenanceAlerts}</strong>
+              <small>Soma simples de risco para leitura executiva.</small>
+            </article>
+            <article className="telemetry-card executive-card">
+              <span>Turnos ativos</span>
+              <strong>{portal.activeShifts}</strong>
+              <small>Cobertura visivel no snapshot atual.</small>
+            </article>
+            <article className="telemetry-card executive-card">
+              <span>Viaturas disponiveis</span>
+              <strong>{portal.availableVehicles}</strong>
+              <small>Capacidade imediata para resposta.</small>
+            </article>
+          </div>
+          <div className="report-narrative">
+            <article className="insight-card">
+              <strong>Leitura executiva</strong>
+              <ul>
+                {portalHighlights.map((item) => <li key={item}>{item}</li>)}
+              </ul>
+            </article>
+            <article className="insight-card">
+              <strong>Mix das ultimas ocorrencias</strong>
+              {portalIncidentBreakdown.length === 0 ? (
+                <p>Nenhuma ocorrencia recente para consolidar.</p>
+              ) : (
+                <div className="chip-row">
+                  {portalIncidentBreakdown.map(([type, count]) => (
+                    <span className="report-chip" key={type}>
+                      {translateIncidentType(type as IncidentType)}: {count}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </article>
+          </div>
+        </section>
+
+        <section className="panel">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Incidentes recentes</p>
                 <h3>Ultimas ocorrencias</h3>
               </div>
             </div>
@@ -1195,6 +1568,7 @@ function App() {
         {error ? <div className="alert error">{error}</div> : null}
         {loading ? <div className="alert">Carregando painel...</div> : null}
         {isPending ? <div className="alert">Sincronizando alteracoes...</div> : null}
+        {reportMessage ? <div className="alert success">{reportMessage}</div> : null}
 
         {summary ? (
           <>
@@ -1284,6 +1658,59 @@ function App() {
               <article className="metric-card"><span>Faltas abertas</span><strong>{summary.absentShifts}</strong></article>
               <article className="metric-card"><span>Ocorrencias abertas</span><strong>{summary.openIncidents}</strong></article>
               <article className="metric-card"><span>Alertas de manutencao</span><strong>{summary.maintenanceAlerts}</strong></article>
+            </section>
+
+            <section className="panel report-panel">
+              <div className="panel-header report-header">
+                <div>
+                  <p className="eyebrow">Relatorio executivo</p>
+                  <h3>Visao para diretoria e supervisao</h3>
+                </div>
+                <div className="report-actions">
+                  <button className="secondary-button" onClick={handleExportMarkdownReport} type="button">Exportar relatorio</button>
+                  <button className="secondary-button" onClick={handleExportCsvReport} type="button">Exportar CSV</button>
+                </div>
+              </div>
+              <p className="panel-note">O arquivo gerado usa apenas o snapshot atual do backend e serve para leitura rapida, repasse interno e registro externo sem depender do banco de relatorios.</p>
+              <div className="executive-grid">
+                <article className="telemetry-card executive-card">
+                  <span>Saude operacional</span>
+                  <strong>{operationalHealthScore}/100</strong>
+                  <small>Indice calculado a partir de atrasos, faltas, ocorrencias e manutencao.</small>
+                </article>
+                <article className="telemetry-card executive-card">
+                  <span>Pressao operacional</span>
+                  <strong>{summary.openIncidents + summary.lateShifts + summary.absentShifts + summary.maintenanceAlerts}</strong>
+                  <small>Soma simples de pontos de atencao da operacao.</small>
+                </article>
+                <article className="telemetry-card executive-card">
+                  <span>Cobertura ativa</span>
+                  <strong>{summary.activeShifts}</strong>
+                  <small>Turnos efetivamente em operacao no momento.</small>
+                </article>
+                <article className="telemetry-card executive-card">
+                  <span>Frota pronta</span>
+                  <strong>{summary.availableVehicles}</strong>
+                  <small>Viaturas liberadas para resposta imediata.</small>
+                </article>
+              </div>
+              <div className="report-narrative">
+                <article className="insight-card">
+                  <strong>Leitura executiva</strong>
+                  <ul>
+                    {operationalHighlights.map((item) => <li key={item}>{item}</li>)}
+                  </ul>
+                </article>
+                <article className="insight-card">
+                  <strong>Ultimos alertas</strong>
+                  <div className="chip-row">
+                    <span className="report-chip">Ocorrencias: {summary.openIncidents}</span>
+                    <span className="report-chip">Atrasos: {summary.lateShifts}</span>
+                    <span className="report-chip">Faltas: {summary.absentShifts}</span>
+                    <span className="report-chip">Manutencao: {summary.maintenanceAlerts}</span>
+                  </div>
+                </article>
+              </div>
             </section>
 
             <section className="panel">
