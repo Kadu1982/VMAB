@@ -5,6 +5,7 @@ export type VehicleStatus = 'AVAILABLE' | 'IN_OPERATION' | 'MAINTENANCE' | 'BLOC
 export type ShiftStatus = 'PLANNED' | 'ACTIVE' | 'HANDOFF' | 'CLOSED'
 export type ShiftAttendanceStatus = 'PENDING' | 'ON_TIME' | 'LATE' | 'ABSENT' | 'COVERED'
 export type VehicleMaintenanceType = 'PREVENTIVE' | 'CORRECTIVE' | 'INSPECTION' | 'DOCUMENTATION'
+export type AuditActionType = 'CREATE' | 'UPDATE' | 'DELETE' | 'HANDOFF' | 'MAINTENANCE' | 'TELEMETRY' | 'INCIDENT_WORKFLOW' | 'AUTH'
 export type IncidentStatus = 'OPEN' | 'DISPATCHED' | 'ON_SITE' | 'CLOSED'
 export type IncidentType = 'PANIC' | 'SUSPICIOUS_ACTIVITY' | 'MEDICAL' | 'ESCORT'
 export type IncidentPriority = 'HIGH' | 'MEDIUM' | 'LOW'
@@ -60,6 +61,16 @@ export interface VehicleMaintenanceRecord {
   supplierName?: string | null
   description: string
   resolved: boolean
+}
+
+export interface AuditRecord {
+  id: number
+  actionType: AuditActionType
+  entityName: string
+  entityId?: number | null
+  actorUsername: string
+  occurredAt: string
+  description: string
 }
 
 export interface Shift {
@@ -137,8 +148,16 @@ export interface Incident {
   residentName: string
   address: string
   openedAt: string
+  assignedAgentId?: number | null
   assignedAgentName?: string | null
+  vehicleId?: number | null
   vehiclePlate?: string | null
+  dispatchedAt?: string | null
+  onSiteAt?: string | null
+  closedAt?: string | null
+  dispatchNotes?: string | null
+  arrivalNotes?: string | null
+  closureNotes?: string | null
 }
 
 export interface DashboardSummary {
@@ -152,6 +171,7 @@ export interface DashboardSummary {
   openIncidents: number
   maintenanceAlerts: number
   activePatrol?: ActivePatrol | null
+  auditRecords: AuditRecord[]
   residents: Resident[]
   agents: Agent[]
   vehicles: Vehicle[]

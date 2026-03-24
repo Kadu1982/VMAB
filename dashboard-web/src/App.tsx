@@ -18,6 +18,7 @@ import type {
   IncidentType,
   Resident,
   ResidentStatus,
+  AuditActionType,
   Shift,
   ShiftAttendanceStatus,
   ShiftStatus,
@@ -123,6 +124,9 @@ const initialIncidentForm = {
   address: '',
   assignedAgentId: '',
   vehicleId: '',
+  dispatchNotes: '',
+  arrivalNotes: '',
+  closureNotes: '',
 }
 
 function formatDate(value: string) {
@@ -191,6 +195,19 @@ function translateVehicleMaintenanceType(type: VehicleMaintenanceType) {
     INSPECTION: 'Inspecao',
     DOCUMENTATION: 'Documentacao',
   }[type]
+}
+
+function translateAuditActionType(actionType: AuditActionType) {
+  return {
+    CREATE: 'Criacao',
+    UPDATE: 'Atualizacao',
+    DELETE: 'Exclusao',
+    HANDOFF: 'Troca',
+    MAINTENANCE: 'Manutencao',
+    TELEMETRY: 'Telemetria',
+    INCIDENT_WORKFLOW: 'Fluxo da ocorrencia',
+    AUTH: 'Autenticacao',
+  }[actionType]
 }
 
 function translateIncidentType(type: IncidentType) {
@@ -401,8 +418,10 @@ function App() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null)
   const [portal, setPortal] = useState<ClientPortal | null>(null)
   const [users, setUsers] = useState<AppUser[]>([])
+  const [lastRefreshAt, setLastRefreshAt] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [authMessage, setAuthMessage] = useState<string | null>(null)
   const [session, setSession] = useState<AuthSession | null>(() => readStoredSession() ?? initialSession)
   const [credentials, setCredentials] = useState(() => {
     return initialCredentials
@@ -417,6 +436,7 @@ function App() {
   const [maintenanceForm, setMaintenanceForm] = useState(initialMaintenanceForm)
   const [shiftForm, setShiftForm] = useState(initialShiftForm)
   const [incidentForm, setIncidentForm] = useState(initialIncidentForm)
+  const [passwordResetForm, setPasswordResetForm] = useState({ username: '', resetCode: '', newPassword: '' })
   const [editingAgentId, setEditingAgentId] = useState<number | null>(null)
   const [editingUserId, setEditingUserId] = useState<number | null>(null)
   const [editingResidentId, setEditingResidentId] = useState<number | null>(null)
@@ -480,6 +500,7 @@ function App() {
         setPortal((await portalResponse.json()) as ClientPortal)
         setSummary(null)
         setUsers([])
+        setLastRefreshAt(new Date().toISOString())
       } else {
         const [summaryResponse, usersResponse] = await Promise.all([
           apiFetch('/api/dashboard/summary'),
@@ -490,6 +511,7 @@ function App() {
         setSummary((await summaryResponse.json()) as DashboardSummary)
         setUsers(usersResponse ? ((await usersResponse.json()) as AppUser[]) : [])
         setPortal(null)
+        setLastRefreshAt(new Date().toISOString())
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Falha inesperada ao carregar a interface.')
@@ -504,6 +526,19 @@ function App() {
   useEffect(() => {
     void loadData()
   }, [authenticated])
+
+  useEffect(() => {
+    // Mantem o painel fresco em ambiente operacional sem exigir clique manual o tempo inteiro.
+    if (!authenticated) {
+      return
+    }
+
+    const intervalId = window.setInterval(() => {
+      void loadData()
+    }, 30000)
+
+    return () => window.clearInterval(intervalId)
+  }, [authenticated, session])
 
   function resetAgentForm() {
     setAgentForm(initialAgentForm)
@@ -638,12 +673,16 @@ function App() {
       address: incident.address,
       assignedAgentId: agent ? String(agent.id) : '',
       vehicleId: vehicle ? String(vehicle.id) : '',
+      dispatchNotes: incident.dispatchNotes ?? '',
+      arrivalNotes: incident.arrivalNotes ?? '',
+      closureNotes: incident.closureNotes ?? '',
     })
   }
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError(null)
+    setAuthMessage(null)
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
@@ -668,20 +707,82 @@ function App() {
   }
 
   function handleLogout() {
-    window.localStorage.removeItem(STORAGE_KEY)
-    setSession(null)
-    setAuthenticated(false)
-    setCurrentUsername(null)
-    setCurrentRoles([])
-    setSummary(null)
-    setPortal(null)
-    setUsers([])
-    resetAgentForm()
-    resetUserForm()
-    resetResidentForm()
-    resetVehicleForm()
-    resetShiftForm()
-    resetIncidentForm()
+    void (async () => {
+      if (session) {
+        await apiFetch('/api/auth/logout', { method: 'POST' })
+      }
+
+      window.localStorage.removeItem(STORAGE_KEY)
+      setSession(null)
+      setAuthenticated(false)
+      setCurrentUsername(null)
+      setCurrentRoles([])
+      setSummary(null)
+      setPortal(null)
+      setUsers([])
+      setAuthMessage('Sessao encerrada e tokens antigos invalidados.')
+      resetAgentForm()
+      resetUserForm()
+      resetResidentForm()
+      resetVehicleForm()
+      resetMaintenanceForm()
+      resetShiftForm()
+      resetIncidentForm()
+    })().catch(() => {
+      window.localStorage.removeItem(STORAGE_KEY)
+      setSession(null)
+      setAuthenticated(false)
+      setCurrentUsername(null)
+      setCurrentRoles([])
+      setSummary(null)
+      setPortal(null)
+      setUsers([])
+    })
+  }
+
+  async function handlePasswordResetRequest(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setError(null)
+    setAuthMessage(null)
+
+    const response = await fetch(`${API_BASE_URL}/api/auth/password-reset/request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: passwordResetForm.username }),
+    })
+
+    if (!response.ok) {
+      setError('Nao foi possivel solicitar o reset de senha.')
+      return
+    }
+
+    const payload = (await response.json()) as { username: string; resetCode: string; expiresAt: string }
+    setPasswordResetForm((current) => ({ ...current, resetCode: payload.resetCode }))
+    setAuthMessage(`Codigo de reset gerado para ${payload.username}: ${payload.resetCode}`)
+  }
+
+  async function handlePasswordResetConfirm(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setError(null)
+    setAuthMessage(null)
+
+    const response = await fetch(`${API_BASE_URL}/api/auth/password-reset/confirm`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: passwordResetForm.username,
+        resetCode: passwordResetForm.resetCode,
+        newPassword: passwordResetForm.newPassword,
+      }),
+    })
+
+    if (!response.ok) {
+      setError('Nao foi possivel concluir o reset de senha.')
+      return
+    }
+
+    setAuthMessage('Senha redefinida com sucesso. Todas as sessoes anteriores foram invalidadas.')
+    setPasswordResetForm({ username: '', resetCode: '', newPassword: '' })
   }
 
   async function saveEntity(path: string, method: 'POST' | 'PUT', payload: unknown, failMessage: string, onSuccess: () => void) {
@@ -887,6 +988,49 @@ function App() {
     await saveEntity(path, method, payload, 'Nao foi possivel salvar a ocorrencia.', resetIncidentForm)
   }
 
+  async function handleIncidentDispatch(incidentId: number) {
+    if (!incidentForm.assignedAgentId || !incidentForm.vehicleId) {
+      setError('Selecione agente e viatura para despachar a ocorrencia.')
+      return
+    }
+
+    await saveEntity(
+      `/api/incidents/${incidentId}/dispatch`,
+      'POST',
+      {
+        assignedAgentId: Number(incidentForm.assignedAgentId),
+        vehicleId: Number(incidentForm.vehicleId),
+        dispatchNotes: incidentForm.dispatchNotes || null,
+      },
+      'Nao foi possivel despachar a ocorrencia.',
+      resetIncidentForm,
+    )
+  }
+
+  async function handleIncidentOnSite(incidentId: number) {
+    await saveEntity(
+      `/api/incidents/${incidentId}/onsite`,
+      'POST',
+      {
+        arrivalNotes: incidentForm.arrivalNotes || null,
+      },
+      'Nao foi possivel registrar chegada no local.',
+      resetIncidentForm,
+    )
+  }
+
+  async function handleIncidentClose(incidentId: number) {
+    await saveEntity(
+      `/api/incidents/${incidentId}/close`,
+      'POST',
+      {
+        closureNotes: incidentForm.closureNotes || null,
+      },
+      'Nao foi possivel encerrar a ocorrencia.',
+      resetIncidentForm,
+    )
+  }
+
   if (!authenticated) {
     // Tela inicial de autenticacao para administracao, ronda e cliente.
     return (
@@ -897,10 +1041,22 @@ function App() {
           <h1>Seguranca Comunitaria</h1>
           <p className="hero-copy">Entre com um dos perfis do ambiente para testar o painel operacional, a visao da ronda ou o portal do cliente.</p>
           {error ? <div className="alert error">{error}</div> : null}
+          {authMessage ? <div className="alert success">{authMessage}</div> : null}
           <form className="login-form" onSubmit={handleLogin}>
             <input required placeholder="Usuario" value={credentials.username} onChange={(event) => setCredentials((current) => ({ ...current, username: event.target.value }))} />
             <input required type="password" placeholder="Senha" value={credentials.password} onChange={(event) => setCredentials((current) => ({ ...current, password: event.target.value }))} />
             <button type="submit">Entrar</button>
+          </form>
+          <form className="login-form" onSubmit={handlePasswordResetRequest}>
+            <strong>Solicitar reset de senha</strong>
+            <input required placeholder="Usuario para reset" value={passwordResetForm.username} onChange={(event) => setPasswordResetForm((current) => ({ ...current, username: event.target.value }))} />
+            <button className="secondary-button" type="submit">Gerar codigo</button>
+          </form>
+          <form className="login-form" onSubmit={handlePasswordResetConfirm}>
+            <strong>Confirmar reset</strong>
+            <input required placeholder="Codigo de reset" value={passwordResetForm.resetCode} onChange={(event) => setPasswordResetForm((current) => ({ ...current, resetCode: event.target.value }))} />
+            <input required minLength={8} type="password" placeholder="Nova senha" value={passwordResetForm.newPassword} onChange={(event) => setPasswordResetForm((current) => ({ ...current, newPassword: event.target.value }))} />
+            <button className="secondary-button" type="submit">Redefinir senha</button>
           </form>
 
           <div className="hint-grid">
@@ -1028,6 +1184,7 @@ function App() {
             <p className="eyebrow">Painel</p>
             <h2>Core administrativo integrado</h2>
             <p className="hero-copy">Esta interface concentra cadastros, jornada, ocorrencias e a base operacional do produto em um unico fluxo.</p>
+            {lastRefreshAt ? <small className="hero-refresh">Atualizacao automatica ativa • ultimo sync {formatDate(lastRefreshAt)}</small> : null}
           </div>
           <div className="hero-actions">
             <button className="refresh-button" onClick={() => void loadData()} type="button">Atualizar</button>
@@ -1127,6 +1284,30 @@ function App() {
               <article className="metric-card"><span>Faltas abertas</span><strong>{summary.absentShifts}</strong></article>
               <article className="metric-card"><span>Ocorrencias abertas</span><strong>{summary.openIncidents}</strong></article>
               <article className="metric-card"><span>Alertas de manutencao</span><strong>{summary.maintenanceAlerts}</strong></article>
+            </section>
+
+            <section className="panel">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Auditoria</p>
+                  <h3>Acoes criticas recentes</h3>
+                </div>
+              </div>
+              <p className="panel-note">Trilha resumida das ultimas acoes relevantes da operacao para supervisao e compliance.</p>
+              <div className="list">
+                {summary.auditRecords.map((record) => (
+                  <article className="list-row" key={record.id}>
+                    <div>
+                      <strong>{translateAuditActionType(record.actionType)} | {record.entityName}{record.entityId != null ? ` #${record.entityId}` : ''}</strong>
+                      <small>{record.description}</small>
+                    </div>
+                    <div className="row-actions">
+                      <span className="tag active">{record.actorUsername}</span>
+                      <small>{formatDate(record.occurredAt)}</small>
+                    </div>
+                  </article>
+                ))}
+              </div>
             </section>
 
             <section className="content-grid">
@@ -1462,8 +1643,14 @@ function App() {
                     <select value={incidentForm.status} onChange={(event) => setIncidentForm((current) => ({ ...current, status: event.target.value as IncidentStatus }))}>
                       {incidentStatusOptions.map((status) => <option key={status} value={status}>{translateIncidentStatus(status)}</option>)}
                     </select>
+                    <input placeholder="Observacoes do despacho" value={incidentForm.dispatchNotes} onChange={(event) => setIncidentForm((current) => ({ ...current, dispatchNotes: event.target.value }))} />
+                    <input placeholder="Observacoes da chegada" value={incidentForm.arrivalNotes} onChange={(event) => setIncidentForm((current) => ({ ...current, arrivalNotes: event.target.value }))} />
+                    <input placeholder="Observacoes do encerramento" value={incidentForm.closureNotes} onChange={(event) => setIncidentForm((current) => ({ ...current, closureNotes: event.target.value }))} />
                     <div className="button-row">
                       <button disabled={incidentSubmitDisabled} type="submit">{editingIncidentId === null ? 'Cadastrar ocorrencia' : 'Salvar ocorrencia'}</button>
+                      {editingIncidentId !== null && canUpdateOperations ? <button className="secondary-button" onClick={() => void handleIncidentDispatch(editingIncidentId)} type="button">Despachar</button> : null}
+                      {editingIncidentId !== null && canUpdateOperations ? <button className="secondary-button" onClick={() => void handleIncidentOnSite(editingIncidentId)} type="button">Chegada no local</button> : null}
+                      {editingIncidentId !== null && canUpdateOperations ? <button className="secondary-button" onClick={() => void handleIncidentClose(editingIncidentId)} type="button">Encerrar</button> : null}
                       {editingIncidentId !== null ? <button className="secondary-button" onClick={resetIncidentForm} type="button">Cancelar</button> : null}
                     </div>
                   </form>
@@ -1473,7 +1660,8 @@ function App() {
                     <article className="list-row" key={incident.id}>
                       <div>
                         <strong>{translateIncidentType(incident.type)} | {incident.residentName}</strong>
-                        <small>{incident.address} | {incident.assignedAgentName ?? 'Sem agente'} | {incident.vehiclePlate ?? 'Sem viatura'}</small>
+                        <small>{incident.address} | {incident.assignedAgentName ?? 'Sem agente'} | {incident.vehiclePlate ?? 'Sem viatura'} | despacho {incident.dispatchedAt ? formatDate(incident.dispatchedAt) : 'pendente'} | chegada {incident.onSiteAt ? formatDate(incident.onSiteAt) : 'pendente'} | encerramento {incident.closedAt ? formatDate(incident.closedAt) : 'pendente'}</small>
+                        <small>{incident.dispatchNotes ?? incident.arrivalNotes ?? incident.closureNotes ?? 'Sem observacoes operacionais'}</small>
                       </div>
                       <div className="row-actions">
                         <span className={`tag ${incident.priority.toLowerCase()}`}>{translateIncidentPriority(incident.priority)}</span>

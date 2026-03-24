@@ -230,6 +230,12 @@ button {
   max-width: 760px;
 }
 
+.hero-refresh {
+  display: inline-block;
+  margin-top: 10px;
+  color: var(--text-soft);
+}
+
 .hero-actions,
 .button-row,
 .row-actions {
@@ -296,6 +302,12 @@ button {
   background: rgba(255, 154, 125, 0.08);
   border-color: rgba(255, 154, 125, 0.18);
   color: #ffd4ca;
+}
+
+.alert.success {
+  background: rgba(109, 214, 148, 0.1);
+  border-color: rgba(109, 214, 148, 0.22);
+  color: #dcffe5;
 }
 
 .patrol-panel {
