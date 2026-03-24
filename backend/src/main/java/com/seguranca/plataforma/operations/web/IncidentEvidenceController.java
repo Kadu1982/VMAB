@@ -1,18 +1,22 @@
 package com.seguranca.plataforma.operations.web;
 
+import com.seguranca.plataforma.operations.dto.DeleteIncidentEvidenceRequest;
 import com.seguranca.plataforma.operations.dto.IncidentEvidenceResponse;
 import com.seguranca.plataforma.operations.service.OperationsService;
+import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.multipart.MultipartFile;
 
 @RestController
@@ -56,5 +60,15 @@ public class IncidentEvidenceController {
                 .contentType(MediaType.parseMediaType(download.contentType()))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + download.originalFilename() + "\"")
                 .body(download.resource());
+    }
+
+    @DeleteMapping("/{incidentId}/evidence/{evidenceId}")
+    public IncidentEvidenceResponse delete(
+            @PathVariable Long incidentId,
+            @PathVariable Long evidenceId,
+            @Valid @RequestBody(required = false) DeleteIncidentEvidenceRequest request
+    ) {
+        // Remove a evidencia de forma controlada e auditavel.
+        return operationsService.deleteIncidentEvidence(incidentId, evidenceId, request == null ? null : request.reason());
     }
 }

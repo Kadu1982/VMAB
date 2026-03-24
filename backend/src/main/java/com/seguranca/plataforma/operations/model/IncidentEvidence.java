@@ -40,6 +40,15 @@ public class IncidentEvidence {
     @Column(name = "uploaded_at", nullable = false)
     private OffsetDateTime uploadedAt;
 
+    @Column(name = "deleted_at")
+    private OffsetDateTime deletedAt;
+
+    @Column(name = "deleted_by")
+    private String deletedBy;
+
+    @Column(name = "deletion_reason", length = 1000)
+    private String deletionReason;
+
     protected IncidentEvidence() {
     }
 
@@ -97,5 +106,28 @@ public class IncidentEvidence {
 
     public OffsetDateTime getUploadedAt() {
         return uploadedAt;
+    }
+
+    public OffsetDateTime getDeletedAt() {
+        return deletedAt;
+    }
+
+    public String getDeletedBy() {
+        return deletedBy;
+    }
+
+    public String getDeletionReason() {
+        return deletionReason;
+    }
+
+    public boolean isDeleted() {
+        return deletedAt != null;
+    }
+
+    public void markDeleted(OffsetDateTime deletedAt, String deletedBy, String deletionReason) {
+        // Mantem a trilha da exclusao sem apagar o contexto da evidencia no banco.
+        this.deletedAt = deletedAt;
+        this.deletedBy = deletedBy;
+        this.deletionReason = deletionReason;
     }
 }

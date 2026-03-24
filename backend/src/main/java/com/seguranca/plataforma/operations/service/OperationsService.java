@@ -1,5 +1,6 @@
 package com.seguranca.plataforma.operations.service;
 
+import com.seguranca.plataforma.config.VmabRetentionProperties;
 import com.seguranca.plataforma.operations.dto.CreateAgentRequest;
 import com.seguranca.plataforma.operations.dto.ActivePatrolResponse;
 import com.seguranca.plataforma.operations.dto.CreateIncidentRequest;
@@ -97,6 +98,7 @@ public class OperationsService {
     private final IncidentEvidenceRepository incidentEvidenceRepository;
     private final OperationsRealtimeService operationsRealtimeService;
     private final VehicleFleetReportCalculator vehicleFleetReportCalculator;
+    private final VmabRetentionProperties retentionProperties;
     private final Path storageRoot;
 
     public OperationsService(
@@ -111,6 +113,7 @@ public class OperationsService {
             IncidentEvidenceRepository incidentEvidenceRepository,
             OperationsRealtimeService operationsRealtimeService,
             VehicleFleetReportCalculator vehicleFleetReportCalculator,
+            VmabRetentionProperties retentionProperties,
             @Value("${vmab.storage-root}") String storageRoot
     ) {
         this.agentRepository = agentRepository;
@@ -124,6 +127,7 @@ public class OperationsService {
         this.incidentEvidenceRepository = incidentEvidenceRepository;
         this.operationsRealtimeService = operationsRealtimeService;
         this.vehicleFleetReportCalculator = vehicleFleetReportCalculator;
+        this.retentionProperties = retentionProperties;
         this.storageRoot = Path.of(storageRoot).toAbsolutePath().normalize();
     }
 
@@ -783,7 +787,7 @@ public class OperationsService {
 
     @Transactional(readOnly = true)
     public List<IncidentEvidenceResponse> listIncidentEvidence() {
-        return incidentEvidenceRepository.findAllByOrderByUploadedAtDesc().stream()
+        return incidentEvidenceRepository.findAllByDeletedAtIsNullOrderByUploadedAtDesc().stream()
                 .map(this::toIncidentEvidenceResponse)
                 .toList();
     }
@@ -791,7 +795,7 @@ public class OperationsService {
     @Transactional(readOnly = true)
     public List<IncidentEvidenceResponse> listIncidentEvidenceByIncident(Long incidentId) {
         getIncident(incidentId);
-        return incidentEvidenceRepository.findByIncidentIdOrderByUploadedAtDesc(incidentId).stream()
+        return incidentEvidenceRepository.findByIncidentIdAndDeletedAtIsNullOrderByUploadedAtDesc(incidentId).stream()
                 .map(this::toIncidentEvidenceResponse)
                 .toList();
     }
@@ -956,10 +960,47 @@ public class OperationsService {
         return toIncidentEvidenceResponse(savedEvidence);
     }
 
+    @Transactional
+    public IncidentEvidenceResponse deleteIncidentEvidence(Long incidentId, Long evidenceId, String reason) {
+        // A exclusao e controlada: apaga o arquivo fisico, mas preserva trilha de quem removeu e por qual motivo.
+        IncidentEvidence evidence = incidentEvidenceRepository.findByIdAndIncidentIdAndDeletedAtIsNull(evidenceId, incidentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Evidencia da ocorrencia nao encontrada."));
+
+        if (evidence.isDeleted()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A evidencia ja foi removida anteriormente.");
+        }
+
+        Path evidencePath = storageRoot
+                .resolve("incidents")
+                .resolve(String.valueOf(incidentId))
+                .resolve(evidence.getStoredFilename());
+
+        try {
+            Files.deleteIfExists(evidencePath);
+            pruneIncidentDirectory(evidencePath.getParent());
+        } catch (IOException exception) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Nao foi possivel remover o arquivo da evidencia.");
+        }
+
+        evidence.markDeleted(
+                OffsetDateTime.now(ZoneOffset.UTC),
+                resolveCurrentActorUsername(),
+                normalizeOptionalText(reason, 1000)
+        );
+        IncidentEvidence savedEvidence = incidentEvidenceRepository.save(evidence);
+        recordAudit(AuditActionType.DELETE, "IncidentEvidence", savedEvidence.getId(), "Exclusao controlada da evidencia da ocorrencia " + incidentId);
+        return toIncidentEvidenceResponse(savedEvidence);
+    }
+
     @Transactional(readOnly = true)
     public IncidentEvidenceDownload downloadIncidentEvidence(Long incidentId, Long evidenceId) {
-        IncidentEvidence evidence = incidentEvidenceRepository.findByIdAndIncidentId(evidenceId, incidentId)
+        IncidentEvidence evidence = incidentEvidenceRepository.findByIdAndIncidentIdAndDeletedAtIsNull(evidenceId, incidentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Evidencia da ocorrencia nao encontrada."));
+
+        if (evidence.isDeleted()) {
+            throw new ResponseStatusException(HttpStatus.GONE, "A evidencia foi removida e nao pode mais ser baixada.");
+        }
+
         Path resourcePath = storageRoot.resolve("incidents").resolve(String.valueOf(incidentId)).resolve(evidence.getStoredFilename());
         Resource resource = new FileSystemResource(resourcePath);
 
@@ -1475,6 +1516,7 @@ public class OperationsService {
                 evidence.getNotes(),
                 evidence.getUploadedBy(),
                 evidence.getUploadedAt(),
+                evidence.getUploadedAt().plusDays(retentionProperties.getIncidentEvidenceRetentionDays()),
                 "/api/incidents/" + evidence.getIncidentId() + "/evidence/" + evidence.getId() + "/download"
         );
     }
@@ -1499,7 +1541,7 @@ public class OperationsService {
 
     private void deleteIncidentEvidenceFiles(Long incidentId) {
         // Faz a limpeza local do diretorio de anexos ligado a uma ocorrencia removida.
-        List<IncidentEvidence> evidences = incidentEvidenceRepository.findByIncidentIdOrderByUploadedAtDesc(incidentId);
+        List<IncidentEvidence> evidences = incidentEvidenceRepository.findByIncidentIdAndDeletedAtIsNullOrderByUploadedAtDesc(incidentId);
         for (IncidentEvidence evidence : evidences) {
             Path evidencePath = storageRoot
                     .resolve("incidents")
@@ -1530,6 +1572,33 @@ public class OperationsService {
 
         String sanitized = originalFilename.replaceAll("[^a-zA-Z0-9._-]", "_");
         return StringUtils.hasText(sanitized) ? sanitized : fallback;
+    }
+
+    private void pruneIncidentDirectory(Path directory) {
+        // Remove diretorios vazios deixados pela exclusao para nao acumular lixo no storage.
+        if (directory == null) {
+            return;
+        }
+
+        Path incidentsRoot = storageRoot.resolve("incidents");
+        Path current = directory;
+        while (current != null && current.startsWith(incidentsRoot) && !current.equals(incidentsRoot)) {
+            try (var listing = Files.list(current)) {
+                if (listing.findAny().isPresent()) {
+                    return;
+                }
+            } catch (IOException exception) {
+                return;
+            }
+
+            try {
+                Files.deleteIfExists(current);
+            } catch (IOException exception) {
+                return;
+            }
+
+            current = current.getParent();
+        }
     }
 
     private String normalizeOptionalText(String value, int maxLength) {

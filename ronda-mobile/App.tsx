@@ -1,5 +1,6 @@
 import { StatusBar } from 'expo-status-bar'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import * as ImagePicker from 'expo-image-picker'
 import * as Location from 'expo-location'
 import { useEffect, useRef, useState } from 'react'
 import {
@@ -71,6 +72,12 @@ type AuthSession = {
   expiresAt: string
   username: string
   roles: string[]
+}
+
+type EvidenceAsset = {
+  uri: string
+  fileName: string
+  mimeType: string
 }
 
 type DashboardSummary = {
@@ -184,11 +191,15 @@ export default function App() {
   const [authenticated, setAuthenticated] = useState(false)
   const [loading, setLoading] = useState(false)
   const [syncingGps, setSyncingGps] = useState(false)
+  const [uploadingEvidence, setUploadingEvidence] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [trackingStatus, setTrackingStatus] = useState('GPS inativo')
   const [offlineQueueCount, setOfflineQueueCount] = useState(0)
   const [telemetrySignals, setTelemetrySignals] = useState<TelemetrySignal[]>([])
   const [summary, setSummary] = useState<DashboardSummary | null>(null)
+  const [evidenceIncidentId, setEvidenceIncidentId] = useState('')
+  const [evidenceNotes, setEvidenceNotes] = useState('')
+  const [evidenceAsset, setEvidenceAsset] = useState<EvidenceAsset | null>(null)
   const foregroundSubscriptionRef = useRef<Location.LocationSubscription | null>(null)
 
   useEffect(() => {
@@ -258,6 +269,104 @@ export default function App() {
 
     if (result.sent > 0) {
       setTrackingStatus(`Fila offline sincronizada: ${result.sent} ponto(s) enviados.`)
+    }
+  }
+
+  async function pickEvidenceFromLibrary() {
+    // Permite anexar foto da ocorrencia direto do celular da ronda.
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync()
+    if (!permission.granted) {
+      setError('Permita acesso a biblioteca para anexar evidencias.')
+      return
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.7,
+    })
+
+    if (result.canceled || !result.assets.length) {
+      return
+    }
+
+    const asset = result.assets[0]
+    setEvidenceAsset({
+      uri: asset.uri,
+      fileName: asset.fileName ?? `evidencia-${Date.now()}.jpg`,
+      mimeType: asset.mimeType ?? 'image/jpeg',
+    })
+  }
+
+  async function takeEvidencePhoto() {
+    // Captura foto em campo para vincular prova visual a uma ocorrencia.
+    const permission = await ImagePicker.requestCameraPermissionsAsync()
+    if (!permission.granted) {
+      setError('Permita acesso a camera para fotografar a evidencia.')
+      return
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      quality: 0.7,
+    })
+
+    if (result.canceled || !result.assets.length) {
+      return
+    }
+
+    const asset = result.assets[0]
+    setEvidenceAsset({
+      uri: asset.uri,
+      fileName: asset.fileName ?? `evidencia-${Date.now()}.jpg`,
+      mimeType: asset.mimeType ?? 'image/jpeg',
+    })
+  }
+
+  async function uploadEvidence() {
+    // Envia a foto para a ocorrencia selecionada sem depender do painel web.
+    const baseUrl = normalizeApiUrl(apiBaseUrl)
+    if (!baseUrl || !session?.accessToken) {
+      setError('Sua sessao nao existe mais. Entre novamente.')
+      return
+    }
+
+    if (!evidenceIncidentId || !evidenceAsset) {
+      setError('Selecione a ocorrencia e a foto da evidencia.')
+      return
+    }
+
+    setUploadingEvidence(true)
+    setError(null)
+
+    try {
+      const formData = new FormData()
+      formData.append('notes', evidenceNotes)
+      formData.append('file', {
+        uri: evidenceAsset.uri,
+        name: evidenceAsset.fileName,
+        type: evidenceAsset.mimeType,
+      } as never)
+
+      const response = await fetch(`${baseUrl}/api/incidents/${evidenceIncidentId}/evidence`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.accessToken}`,
+        },
+        body: formData,
+      })
+
+      if (!response.ok) {
+        throw new Error('Nao foi possivel enviar a evidencia da ocorrencia.')
+      }
+
+      setEvidenceAsset(null)
+      setEvidenceNotes('')
+      setTrackingStatus('Evidencia enviada com sucesso para a ocorrencia selecionada.')
+      await fetchSummary()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Falha inesperada ao enviar a evidencia.')
+    } finally {
+      setUploadingEvidence(false)
     }
   }
 
@@ -586,7 +695,7 @@ export default function App() {
           <View>
             <Text style={styles.eyebrow}>Operacao em campo</Text>
             <Text style={styles.title}>Ronda em tempo real</Text>
-            <Text style={styles.copy}>A telemetria do celular alimenta a localizacao da viatura no dashboard web.</Text>
+            <Text style={styles.copy}>A tela prioriza patrulha, fila offline, ocorrencias e evidencia operacional.</Text>
           </View>
           <View style={styles.actionRow}>
             <Pressable style={styles.secondaryButton} onPress={() => void fetchSummary()}>
@@ -726,6 +835,44 @@ export default function App() {
                 </View>
               ))}
             </View>
+
+            <View style={styles.sectionCard}>
+              <Text style={styles.sectionTitle}>Evidencia rapida</Text>
+              <Text style={styles.rowMeta}>Selecione a ocorrencia e envie a foto direto do celular da viatura.</Text>
+              <View style={styles.formStack}>
+                <TextInput
+                  placeholder="ID da ocorrencia"
+                  placeholderTextColor="#7f8ca1"
+                  style={styles.input}
+                  value={evidenceIncidentId}
+                  onChangeText={setEvidenceIncidentId}
+                />
+                <TextInput
+                  placeholder="Observacao da evidencia"
+                  placeholderTextColor="#7f8ca1"
+                  style={styles.input}
+                  value={evidenceNotes}
+                  onChangeText={setEvidenceNotes}
+                />
+                <View style={styles.actionRow}>
+                  <Pressable style={styles.secondaryButton} onPress={() => void takeEvidencePhoto()}>
+                    <Text style={styles.secondaryButtonText}>Fotografar</Text>
+                  </Pressable>
+                  <Pressable style={styles.secondaryButton} onPress={() => void pickEvidenceFromLibrary()}>
+                    <Text style={styles.secondaryButtonText}>Escolher imagem</Text>
+                  </Pressable>
+                </View>
+                <Pressable style={styles.primaryButton} onPress={() => void uploadEvidence()}>
+                  <Text style={styles.primaryButtonText}>{uploadingEvidence ? 'Enviando...' : 'Enviar evidencia'}</Text>
+                </Pressable>
+                <Text style={styles.rowMeta}>{evidenceAsset ? `Arquivo pronto: ${evidenceAsset.fileName}` : 'Nenhuma imagem selecionada.'}</Text>
+                {evidenceAsset ? (
+                  <View style={styles.evidencePreviewCard}>
+                    <Image source={{ uri: evidenceAsset.uri }} style={styles.evidencePreview} />
+                  </View>
+                ) : null}
+              </View>
+            </View>
           </>
         ) : null}
       </ScrollView>
@@ -736,7 +883,7 @@ export default function App() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#070707',
+    backgroundColor: '#07101a',
   },
   loginShell: {
     flex: 1,
@@ -745,8 +892,8 @@ const styles = StyleSheet.create({
     gap: 20,
   },
   scrollContent: {
-    padding: 22,
-    gap: 16,
+    padding: 18,
+    gap: 14,
   },
   eyebrow: {
     fontSize: 11,
@@ -766,26 +913,26 @@ const styles = StyleSheet.create({
     color: '#b9c2cf',
   },
   formCard: {
-    padding: 20,
-    borderRadius: 24,
-    backgroundColor: '#101722',
+    padding: 18,
+    borderRadius: 22,
+    backgroundColor: 'rgba(15,24,35,0.96)',
     borderWidth: 1,
-    borderColor: 'rgba(228,188,116,0.14)',
+    borderColor: 'rgba(228,188,116,0.12)',
     gap: 12,
   },
   input: {
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.06)',
-    borderRadius: 16,
+    borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    backgroundColor: 'rgba(255,255,255,0.035)',
+    backgroundColor: 'rgba(255,255,255,0.03)',
     color: '#f7f4ec',
   },
   primaryButton: {
-    borderRadius: 18,
-    backgroundColor: '#e4bc74',
-    paddingVertical: 14,
+    borderRadius: 16,
+    backgroundColor: '#e1b767',
+    paddingVertical: 13,
     alignItems: 'center',
   },
   primaryButtonText: {
@@ -793,8 +940,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   secondaryButton: {
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.025)',
     borderWidth: 1,
     borderColor: 'rgba(228,188,116,0.12)',
     paddingHorizontal: 14,
@@ -805,9 +952,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   infoBlock: {
-    padding: 16,
-    borderRadius: 20,
-    backgroundColor: '#0f151f',
+    padding: 14,
+    borderRadius: 18,
+    backgroundColor: 'rgba(15,24,35,0.94)',
     borderWidth: 1,
     borderColor: 'rgba(228,188,116,0.1)',
     gap: 4,
@@ -834,13 +981,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     flexWrap: 'wrap',
-    justifyContent: 'flex-end',
+    justifyContent: 'flex-start',
   },
   activePatrolCard: {
-    gap: 14,
-    padding: 20,
-    borderRadius: 24,
-    backgroundColor: '#0f151f',
+    gap: 12,
+    padding: 18,
+    borderRadius: 22,
+    backgroundColor: 'rgba(15,24,35,0.96)',
     borderWidth: 1,
     borderColor: 'rgba(228,188,116,0.14)',
   },
@@ -854,14 +1001,14 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   avatar: {
-    width: 88,
-    height: 88,
-    borderRadius: 24,
+    width: 76,
+    height: 76,
+    borderRadius: 20,
   },
   avatarFallback: {
-    width: 88,
-    height: 88,
-    borderRadius: 24,
+    width: 76,
+    height: 76,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#e4bc74',
@@ -875,9 +1022,9 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   metricCard: {
-    borderRadius: 22,
-    padding: 18,
-    backgroundColor: '#131b27',
+    borderRadius: 18,
+    padding: 14,
+    backgroundColor: '#111a25',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.04)',
   },
@@ -892,9 +1039,9 @@ const styles = StyleSheet.create({
     color: '#f7f4ec',
   },
   sectionCard: {
-    borderRadius: 24,
-    padding: 18,
-    backgroundColor: '#0f151f',
+    borderRadius: 20,
+    padding: 16,
+    backgroundColor: 'rgba(15,24,35,0.94)',
     borderWidth: 1,
     borderColor: 'rgba(228,188,116,0.1)',
     gap: 10,
@@ -906,12 +1053,27 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   rowCard: {
-    borderRadius: 16,
-    backgroundColor: '#131b27',
+    borderRadius: 14,
+    backgroundColor: '#111a25',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.04)',
-    padding: 14,
+    padding: 12,
     gap: 4,
+  },
+  formStack: {
+    gap: 10,
+  },
+  evidencePreviewCard: {
+    marginTop: 2,
+    borderRadius: 18,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(125,184,199,0.18)',
+    backgroundColor: 'rgba(8,16,26,0.9)',
+  },
+  evidencePreview: {
+    width: '100%',
+    height: 188,
   },
   rowTitle: {
     fontWeight: '700',

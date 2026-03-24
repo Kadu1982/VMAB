@@ -41,6 +41,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/client/portal").hasAnyRole("CLIENT", "SUPERVISOR", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/dashboard/**").hasAnyRole("RONDA", "SUPERVISOR", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/agents/**", "/api/vehicles/**", "/api/residents/**", "/api/shifts/**", "/api/incidents/**", "/api/resident-alerts/**").hasAnyRole("RONDA", "SUPERVISOR", "ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/incidents/*/evidence").hasAnyRole("RONDA", "SUPERVISOR", "ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/shifts/*/telemetry").hasAnyRole("RONDA", "SUPERVISOR", "ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/shifts/*/handoff-request").hasAnyRole("RONDA", "SUPERVISOR", "ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/shifts/*/handoff-accept", "/api/shifts/*/handoff-reject").hasAnyRole("RONDA", "SUPERVISOR", "ADMIN")

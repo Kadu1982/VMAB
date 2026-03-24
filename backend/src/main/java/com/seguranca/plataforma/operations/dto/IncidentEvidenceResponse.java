@@ -12,6 +12,7 @@ public record IncidentEvidenceResponse(
         String notes,
         String uploadedBy,
         OffsetDateTime uploadedAt,
+        OffsetDateTime retentionExpiresAt,
         String downloadPath
 ) {
 }

@@ -7,6 +7,7 @@ export type ShiftAttendanceStatus = 'PENDING' | 'ON_TIME' | 'LATE' | 'ABSENT' | 
 export type VehicleMaintenanceType = 'PREVENTIVE' | 'CORRECTIVE' | 'INSPECTION' | 'DOCUMENTATION'
 export type VehicleMaintenancePriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
 export type VehicleMaintenanceStatus = 'OPEN' | 'IN_PROGRESS' | 'WAITING_PARTS' | 'COMPLETED' | 'CANCELLED'
+export type VehicleMaintenanceLifecycleStatus = 'OPEN' | 'BLOCKING' | 'DOCUMENTATION' | 'RESOLVED' | 'CANCELLED'
 export type AuditActionType = 'CREATE' | 'UPDATE' | 'DELETE' | 'HANDOFF' | 'MAINTENANCE' | 'TELEMETRY' | 'INCIDENT_WORKFLOW' | 'AUTH'
 export type IncidentStatus = 'OPEN' | 'DISPATCHED' | 'ON_SITE' | 'CLOSED'
 export type IncidentType = 'PANIC' | 'SUSPICIOUS_ACTIVITY' | 'MEDICAL' | 'ESCORT'
@@ -14,6 +15,9 @@ export type IncidentPriority = 'HIGH' | 'MEDIUM' | 'LOW'
 export type AppUserRole = 'ADMIN' | 'SUPERVISOR' | 'CLIENT' | 'RONDA'
 export type ResidentAlertType = 'PANIC' | 'COERCION' | 'ESCORT' | 'SUSPICIOUS_ACTIVITY' | 'MEDICAL'
 export type ResidentAlertStatus = 'OPEN' | 'ACKNOWLEDGED' | 'DISPATCHED' | 'ON_SITE' | 'RESOLVED' | 'CANCELLED'
+export type PrivacyRequestType = 'EXPORT' | 'DELETE'
+export type PrivacySubjectType = 'RESIDENT' | 'APP_USER' | 'AGENT'
+export type PrivacyRequestStatus = 'OPEN' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED'
 
 export interface Agent {
   id: number
@@ -70,6 +74,55 @@ export interface VehicleMaintenanceRecord {
   resolutionNotes?: string | null
   description: string
   resolved: boolean
+}
+
+export interface VehicleMaintenanceOrder {
+  id: number
+  workOrderCode: string
+  vehicleId: number
+  vehiclePlate: string
+  vehicleModel: string
+  type: VehicleMaintenanceType
+  priority: VehicleMaintenancePriority
+  status: VehicleMaintenanceStatus
+  lifecycleStatus: VehicleMaintenanceLifecycleStatus
+  lifecycleLabel: string
+  openedAt: string
+  completedAt?: string | null
+  serviceDate?: string | null
+  dueDate?: string | null
+  kmAtService?: number | null
+  nextMaintenanceKm?: number | null
+  kmRemainingAtService?: number | null
+  daysUntilDue?: number | null
+  costAmount?: number | null
+  supplierName?: string | null
+  resolutionNotes?: string | null
+  description: string
+  resolved: boolean
+  blockingVehicle: boolean
+  ageDays: number
+}
+
+export interface FleetOperationalReport {
+  totalVehicles: number
+  operationalVehicles: number
+  availableVehicles: number
+  inOperationVehicles: number
+  maintenanceVehicles: number
+  blockedVehicles: number
+  maintenanceDueSoonVehicles: number
+  maintenanceOverdueVehicles: number
+  documentAlertVehicles: number
+  maintenanceOrdersOpen: number
+  maintenanceOrdersResolved: number
+  preventiveOrdersOpen: number
+  correctiveOrdersOpen: number
+  inspectionOrdersOpen: number
+  documentationOrdersOpen: number
+  totalMaintenanceCostLast30Days: number
+  totalMaintenanceCostAllTime: number
+  latestOrders: VehicleMaintenanceOrder[]
 }
 
 export interface AuditRecord {
@@ -213,7 +266,85 @@ export interface IncidentEvidence {
   notes?: string | null
   uploadedBy: string
   uploadedAt: string
+  retentionExpiresAt: string
   downloadPath: string
+}
+
+export interface FleetOperationalReport {
+  totalVehicles: number
+  operationalVehicles: number
+  availableVehicles: number
+  inOperationVehicles: number
+  maintenanceVehicles: number
+  blockedVehicles: number
+  maintenanceDueSoonVehicles: number
+  maintenanceOverdueVehicles: number
+  documentAlertVehicles: number
+  maintenanceOrdersOpen: number
+  maintenanceOrdersResolved: number
+  preventiveOrdersOpen: number
+  correctiveOrdersOpen: number
+  inspectionOrdersOpen: number
+  documentationOrdersOpen: number
+  totalMaintenanceCostLast30Days: number
+  totalMaintenanceCostAllTime: number
+  latestOrders: VehicleMaintenanceOrder[]
+}
+
+export interface VehicleMaintenanceOrder {
+  id: number
+  workOrderCode: string
+  vehicleId: number
+  vehiclePlate: string
+  vehicleModel: string
+  type: VehicleMaintenanceType
+  priority: VehicleMaintenancePriority
+  status: VehicleMaintenanceStatus
+  lifecycleStatus: VehicleMaintenanceLifecycleStatus
+  lifecycleLabel: string
+  openedAt: string
+  completedAt?: string | null
+  serviceDate?: string | null
+  dueDate?: string | null
+  kmAtService?: number | null
+  nextMaintenanceKm?: number | null
+  kmRemainingAtService?: number | null
+  daysUntilDue?: number | null
+  costAmount?: number | null
+  supplierName?: string | null
+  resolutionNotes?: string | null
+  description: string
+  resolved: boolean
+  blockingVehicle: boolean
+  ageDays: number
+}
+
+export interface PrivacyRequest {
+  id: number
+  requestType: PrivacyRequestType
+  subjectType: PrivacySubjectType
+  subjectId: number
+  subjectLabel: string
+  status: PrivacyRequestStatus
+  requestedBy: string
+  requestedAt: string
+  handledBy?: string | null
+  handledAt?: string | null
+  notes?: string | null
+}
+
+export interface PrivacyRetentionStatus {
+  enabled: boolean
+  cleanupCron: string
+  passwordResetTokenRetentionHours: number
+  residentSessionRetentionDays: number
+  incidentEvidenceRetentionDays: number
+  removeOrphanEvidenceFiles: boolean
+  openRequests: number
+  inProgressRequests: number
+  completedRequests: number
+  lastCleanupAt?: string | null
+  lastCleanupDescription?: string | null
 }
 
 export interface DashboardSummary {
@@ -261,4 +392,32 @@ export interface AppUser {
   role: AppUserRole
   enabled: boolean
   createdAt: string
+}
+
+export interface PrivacyRequest {
+  id: number
+  requestType: PrivacyRequestType
+  subjectType: PrivacySubjectType
+  subjectId: number
+  subjectLabel: string
+  status: PrivacyRequestStatus
+  requestedBy: string
+  requestedAt: string
+  handledBy?: string | null
+  handledAt?: string | null
+  notes?: string | null
+}
+
+export interface PrivacyRetentionStatus {
+  enabled: boolean
+  cleanupCron: string
+  passwordResetTokenRetentionHours: number
+  residentSessionRetentionDays: number
+  incidentEvidenceRetentionDays: number
+  removeOrphanEvidenceFiles: boolean
+  openRequests: number
+  inProgressRequests: number
+  completedRequests: number
+  lastCleanupAt?: string | null
+  lastCleanupDescription?: string | null
 }

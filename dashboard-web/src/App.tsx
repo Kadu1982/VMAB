@@ -3,7 +3,7 @@ import type { FormEvent } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import './styles.css'
-import logoVmab from './assets/vmab-logo.png'
+import logoVmab from './assets/vmab-logo.svg'
 import type {
   Agent,
   AgentStatus,
@@ -12,11 +12,17 @@ import type {
   AuthSession,
   ClientPortal,
   DashboardSummary,
+  FleetOperationalReport,
   Incident,
   IncidentEvidence,
   IncidentPriority,
   IncidentStatus,
   IncidentType,
+  PrivacyRequest,
+  PrivacyRequestStatus,
+  PrivacyRequestType,
+  PrivacyRetentionStatus,
+  PrivacySubjectType,
   ResidentAlert,
   ResidentAlertStatus,
   ResidentAlertType,
@@ -43,6 +49,8 @@ const vehicleStatusOptions: VehicleStatus[] = ['AVAILABLE', 'IN_OPERATION', 'MAI
 const vehicleMaintenanceTypeOptions: VehicleMaintenanceType[] = ['PREVENTIVE', 'CORRECTIVE', 'INSPECTION', 'DOCUMENTATION']
 const vehicleMaintenancePriorityOptions: VehicleMaintenancePriority[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
 const vehicleMaintenanceStatusOptions: VehicleMaintenanceStatus[] = ['OPEN', 'IN_PROGRESS', 'WAITING_PARTS', 'COMPLETED', 'CANCELLED']
+const privacyRequestTypeOptions: PrivacyRequestType[] = ['EXPORT', 'DELETE']
+const privacySubjectTypeOptions: PrivacySubjectType[] = ['RESIDENT', 'APP_USER', 'AGENT']
 const shiftStatusOptions: ShiftStatus[] = ['PLANNED', 'ACTIVE', 'HANDOFF_PENDING', 'HANDOFF', 'CLOSED']
 const shiftAttendanceOptions: ShiftAttendanceStatus[] = ['PENDING', 'ON_TIME', 'LATE', 'ABSENT', 'COVERED']
 const incidentTypeOptions: IncidentType[] = ['PANIC', 'SUSPICIOUS_ACTIVITY', 'MEDICAL', 'ESCORT']
@@ -155,6 +163,13 @@ const initialEvidenceForm = {
   file: null as File | null,
 }
 
+const initialPrivacyRequestForm = {
+  requestType: 'EXPORT' as PrivacyRequestType,
+  subjectType: 'RESIDENT' as PrivacySubjectType,
+  subjectId: '',
+  notes: '',
+}
+
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
 }
@@ -240,6 +255,30 @@ function translateVehicleMaintenanceStatus(status: VehicleMaintenanceStatus) {
     WAITING_PARTS: 'Aguardando pecas',
     COMPLETED: 'Concluida',
     CANCELLED: 'Cancelada',
+  }[status]
+}
+
+function translatePrivacyRequestType(type: PrivacyRequestType) {
+  return {
+    EXPORT: 'Exportacao',
+    DELETE: 'Exclusao',
+  }[type]
+}
+
+function translatePrivacySubjectType(type: PrivacySubjectType) {
+  return {
+    RESIDENT: 'Morador',
+    APP_USER: 'Usuario do sistema',
+    AGENT: 'Vigilante',
+  }[type]
+}
+
+function translatePrivacyRequestStatus(status: PrivacyRequestStatus) {
+  return {
+    OPEN: 'Aberto',
+    IN_PROGRESS: 'Em tratamento',
+    COMPLETED: 'Concluido',
+    REJECTED: 'Rejeitado',
   }[status]
 }
 
@@ -722,9 +761,12 @@ function App() {
   // Estado da sessao, dados operacionais e formularios de manutencao do painel.
   const [summary, setSummary] = useState<DashboardSummary | null>(null)
   const [portal, setPortal] = useState<ClientPortal | null>(null)
+  const [fleetReport, setFleetReport] = useState<FleetOperationalReport | null>(null)
   // Mantem os alertas do app do morador visiveis para a central operar o fluxo completo.
   const [residentAlerts, setResidentAlerts] = useState<ResidentAlert[]>([])
   const [incidentEvidence, setIncidentEvidence] = useState<IncidentEvidence[]>([])
+  const [privacyRequests, setPrivacyRequests] = useState<PrivacyRequest[]>([])
+  const [privacyRetention, setPrivacyRetention] = useState<PrivacyRetentionStatus | null>(null)
   const [users, setUsers] = useState<AppUser[]>([])
   const [lastRefreshAt, setLastRefreshAt] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -747,11 +789,13 @@ function App() {
   const [incidentForm, setIncidentForm] = useState(initialIncidentForm)
   const [residentAlertForm, setResidentAlertForm] = useState(initialResidentAlertForm)
   const [evidenceForm, setEvidenceForm] = useState(initialEvidenceForm)
+  const [privacyRequestForm, setPrivacyRequestForm] = useState(initialPrivacyRequestForm)
   const [passwordResetForm, setPasswordResetForm] = useState({ username: '', resetCode: '', newPassword: '' })
   const [editingAgentId, setEditingAgentId] = useState<number | null>(null)
   const [editingUserId, setEditingUserId] = useState<number | null>(null)
   const [editingResidentId, setEditingResidentId] = useState<number | null>(null)
   const [editingVehicleId, setEditingVehicleId] = useState<number | null>(null)
+  const [editingMaintenanceId, setEditingMaintenanceId] = useState<number | null>(null)
   const [editingShiftId, setEditingShiftId] = useState<number | null>(null)
   const [editingIncidentId, setEditingIncidentId] = useState<number | null>(null)
   const [editingResidentAlertId, setEditingResidentAlertId] = useState<number | null>(null)
@@ -762,6 +806,7 @@ function App() {
   // Deriva os escopos reais do usuario para nao exibir acoes que o backend vai negar.
   const isClient = currentRoles.includes('ROLE_CLIENT')
   const canManageUsers = currentRoles.includes('ROLE_ADMIN')
+  const canManagePrivacy = currentRoles.includes('ROLE_ADMIN')
   const canManageCatalog = hasAnyRole(currentRoles, ['ROLE_ADMIN', 'ROLE_SUPERVISOR'])
   const canUpdateOperations = hasAnyRole(currentRoles, ['ROLE_ADMIN', 'ROLE_SUPERVISOR', 'ROLE_RONDA'])
   const canCreateOperations = hasAnyRole(currentRoles, ['ROLE_ADMIN', 'ROLE_SUPERVISOR'])
@@ -808,6 +853,32 @@ function App() {
         }, {}),
       ).sort((left, right) => right[1] - left[1])
     : []
+  const criticalVehicles = summary
+    ? summary.vehicles
+        .map((vehicle) => {
+          const relatedOrders = (fleetReport?.latestOrders ?? []).filter((order) => order.vehicleId === vehicle.id && !order.resolved)
+          const checklistPendingShifts = summary.shifts.filter((shift) => shift.vehicleId === vehicle.id && (!shift.documentsChecked || !shift.tiresChecked || !shift.lightsChecked)).length
+          const maintenanceGapKm = vehicle.nextMaintenanceKm - vehicle.currentKm
+
+          return {
+            vehicle,
+            relatedOrders,
+            checklistPendingShifts,
+            maintenanceGapKm,
+            isCritical:
+              vehicle.status === 'MAINTENANCE'
+              || vehicle.status === 'BLOCKED'
+              || maintenanceGapKm <= 0
+              || relatedOrders.some((order) => order.blockingVehicle)
+              || checklistPendingShifts > 0,
+          }
+        })
+        .filter((entry) => entry.isCritical)
+        .sort((left, right) => left.maintenanceGapKm - right.maintenanceGapKm)
+    : []
+  const checklistAttentionShifts = summary
+    ? summary.shifts.filter((shift) => !shift.tiresChecked || !shift.lightsChecked || !shift.documentsChecked)
+    : []
 
   function setTransientReportMessage(message: string) {
     // Mantem o feedback de exportacao curto para nao poluir o painel.
@@ -838,6 +909,14 @@ function App() {
       setAuthenticated(false)
       setCurrentUsername(null)
       setCurrentRoles([])
+      setSummary(null)
+      setPortal(null)
+      setFleetReport(null)
+      setResidentAlerts([])
+      setIncidentEvidence([])
+      setPrivacyRequests([])
+      setPrivacyRetention(null)
+      setUsers([])
       throw new Error('Sua sessao expirou ou as credenciais sao invalidas.')
     }
 
@@ -870,20 +949,29 @@ function App() {
         setUsers([])
         setLastRefreshAt(new Date().toISOString())
       } else {
-        const [summaryResponse, residentAlertsResponse, evidenceResponse, usersResponse] = await Promise.all([
+        const [summaryResponse, residentAlertsResponse, evidenceResponse, usersResponse, fleetReportResponse, privacyRequestsResponse, privacyStatusResponse] = await Promise.all([
           apiFetch('/api/dashboard/summary'),
           apiFetch('/api/resident-alerts'),
           apiFetch('/api/incidents/evidence'),
           adminCanManageUsers ? apiFetch('/api/users') : Promise.resolve(null),
+          apiFetch('/api/vehicles/report'),
+          adminCanManageUsers ? apiFetch('/api/privacy/requests') : Promise.resolve(null),
+          adminCanManageUsers ? apiFetch('/api/privacy/status') : Promise.resolve(null),
         ])
         if (!summaryResponse.ok) throw new Error('Nao foi possivel carregar o painel operacional.')
         if (!residentAlertsResponse.ok) throw new Error('Nao foi possivel carregar os alertas do morador.')
         if (!evidenceResponse.ok) throw new Error('Nao foi possivel carregar as evidencias operacionais.')
         if (usersResponse && !usersResponse.ok) throw new Error('Nao foi possivel carregar a gestao de usuarios.')
+        if (!fleetReportResponse.ok) throw new Error('Nao foi possivel carregar o relatorio da frota.')
+        if (privacyRequestsResponse && !privacyRequestsResponse.ok) throw new Error('Nao foi possivel carregar os pedidos LGPD.')
+        if (privacyStatusResponse && !privacyStatusResponse.ok) throw new Error('Nao foi possivel carregar o status de retencao.')
         setSummary((await summaryResponse.json()) as DashboardSummary)
         setResidentAlerts((await residentAlertsResponse.json()) as ResidentAlert[])
         setIncidentEvidence((await evidenceResponse.json()) as IncidentEvidence[])
         setUsers(usersResponse ? ((await usersResponse.json()) as AppUser[]) : [])
+        setFleetReport((await fleetReportResponse.json()) as FleetOperationalReport)
+        setPrivacyRequests(privacyRequestsResponse ? ((await privacyRequestsResponse.json()) as PrivacyRequest[]) : [])
+        setPrivacyRetention(privacyStatusResponse ? ((await privacyStatusResponse.json()) as PrivacyRetentionStatus) : null)
         setPortal(null)
         setLastRefreshAt(new Date().toISOString())
       }
@@ -891,8 +979,11 @@ function App() {
       setError(cause instanceof Error ? cause.message : 'Falha inesperada ao carregar a interface.')
       setSummary(null)
       setPortal(null)
+      setFleetReport(null)
       setResidentAlerts([])
       setIncidentEvidence([])
+      setPrivacyRequests([])
+      setPrivacyRetention(null)
       setUsers([])
     } finally {
       setLoading(false)
@@ -973,6 +1064,7 @@ function App() {
 
   function resetMaintenanceForm() {
     setMaintenanceForm(initialMaintenanceForm)
+    setEditingMaintenanceId(null)
   }
 
   function resetShiftForm() {
@@ -992,6 +1084,10 @@ function App() {
 
   function resetEvidenceForm() {
     setEvidenceForm(initialEvidenceForm)
+  }
+
+  function resetPrivacyRequestForm() {
+    setPrivacyRequestForm(initialPrivacyRequestForm)
   }
 
   function startAgentEdit(agent: Agent) {
@@ -1032,6 +1128,26 @@ function App() {
       lastMaintenanceAt: vehicle.lastMaintenanceAt ?? '',
       maintenanceNotes: vehicle.maintenanceNotes ?? '',
       status: vehicle.status,
+    })
+  }
+
+  function startMaintenanceEdit(record: VehicleMaintenanceRecord) {
+    // Carrega a OS existente para permitir fechamento e replanejamento sem recriar o registro.
+    setEditingMaintenanceId(record.id)
+    setMaintenanceForm({
+      vehicleId: String(record.vehicleId),
+      type: record.type,
+      priority: record.priority,
+      status: record.status,
+      serviceDate: record.serviceDate ?? '',
+      dueDate: record.dueDate ?? '',
+      kmAtService: record.kmAtService != null ? String(record.kmAtService) : '',
+      nextMaintenanceKm: record.nextMaintenanceKm != null ? String(record.nextMaintenanceKm) : '',
+      costAmount: record.costAmount != null ? String(record.costAmount) : '',
+      supplierName: record.supplierName ?? '',
+      resolutionNotes: record.resolutionNotes ?? '',
+      description: record.description,
+      resolved: record.resolved,
     })
   }
 
@@ -1183,8 +1299,11 @@ function App() {
       setCurrentRoles([])
       setSummary(null)
       setPortal(null)
+      setFleetReport(null)
       setResidentAlerts([])
       setIncidentEvidence([])
+      setPrivacyRequests([])
+      setPrivacyRetention(null)
       setUsers([])
       setReportMessage(null)
     })
@@ -1344,6 +1463,33 @@ function App() {
     })
   }
 
+  async function handleIncidentEvidenceDelete(evidence: IncidentEvidence) {
+    // Exige motivo curto para que a exclusao de prova operacional nao vire ato opaco.
+    const reason = window.prompt('Motivo da exclusao controlada da evidencia:', evidence.notes ?? '')
+    if (reason === null) return
+
+    const response = await apiFetch(`/api/incidents/${evidence.incidentId}/evidence/${evidence.id}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: reason || null }),
+    })
+
+    if (response.status === 403) {
+      setError('Seu perfil nao tem permissao para excluir evidencias.')
+      return
+    }
+
+    if (!response.ok) {
+      setError('Nao foi possivel excluir a evidencia da ocorrencia.')
+      return
+    }
+
+    setTransientReportMessage('Evidencia removida com trilha auditavel.')
+    startTransition(() => {
+      void loadData()
+    })
+  }
+
   async function handleAgentSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const path = editingAgentId === null ? '/api/agents' : `/api/agents/${editingAgentId}`
@@ -1404,8 +1550,10 @@ function App() {
     event.preventDefault()
 
     await saveEntity(
-      `/api/vehicles/${Number(maintenanceForm.vehicleId)}/maintenance`,
-      'POST',
+      editingMaintenanceId === null
+        ? `/api/vehicles/${Number(maintenanceForm.vehicleId)}/maintenance`
+        : `/api/vehicles/maintenance/${editingMaintenanceId}`,
+      editingMaintenanceId === null ? 'POST' : 'PUT',
       {
         type: maintenanceForm.type,
         priority: maintenanceForm.priority,
@@ -1423,6 +1571,53 @@ function App() {
       'Nao foi possivel registrar a manutencao.',
       resetMaintenanceForm,
     )
+  }
+
+  async function handlePrivacyRequestSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    await saveEntity(
+      '/api/privacy/requests',
+      'POST',
+      {
+        requestType: privacyRequestForm.requestType,
+        subjectType: privacyRequestForm.subjectType,
+        subjectId: Number(privacyRequestForm.subjectId),
+        notes: privacyRequestForm.notes || null,
+      },
+      'Nao foi possivel registrar o pedido LGPD.',
+      resetPrivacyRequestForm,
+    )
+  }
+
+  async function handlePrivacyRequestStatusUpdate(id: number, status: PrivacyRequestStatus) {
+    const notes = window.prompt(`Observacao para atualizar o pedido LGPD para "${translatePrivacyRequestStatus(status)}".`, '')
+    if (notes === null) return
+
+    await saveEntity(
+      `/api/privacy/requests/${id}`,
+      'PUT',
+      { status, notes: notes || null },
+      'Nao foi possivel atualizar o pedido LGPD.',
+      () => undefined,
+    )
+  }
+
+  async function handlePrivacyExportDownload(subjectType: PrivacySubjectType, subjectId: number, subjectLabel: string) {
+    const response = await apiFetch(`/api/privacy/exports/${subjectType}/${subjectId}/download`)
+    if (!response.ok) {
+      setError('Nao foi possivel baixar a exportacao LGPD.')
+      return
+    }
+
+    const blob = await response.blob()
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `vmab-lgpd-${slugifyFilename(subjectLabel)}-${subjectId}.json`
+    link.click()
+    window.URL.revokeObjectURL(url)
+    setTransientReportMessage('Exportacao LGPD baixada em JSON.')
   }
 
   async function handleResidentSubmit(event: FormEvent<HTMLFormElement>) {
@@ -2194,6 +2389,30 @@ function App() {
                   </div>
                 </div>
                 <p className="panel-note">{canManageCatalog ? 'Cadastre, edite e acompanhe manutencao da frota.' : 'Seu perfil acompanha a frota em leitura.'}</p>
+                {fleetReport ? (
+                  <div className="subpanel-grid">
+                    <article className="mini-panel">
+                      <span>Total da frota</span>
+                      <strong>{fleetReport.totalVehicles}</strong>
+                      <small>{fleetReport.operationalVehicles} com liberacao operacional</small>
+                    </article>
+                    <article className="mini-panel">
+                      <span>Manutencao vencida</span>
+                      <strong>{fleetReport.maintenanceOverdueVehicles}</strong>
+                      <small>{fleetReport.maintenanceDueSoonVehicles} proximas da revisao</small>
+                    </article>
+                    <article className="mini-panel">
+                      <span>Documentos em alerta</span>
+                      <strong>{fleetReport.documentAlertVehicles}</strong>
+                      <small>IPVA, licenciamento ou seguro</small>
+                    </article>
+                    <article className="mini-panel">
+                      <span>Custo ultimos 30 dias</span>
+                      <strong>R$ {fleetReport.totalMaintenanceCostLast30Days.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                      <small>{fleetReport.maintenanceOrdersOpen} OS em aberto</small>
+                    </article>
+                  </div>
+                ) : null}
                 {canManageCatalog ? (
                   <form className="form-grid" onSubmit={handleVehicleSubmit}>
                     <input required placeholder="Placa" value={vehicleForm.plate} onChange={(event) => setVehicleForm((current) => ({ ...current, plate: event.target.value }))} />
@@ -2243,10 +2462,30 @@ function App() {
                       <span>Servico concluido e viatura liberada</span>
                     </label>
                     <div className="button-row">
-                      <button type="submit">Registrar manutencao</button>
-                      <button className="secondary-button" onClick={resetMaintenanceForm} type="button">Limpar</button>
+                      <button type="submit">{editingMaintenanceId === null ? 'Registrar manutencao' : 'Salvar OS'}</button>
+                      <button className="secondary-button" onClick={resetMaintenanceForm} type="button">{editingMaintenanceId === null ? 'Limpar' : 'Cancelar edicao'}</button>
                     </div>
                   </form>
+                ) : null}
+                {criticalVehicles.length > 0 ? (
+                  <div className="list critical-list">
+                    {criticalVehicles.map(({ vehicle, relatedOrders, checklistPendingShifts, maintenanceGapKm }) => (
+                      <article className="list-row critical-row" key={`critical-${vehicle.id}`}>
+                        <div>
+                          <strong>{vehicle.plate} | {vehicle.model}</strong>
+                          <small>
+                            KM atual {vehicle.currentKm.toLocaleString('pt-BR')} | faltam {maintenanceGapKm.toLocaleString('pt-BR')} km para revisao | status {translateVehicleStatus(vehicle.status)}
+                          </small>
+                          <small>
+                            {relatedOrders.length > 0 ? `${relatedOrders.length} OS aberta(s)` : 'Sem OS aberta'} | {checklistPendingShifts} turno(s) com checklist pendente
+                          </small>
+                        </div>
+                        <div className="row-actions">
+                          <span className="tag danger">Atenção</span>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
                 ) : null}
                 <div className="list">
                   {summary.vehicles.map((vehicle) => (
@@ -2254,6 +2493,7 @@ function App() {
                       <div>
                         <strong>{vehicle.model}</strong>
                         <small>{vehicle.plate} | {vehicle.currentKm.toLocaleString('pt-BR')} km | revisao em {vehicle.nextMaintenanceKm.toLocaleString('pt-BR')} km | IPVA {vehicle.ipvaExpiry ?? 'nao informado'}</small>
+                        <small>Licenciamento {vehicle.licensingExpiry ?? 'nao informado'} | Seguro {vehicle.insuranceExpiry ?? 'nao informado'} | {vehicle.maintenanceNotes ?? 'Sem observacao documental'}</small>
                       </div>
                       <div className="row-actions">
                         <span className={`tag ${vehicle.status.toLowerCase()}`}>{translateVehicleStatus(vehicle.status)}</span>
@@ -2276,10 +2516,47 @@ function App() {
                       </div>
                       <div className="row-actions">
                         <span className={`tag ${record.resolved ? 'active' : 'maintenance'}`}>{translateVehicleMaintenanceStatus(record.status)}</span>
+                        {canManageCatalog ? <button className="ghost-button" onClick={() => startMaintenanceEdit(record)} type="button">Editar OS</button> : null}
                       </div>
                     </article>
                   ))}
                 </div>
+                {fleetReport && fleetReport.latestOrders.length > 0 ? (
+                  <div className="list maintenance-list">
+                    {fleetReport.latestOrders.map((order) => (
+                      <article className="list-row" key={`fleet-order-${order.id}`}>
+                        <div>
+                          <strong>{order.workOrderCode} | {order.vehiclePlate} | {order.lifecycleLabel}</strong>
+                          <small>
+                            {translateVehicleMaintenanceType(order.type)} | {translateVehicleMaintenancePriority(order.priority)} | aberta em {formatDate(order.openedAt)}
+                            {order.daysUntilDue != null ? ` | vence em ${order.daysUntilDue} dia(s)` : ''}
+                          </small>
+                          <small>
+                            {order.description} | {order.supplierName ?? 'fornecedor nao informado'} | {order.costAmount != null ? `R$ ${order.costAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'sem custo informado'}
+                          </small>
+                        </div>
+                        <div className="row-actions">
+                          <span className={`tag ${order.blockingVehicle ? 'danger' : 'maintenance'}`}>{order.lifecycleLabel}</span>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                ) : null}
+                {checklistAttentionShifts.length > 0 ? (
+                  <div className="list">
+                    {checklistAttentionShifts.map((shift) => (
+                      <article className="list-row" key={`checklist-${shift.id}`}>
+                        <div>
+                          <strong>Checklist pendente no turno {shift.id}</strong>
+                          <small>{shift.agentName} | {shift.vehiclePlate} | pneus {shift.tiresChecked ? 'ok' : 'pendente'} | luzes {shift.lightsChecked ? 'ok' : 'pendente'} | documentos {shift.documentsChecked ? 'ok' : 'pendente'}</small>
+                        </div>
+                        <div className="row-actions">
+                          <span className="tag maintenance">Checklist</span>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                ) : null}
               </section>
 
               <section className="panel">
@@ -2480,15 +2757,82 @@ function App() {
                       <div>
                         <strong>{evidence.originalFilename}</strong>
                         <small>Ocorrencia {evidence.incidentId} | {evidence.incidentResidentName} | envio {formatDate(evidence.uploadedAt)} | por {evidence.uploadedBy}</small>
-                        <small>{evidence.notes ?? 'Sem observacao adicional'} | {(evidence.fileSizeBytes / 1024).toFixed(1)} KB</small>
+                        <small>{evidence.notes ?? 'Sem observacao adicional'} | {(evidence.fileSizeBytes / 1024).toFixed(1)} KB | retencao ate {formatDate(evidence.retentionExpiresAt)}</small>
                       </div>
                       <div className="row-actions">
                         <a className="ghost-button link-button" href={`${API_BASE_URL}${evidence.downloadPath}`} rel="noreferrer" target="_blank">Abrir</a>
+                        {canManageCatalog ? <button className="ghost-button danger-button" onClick={() => void handleIncidentEvidenceDelete(evidence)} type="button">Excluir</button> : null}
                       </div>
                     </article>
                   ))}
                 </div>
               </section>
+
+              {canManagePrivacy ? (
+                <section className="panel">
+                  <div className="panel-header">
+                    <div>
+                      <p className="eyebrow">LGPD</p>
+                      <h3>Pedidos e retencao</h3>
+                    </div>
+                  </div>
+                  <p className="panel-note">
+                    Este bloco deixa a privacidade operavel: pedido, exportacao formal e visibilidade do ciclo de retencao.
+                  </p>
+                  {privacyRetention ? (
+                    <div className="subpanel-grid">
+                      <article className="mini-panel">
+                        <span>Pedidos abertos</span>
+                        <strong>{privacyRetention.openRequests}</strong>
+                        <small>{privacyRetention.inProgressRequests} em tratamento</small>
+                      </article>
+                      <article className="mini-panel">
+                        <span>Retencao de evidencias</span>
+                        <strong>{privacyRetention.incidentEvidenceRetentionDays} dias</strong>
+                        <small>sessao do morador: {privacyRetention.residentSessionRetentionDays} dias</small>
+                      </article>
+                      <article className="mini-panel">
+                        <span>Ultima limpeza</span>
+                        <strong>{privacyRetention.lastCleanupAt ? formatDate(privacyRetention.lastCleanupAt) : 'Sem execucao'}</strong>
+                        <small>{privacyRetention.enabled ? 'retencao ativa' : 'retencao desativada'}</small>
+                      </article>
+                    </div>
+                  ) : null}
+                  <form className="form-grid" onSubmit={handlePrivacyRequestSubmit}>
+                    <select value={privacyRequestForm.requestType} onChange={(event) => setPrivacyRequestForm((current) => ({ ...current, requestType: event.target.value as PrivacyRequestType }))}>
+                      {privacyRequestTypeOptions.map((type) => <option key={type} value={type}>{translatePrivacyRequestType(type)}</option>)}
+                    </select>
+                    <select value={privacyRequestForm.subjectType} onChange={(event) => setPrivacyRequestForm((current) => ({ ...current, subjectType: event.target.value as PrivacySubjectType }))}>
+                      {privacySubjectTypeOptions.map((type) => <option key={type} value={type}>{translatePrivacySubjectType(type)}</option>)}
+                    </select>
+                    <input min="1" required placeholder="ID do titular" type="number" value={privacyRequestForm.subjectId} onChange={(event) => setPrivacyRequestForm((current) => ({ ...current, subjectId: event.target.value }))} />
+                    <input placeholder="Observacao do pedido" value={privacyRequestForm.notes} onChange={(event) => setPrivacyRequestForm((current) => ({ ...current, notes: event.target.value }))} />
+                    <div className="button-row">
+                      <button type="submit">Registrar pedido</button>
+                      <button className="secondary-button" onClick={resetPrivacyRequestForm} type="button">Limpar</button>
+                    </div>
+                  </form>
+                  <div className="list">
+                    {privacyRequests.map((request) => (
+                      <article className="list-row" key={request.id}>
+                        <div>
+                          <strong>{translatePrivacyRequestType(request.requestType)} | {translatePrivacySubjectType(request.subjectType)} #{request.subjectId}</strong>
+                          <small>{request.subjectLabel} | pedido em {formatDate(request.requestedAt)} por {request.requestedBy}</small>
+                          <small>{request.notes ?? 'Sem observacao adicional'}{request.handledAt ? ` | tratado em ${formatDate(request.handledAt)}` : ''}{request.handledBy ? ` por ${request.handledBy}` : ''}</small>
+                        </div>
+                        <div className="row-actions">
+                          <span className={`tag ${request.status.toLowerCase()}`}>{translatePrivacyRequestStatus(request.status)}</span>
+                          <button className="ghost-button" onClick={() => void handlePrivacyExportDownload(request.subjectType, request.subjectId, request.subjectLabel)} type="button">Baixar exportacao</button>
+                          {request.status !== 'IN_PROGRESS' ? <button className="ghost-button" onClick={() => void handlePrivacyRequestStatusUpdate(request.id, 'IN_PROGRESS')} type="button">Assumir</button> : null}
+                          {request.status !== 'COMPLETED' ? <button className="ghost-button" onClick={() => void handlePrivacyRequestStatusUpdate(request.id, 'COMPLETED')} type="button">Concluir</button> : null}
+                          {request.status !== 'REJECTED' ? <button className="ghost-button danger-button" onClick={() => void handlePrivacyRequestStatusUpdate(request.id, 'REJECTED')} type="button">Rejeitar</button> : null}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                  {privacyRetention?.lastCleanupDescription ? <p className="panel-note">{privacyRetention.lastCleanupDescription}</p> : null}
+                </section>
+              ) : null}
 
               <section className="panel">
                 <div className="panel-header">

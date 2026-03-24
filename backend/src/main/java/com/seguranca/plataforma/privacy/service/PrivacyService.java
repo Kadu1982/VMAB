@@ -3,6 +3,7 @@ package com.seguranca.plataforma.privacy.service;
 import com.seguranca.plataforma.auth.AppUser;
 import com.seguranca.plataforma.auth.AppUserRepository;
 import com.seguranca.plataforma.auth.PasswordResetTokenRepository;
+import com.seguranca.plataforma.config.VmabRetentionProperties;
 import com.seguranca.plataforma.operations.model.AuditActionType;
 import com.seguranca.plataforma.operations.model.AuditRecord;
 import com.seguranca.plataforma.operations.model.Agent;
@@ -18,6 +19,7 @@ import com.seguranca.plataforma.operations.residentapp.repository.ResidentAlertR
 import com.seguranca.plataforma.operations.residentapp.repository.ResidentSessionRepository;
 import com.seguranca.plataforma.privacy.dto.CreatePrivacyRequestRequest;
 import com.seguranca.plataforma.privacy.dto.PrivacyExportResponse;
+import com.seguranca.plataforma.privacy.dto.PrivacyRetentionStatusResponse;
 import com.seguranca.plataforma.privacy.dto.PrivacyRequestResponse;
 import com.seguranca.plataforma.privacy.dto.UpdatePrivacyRequestRequest;
 import com.seguranca.plataforma.privacy.model.PrivacyRequest;
@@ -25,6 +27,8 @@ import com.seguranca.plataforma.privacy.model.PrivacyRequestStatus;
 import com.seguranca.plataforma.privacy.model.PrivacyRequestType;
 import com.seguranca.plataforma.privacy.model.PrivacySubjectType;
 import com.seguranca.plataforma.privacy.repository.PrivacyRequestRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
@@ -45,32 +49,38 @@ public class PrivacyService {
     private final ResidentRepository residentRepository;
     private final ResidentAlertRepository residentAlertRepository;
     private final ResidentSessionRepository residentSessionRepository;
+    private final VmabRetentionProperties retentionProperties;
     private final AppUserRepository appUserRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final AgentRepository agentRepository;
     private final ShiftRepository shiftRepository;
     private final AuditRecordRepository auditRecordRepository;
+    private final ObjectMapper objectMapper;
 
     public PrivacyService(
             PrivacyRequestRepository privacyRequestRepository,
             ResidentRepository residentRepository,
             ResidentAlertRepository residentAlertRepository,
             ResidentSessionRepository residentSessionRepository,
+            VmabRetentionProperties retentionProperties,
             AppUserRepository appUserRepository,
             PasswordResetTokenRepository passwordResetTokenRepository,
             AgentRepository agentRepository,
             ShiftRepository shiftRepository,
-            AuditRecordRepository auditRecordRepository
+            AuditRecordRepository auditRecordRepository,
+            ObjectMapper objectMapper
     ) {
         this.privacyRequestRepository = privacyRequestRepository;
         this.residentRepository = residentRepository;
         this.residentAlertRepository = residentAlertRepository;
         this.residentSessionRepository = residentSessionRepository;
+        this.retentionProperties = retentionProperties;
         this.appUserRepository = appUserRepository;
         this.passwordResetTokenRepository = passwordResetTokenRepository;
         this.agentRepository = agentRepository;
         this.shiftRepository = shiftRepository;
         this.auditRecordRepository = auditRecordRepository;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional(readOnly = true)
@@ -126,6 +136,36 @@ public class PrivacyService {
 
         recordAudit(AuditActionType.UPDATE, "PrivacyExport", subjectId, "Exportacao de dados gerada para " + snapshot.subjectLabel());
         return new PrivacyExportResponse(subjectType, subjectId, snapshot.subjectLabel(), OffsetDateTime.now(ZoneOffset.UTC), payload);
+    }
+
+    @Transactional
+    public byte[] exportSubjectAsJson(PrivacySubjectType subjectType, Long subjectId) {
+        // Gera um arquivo transportavel para entrega formal do pedido LGPD.
+        try {
+            return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(exportSubject(subjectType, subjectId));
+        } catch (JsonProcessingException exception) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Nao foi possivel gerar o arquivo de exportacao.");
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public PrivacyRetentionStatusResponse retentionStatus() {
+        // Exibe o estado operacional da retencao e o ultimo ciclo efetivamente auditado.
+        AuditRecord lastCleanup = auditRecordRepository.findTopByEntityNameOrderByOccurredAtDesc("RetentionCleanup").orElse(null);
+
+        return new PrivacyRetentionStatusResponse(
+                retentionProperties.isEnabled(),
+                retentionProperties.getCleanupCron(),
+                retentionProperties.getPasswordResetTokenRetentionHours(),
+                retentionProperties.getResidentSessionRetentionDays(),
+                retentionProperties.getIncidentEvidenceRetentionDays(),
+                retentionProperties.isRemoveOrphanEvidenceFiles(),
+                privacyRequestRepository.countByStatus(PrivacyRequestStatus.OPEN),
+                privacyRequestRepository.countByStatus(PrivacyRequestStatus.IN_PROGRESS),
+                privacyRequestRepository.countByStatus(PrivacyRequestStatus.COMPLETED),
+                lastCleanup != null ? lastCleanup.getOccurredAt() : null,
+                lastCleanup != null ? lastCleanup.getDescription() : null
+        );
     }
 
     private Map<String, Object> buildResidentExport(Long residentId) {

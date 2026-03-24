@@ -2,12 +2,17 @@ package com.seguranca.plataforma.privacy.web;
 
 import com.seguranca.plataforma.privacy.dto.CreatePrivacyRequestRequest;
 import com.seguranca.plataforma.privacy.dto.PrivacyExportResponse;
+import com.seguranca.plataforma.privacy.dto.PrivacyRetentionStatusResponse;
 import com.seguranca.plataforma.privacy.dto.PrivacyRequestResponse;
 import com.seguranca.plataforma.privacy.dto.UpdatePrivacyRequestRequest;
 import com.seguranca.plataforma.privacy.model.PrivacySubjectType;
 import com.seguranca.plataforma.privacy.service.PrivacyService;
 import jakarta.validation.Valid;
 import java.util.List;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -45,5 +50,21 @@ public class PrivacyController {
     @GetMapping("/exports/{subjectType}/{subjectId}")
     public PrivacyExportResponse exportSubject(@PathVariable PrivacySubjectType subjectType, @PathVariable Long subjectId) {
         return privacyService.exportSubject(subjectType, subjectId);
+    }
+
+    @GetMapping("/exports/{subjectType}/{subjectId}/download")
+    public ResponseEntity<ByteArrayResource> downloadExport(@PathVariable PrivacySubjectType subjectType, @PathVariable Long subjectId) {
+        byte[] payload = privacyService.exportSubjectAsJson(subjectType, subjectId);
+        String filename = "vmab-lgpd-" + subjectType.name().toLowerCase() + "-" + subjectId + ".json";
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_JSON)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .body(new ByteArrayResource(payload));
+    }
+
+    @GetMapping("/status")
+    public PrivacyRetentionStatusResponse retentionStatus() {
+        return privacyService.retentionStatus();
     }
 }
