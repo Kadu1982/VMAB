@@ -14,7 +14,11 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "A localizacao e usada para rastrear a viatura e mostrar o vigilante em ronda em tempo real."
+        "NSLocationWhenInUseUsageDescription": "A localizacao e usada para rastrear a viatura e mostrar o vigilante em ronda em tempo real.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "A localizacao em segundo plano permite manter a telemetria da ronda mesmo quando o app nao esta aberto.",
+        "UIBackgroundModes": [
+          "location"
+        ]
       }
     },
     "android": {
@@ -27,7 +31,8 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION"
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION"
       ]
     },
     "web": {

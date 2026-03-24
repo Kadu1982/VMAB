@@ -1,9 +1,10 @@
 import { StatusBar } from 'expo-status-bar'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Location from 'expo-location'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   ActivityIndicator,
+  AppState,
   Image,
   Pressable,
   SafeAreaView,
@@ -13,6 +14,23 @@ import {
   TextInput,
   View,
 } from 'react-native'
+import {
+  appendTelemetryQueueItem,
+  createTelemetrySample,
+  ensureBackgroundTrackingForShift,
+  evaluateTelemetrySignals,
+  flushTelemetryQueue,
+  formatTelemetrySignalSummary,
+  loadStoredTelemetrySnapshot,
+  loadTelemetryQueue,
+  normalizeApiBaseUrl,
+  saveStoredActiveShiftId,
+  saveStoredTelemetrySnapshot,
+  sendTelemetrySample,
+  stopBackgroundTracking,
+  type TelemetrySignal,
+  type TelemetrySource,
+} from './telemetry'
 
 const DEFAULT_API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? ''
 const API_URL_STORAGE_KEY = 'seguranca-api-url'
@@ -154,12 +172,12 @@ function translateGenericOperationalText(value: string) {
   }[value] ?? value
 }
 
-function normalizeApiBaseUrl(value: string) {
-  return value.trim().replace(/\/+$/, '')
+function normalizeApiUrl(value: string) {
+  return normalizeApiBaseUrl(value)
 }
 
 export default function App() {
-  // Estado local do app da ronda: sessao, URL da API, telemetria e resumo operacional.
+  // Estado do app da ronda: sessao, telemetria, fila offline e resumo operacional.
   const [credentials, setCredentials] = useState(initialCredentials)
   const [session, setSession] = useState<AuthSession | null>(null)
   const [apiBaseUrl, setApiBaseUrl] = useState(DEFAULT_API_BASE_URL)
@@ -168,10 +186,13 @@ export default function App() {
   const [syncingGps, setSyncingGps] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [trackingStatus, setTrackingStatus] = useState('GPS inativo')
+  const [offlineQueueCount, setOfflineQueueCount] = useState(0)
+  const [telemetrySignals, setTelemetrySignals] = useState<TelemetrySignal[]>([])
   const [summary, setSummary] = useState<DashboardSummary | null>(null)
+  const foregroundSubscriptionRef = useRef<Location.LocationSubscription | null>(null)
 
   useEffect(() => {
-    // Restaura URL da API e credenciais para evitar reconfiguracao a cada abertura do app.
+    // Restaura URL da API, credenciais e sessao para nao exigir reconfiguracao a cada abertura.
     async function hydrateSession() {
       try {
         const [storedApiUrl, storedCredentials, storedSession] = await Promise.all([
@@ -193,6 +214,9 @@ export default function App() {
           setSession(parsedSession)
           setAuthenticated(true)
         }
+
+        const queue = await loadTelemetryQueue()
+        setOfflineQueueCount(queue.length)
       } catch {
         // fallback silencioso
       }
@@ -218,13 +242,32 @@ export default function App() {
     void AsyncStorage.removeItem(SESSION_STORAGE_KEY)
   }, [session])
 
+  async function refreshOfflineQueueCount() {
+    const queue = await loadTelemetryQueue()
+    setOfflineQueueCount(queue.length)
+  }
+
+  async function flushOfflineQueue() {
+    const baseUrl = normalizeApiUrl(apiBaseUrl)
+    if (!baseUrl || !session?.accessToken) {
+      return
+    }
+
+    const result = await flushTelemetryQueue(baseUrl, session.accessToken)
+    setOfflineQueueCount(result.remaining)
+
+    if (result.sent > 0) {
+      setTrackingStatus(`Fila offline sincronizada: ${result.sent} ponto(s) enviados.`)
+    }
+  }
+
   async function fetchSummary(activeSession = session) {
     // Carrega o resumo que alimenta a tela da ronda usando a sessao autenticada.
     setLoading(true)
     setError(null)
 
     try {
-      const baseUrl = normalizeApiBaseUrl(apiBaseUrl)
+      const baseUrl = normalizeApiUrl(apiBaseUrl)
       if (!baseUrl) {
         throw new Error('Informe a URL da API antes de entrar.')
       }
@@ -239,17 +282,33 @@ export default function App() {
         },
       })
 
+      if (response.status === 401 || response.status === 403) {
+        throw new Error('Sua sessao nao existe mais. Entre novamente.')
+      }
+
       if (!response.ok) {
         throw new Error('Nao foi possivel carregar a operacao da ronda.')
       }
 
-      setSummary((await response.json()) as DashboardSummary)
+      const nextSummary = (await response.json()) as DashboardSummary
+      setSummary(nextSummary)
       setAuthenticated(true)
+      await saveStoredActiveShiftId(nextSummary.activePatrol?.shiftId ?? null)
+      await refreshOfflineQueueCount()
+      return true
     } catch (cause) {
-      setAuthenticated(false)
-      setSession(null)
-      setSummary(null)
-      setError(cause instanceof Error ? cause.message : 'Falha inesperada no mobile.')
+      const message = cause instanceof Error ? cause.message : 'Falha inesperada no mobile.'
+
+      if (message.includes('sessao nao existe mais')) {
+        setAuthenticated(false)
+        setSession(null)
+        setSummary(null)
+        await saveStoredActiveShiftId(null)
+        await stopBackgroundTracking()
+      }
+
+      setError(message)
+      return false
     } finally {
       setLoading(false)
     }
@@ -261,7 +320,7 @@ export default function App() {
     setError(null)
 
     try {
-      const baseUrl = normalizeApiBaseUrl(apiBaseUrl)
+      const baseUrl = normalizeApiUrl(apiBaseUrl)
       if (!baseUrl) {
         throw new Error('Informe a URL da API antes de entrar.')
       }
@@ -282,6 +341,7 @@ export default function App() {
       setSession(nextSession)
       setAuthenticated(true)
       await fetchSummary(nextSession)
+      await flushOfflineQueue()
     } catch (cause) {
       setAuthenticated(false)
       setSession(null)
@@ -292,50 +352,91 @@ export default function App() {
     }
   }
 
-  async function sendTelemetry(shiftId: number, location: Location.LocationObject) {
-    // Envia um ponto de GPS da viatura para o backend e atualiza a visao local imediatamente.
+  async function handleLogout() {
+    // Encerra a sessao tanto no backend quanto no estado local do app.
+    try {
+      const baseUrl = normalizeApiUrl(apiBaseUrl)
+      if (baseUrl && session?.accessToken) {
+        await fetch(`${baseUrl}/api/auth/logout`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${session.accessToken}`,
+          },
+        })
+      }
+    } catch {
+      // O logout local ainda precisa acontecer mesmo se o backend estiver fora.
+    } finally {
+      await stopBackgroundTracking()
+      foregroundSubscriptionRef.current?.remove()
+      foregroundSubscriptionRef.current = null
+      setSession(null)
+      setAuthenticated(false)
+      setSummary(null)
+      setTelemetrySignals([])
+      setOfflineQueueCount(0)
+      setTrackingStatus('GPS inativo')
+      setError(null)
+    }
+  }
+
+  async function processTelemetryLocation(
+    shiftId: number,
+    location: Location.LocationObject,
+    source: TelemetrySource,
+  ) {
+    // Converte cada leitura de GPS em telemetria operacional, sinaliza anomalias e tenta enviar ao backend.
     setSyncingGps(true)
 
     try {
-      const baseUrl = normalizeApiBaseUrl(apiBaseUrl)
-      const response = await fetch(`${baseUrl}/api/shifts/${shiftId}/telemetry`, {
-        method: 'POST',
-        headers: {
-          Authorization: session ? `Bearer ${session.accessToken}` : '',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-          speedKmh: Math.max(0, (location.coords.speed ?? 0) * 3.6),
-          accuracyMeters: Math.max(0, location.coords.accuracy ?? 0),
-          headingDegrees: location.coords.heading != null && location.coords.heading >= 0 ? location.coords.heading : null,
-          recordedAt: new Date(location.timestamp).toISOString(),
-        }),
-      })
+      const sample = createTelemetrySample(location, shiftId, source)
+      const previousSnapshot = await loadStoredTelemetrySnapshot()
+      const signals = evaluateTelemetrySignals(sample, previousSnapshot)
 
-      if (!response.ok) {
-        throw new Error('Falha ao enviar telemetria.')
+      setTelemetrySignals(signals)
+      await saveStoredTelemetrySnapshot(sample)
+
+      const baseUrl = normalizeApiUrl(apiBaseUrl)
+      if (!baseUrl || !session?.accessToken) {
+        await appendTelemetryQueueItem(sample, signals, 'Sessao ou URL da API indisponivel.')
+        await refreshOfflineQueueCount()
+        setTrackingStatus(`Telemetria guardada em fila offline (${source}).`)
+        return
       }
 
-      setTrackingStatus(`GPS ativo • ultimo envio ${formatDate(new Date(location.timestamp).toISOString())}`)
-      setSummary((current) => {
-        if (!current?.activePatrol) return current
+      try {
+        await sendTelemetrySample(baseUrl, session.accessToken, sample)
+        setSummary((current) => {
+          if (!current?.activePatrol) return current
 
-        return {
-          ...current,
+          return {
+            ...current,
             activePatrol: {
               ...current.activePatrol,
-              latitude: location.coords.latitude,
-              longitude: location.coords.longitude,
-              speedKmh: Math.max(0, (location.coords.speed ?? 0) * 3.6),
-              accuracyMeters: Math.max(0, location.coords.accuracy ?? 0),
-              updatedAt: new Date(location.timestamp).toISOString(),
+              latitude: sample.latitude,
+              longitude: sample.longitude,
+              speedKmh: sample.speedKmh,
+              accuracyMeters: sample.accuracyMeters,
+              updatedAt: sample.recordedAt,
             },
           }
-      })
-    } catch (cause) {
-      setTrackingStatus(cause instanceof Error ? cause.message : 'Erro ao sincronizar o GPS')
+        })
+
+        setTrackingStatus(
+          source === 'background'
+            ? `GPS em segundo plano sincronizado em ${formatDate(sample.recordedAt)}`
+            : `GPS sincronizado em ${formatDate(sample.recordedAt)}`,
+        )
+      } catch (cause) {
+        await appendTelemetryQueueItem(
+          sample,
+          signals,
+          cause instanceof Error ? cause.message : 'Falha ao enviar telemetria.',
+        )
+        setTrackingStatus(`Fila offline atualizada (${source}).`)
+      }
+
+      await refreshOfflineQueueCount()
     } finally {
       setSyncingGps(false)
     }
@@ -349,20 +450,25 @@ export default function App() {
 
     const intervalId = setInterval(() => {
       void fetchSummary()
-    }, 15000)
+      void flushOfflineQueue()
+    }, 15_000)
 
     return () => {
       clearInterval(intervalId)
     }
-  }, [authenticated, credentials.username, credentials.password, apiBaseUrl])
+  }, [authenticated, apiBaseUrl, session?.accessToken])
 
   useEffect(() => {
-    // Inicia o rastreamento em foreground assim que existir um turno ativo autenticado.
-    if (!authenticated || !summary?.activePatrol?.shiftId) return
+    // Tenta iniciar rastreamento continuo quando existir um turno ativo e uma sessao valida.
+    if (!authenticated || !summary?.activePatrol?.shiftId) {
+      foregroundSubscriptionRef.current?.remove()
+      foregroundSubscriptionRef.current = null
+      void stopBackgroundTracking()
+      return
+    }
 
     const activeShiftId = summary.activePatrol.shiftId
     let cancelled = false
-    let subscription: Location.LocationSubscription | null = null
 
     async function startTracking() {
       const permission = await Location.requestForegroundPermissionsAsync()
@@ -370,31 +476,51 @@ export default function App() {
       if (cancelled) return
 
       if (permission.status !== 'granted') {
-        setTrackingStatus('Permissao de localizacao negada')
+        setTrackingStatus('Permissao de localizacao negada.')
         return
       }
 
-      setTrackingStatus('Aguardando sinal GPS...')
-
-      subscription = await Location.watchPositionAsync(
+      foregroundSubscriptionRef.current?.remove()
+      foregroundSubscriptionRef.current = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.Balanced,
-          timeInterval: 10000,
+          timeInterval: 10_000,
           distanceInterval: 15,
         },
         (location) => {
-          void sendTelemetry(activeShiftId, location)
+          void processTelemetryLocation(activeShiftId, location, 'foreground')
         },
       )
+
+      const backgroundResult = await ensureBackgroundTrackingForShift(activeShiftId)
+      if (!cancelled) {
+        setTrackingStatus(backgroundResult.message)
+      }
     }
 
     void startTracking()
 
     return () => {
       cancelled = true
-      subscription?.remove()
+      foregroundSubscriptionRef.current?.remove()
+      foregroundSubscriptionRef.current = null
     }
-  }, [authenticated, summary?.activePatrol?.shiftId])
+  }, [authenticated, summary?.activePatrol?.shiftId, apiBaseUrl, session?.accessToken])
+
+  useEffect(() => {
+    // Quando o app volta ao primeiro plano, tenta drenar a fila offline e revalidar o resumo.
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state !== 'active' || !authenticated) return
+
+      void refreshOfflineQueueCount()
+      void flushOfflineQueue()
+      void fetchSummary()
+    })
+
+    return () => {
+      subscription.remove()
+    }
+  }, [authenticated, apiBaseUrl, session?.accessToken])
 
   if (!authenticated) {
     // Tela de acesso do app da ronda com configuracao da URL da API.
@@ -405,7 +531,7 @@ export default function App() {
           <Text style={styles.eyebrow}>Ronda Mobile</Text>
           <Text style={styles.title}>Painel da Equipe</Text>
           <Text style={styles.copy}>
-            Entre com o perfil da ronda para acompanhar turnos, incidentes, frota e iniciar o rastreamento GPS da viatura.
+            Entre com o perfil da ronda para acompanhar turnos, incidentes, frota e manter a telemetria ativa.
           </Text>
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -445,7 +571,7 @@ export default function App() {
             <Text style={styles.infoTitle}>Credenciais iniciais</Text>
             <Text style={styles.infoText}>usuario: ronda</Text>
             <Text style={styles.infoText}>senha: ronda123</Text>
-            <Text style={styles.infoText}>API atual: {normalizeApiBaseUrl(apiBaseUrl) || 'nao configurada'}</Text>
+            <Text style={styles.infoText}>API atual: {normalizeApiUrl(apiBaseUrl) || 'nao configurada'}</Text>
           </View>
         </View>
       </SafeAreaView>
@@ -466,16 +592,10 @@ export default function App() {
             <Pressable style={styles.secondaryButton} onPress={() => void fetchSummary()}>
               <Text style={styles.secondaryButtonText}>{loading ? 'Atualizando...' : 'Atualizar'}</Text>
             </Pressable>
-            <Pressable
-              style={styles.secondaryButton}
-              onPress={() => {
-                setSession(null)
-                setAuthenticated(false)
-                setSummary(null)
-                setTrackingStatus('GPS inativo')
-                setError(null)
-              }}
-            >
+            <Pressable style={styles.secondaryButton} onPress={() => void flushOfflineQueue()}>
+              <Text style={styles.secondaryButtonText}>Sincronizar fila</Text>
+            </Pressable>
+            <Pressable style={styles.secondaryButton} onPress={() => void handleLogout()}>
               <Text style={styles.secondaryButtonText}>Sair</Text>
             </Pressable>
           </View>
@@ -497,35 +617,59 @@ export default function App() {
               )}
               <View style={styles.profileContent}>
                 <Text style={styles.sectionTitle}>{summary.activePatrol.agentName}</Text>
-                <Text style={styles.rowMeta}>Vigilante em ronda • cracha {summary.activePatrol.agentBadgeCode}</Text>
-                <Text style={styles.rowMeta}>{summary.activePatrol.vehiclePlate} • {summary.activePatrol.vehicleModel}</Text>
-                <Text style={styles.rowMeta}>KM {summary.activePatrol.vehicleCurrentKm.toLocaleString('pt-BR')} • {translateGenericOperationalText(summary.activePatrol.vehicleStatus)}</Text>
+                <Text style={styles.rowMeta}>Vigilante em ronda â€¢ cracha {summary.activePatrol.agentBadgeCode}</Text>
+                <Text style={styles.rowMeta}>
+                  {summary.activePatrol.vehiclePlate} â€¢ {summary.activePatrol.vehicleModel}
+                </Text>
+                <Text style={styles.rowMeta}>
+                  KM {summary.activePatrol.vehicleCurrentKm.toLocaleString('pt-BR')} â€¢{' '}
+                  {translateGenericOperationalText(summary.activePatrol.vehicleStatus)}
+                </Text>
               </View>
             </View>
 
             <View style={styles.metricsGrid}>
               <View style={styles.metricCard}>
-                <Text style={styles.metricLabel}>Latitude</Text>
-                <Text style={styles.metricValue}>{formatCoordinate(summary.activePatrol.latitude)}</Text>
-              </View>
-              <View style={styles.metricCard}>
-                <Text style={styles.metricLabel}>Longitude</Text>
-                <Text style={styles.metricValue}>{formatCoordinate(summary.activePatrol.longitude)}</Text>
-              </View>
-              <View style={styles.metricCard}>
                 <Text style={styles.metricLabel}>Velocidade</Text>
                 <Text style={styles.metricValue}>{summary.activePatrol.speedKmh.toFixed(0)} km/h</Text>
+              </View>
+              <View style={styles.metricCard}>
+                <Text style={styles.metricLabel}>KM percorridos no turno</Text>
+                <Text style={styles.metricValue}>{summary.activePatrol.traveledKmInShift.toFixed(1)} km</Text>
               </View>
               <View style={styles.metricCard}>
                 <Text style={styles.metricLabel}>Precisao</Text>
                 <Text style={styles.metricValue}>{summary.activePatrol.accuracyMeters.toFixed(0)} m</Text>
               </View>
+              <View style={styles.metricCard}>
+                <Text style={styles.metricLabel}>Fila offline</Text>
+                <Text style={styles.metricValue}>{offlineQueueCount}</Text>
+              </View>
             </View>
 
             <View style={styles.infoBlock}>
-              <Text style={styles.infoTitle}>Status do rastreamento</Text>
+              <Text style={styles.infoTitle}>Status da telemetria</Text>
               <Text style={styles.infoText}>{trackingStatus}</Text>
-              <Text style={styles.infoText}>{syncingGps ? 'Sincronizando GPS...' : `Ultima telemetria no backend: ${formatDate(summary.activePatrol.updatedAt)}`}</Text>
+              <Text style={styles.infoText}>
+                {syncingGps ? 'Sincronizando GPS...' : `Ultima telemetria no backend: ${formatDate(summary.activePatrol.updatedAt)}`}
+              </Text>
+              <Text style={styles.infoText}>
+                {telemetrySignals.length ? formatTelemetrySignalSummary(telemetrySignals) : 'Sem anomalias detectadas.'}
+              </Text>
+            </View>
+
+            <View style={styles.sectionCard}>
+              <Text style={styles.sectionTitle}>Sinais de antifraude</Text>
+              {telemetrySignals.length ? (
+                telemetrySignals.map((signal) => (
+                  <View style={styles.rowCard} key={signal.code}>
+                    <Text style={styles.rowTitle}>{signal.label}</Text>
+                    <Text style={styles.rowMeta}>{signal.detail}</Text>
+                  </View>
+                ))
+              ) : (
+                <Text style={styles.rowMeta}>Nenhuma anomalia forte detectada nas ultimas leituras.</Text>
+              )}
             </View>
 
             <View style={styles.sectionCard}>
@@ -571,9 +715,14 @@ export default function App() {
               <Text style={styles.sectionTitle}>Ocorrencias</Text>
               {summary.incidents.map((incident) => (
                 <View style={styles.rowCard} key={incident.id}>
-                  <Text style={styles.rowTitle}>{translateIncidentType(incident.type)} | {incident.residentName}</Text>
+                  <Text style={styles.rowTitle}>
+                    {translateIncidentType(incident.type)} | {incident.residentName}
+                  </Text>
                   <Text style={styles.rowMeta}>{incident.address}</Text>
-                  <Text style={styles.rowMeta}>{translateIncidentPriority(incident.priority)} | {translateIncidentStatus(incident.status)} | {incident.vehiclePlate ?? 'Sem viatura'}</Text>
+                  <Text style={styles.rowMeta}>
+                    {translateIncidentPriority(incident.priority)} | {translateIncidentStatus(incident.status)} |{' '}
+                    {incident.vehiclePlate ?? 'Sem viatura'}
+                  </Text>
                 </View>
               ))}
             </View>
@@ -661,6 +810,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#0f151f',
     borderWidth: 1,
     borderColor: 'rgba(228,188,116,0.1)',
+    gap: 4,
   },
   infoTitle: {
     fontWeight: '700',
@@ -683,6 +833,8 @@ const styles = StyleSheet.create({
   actionRow: {
     flexDirection: 'row',
     gap: 10,
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
   },
   activePatrolCard: {
     gap: 14,

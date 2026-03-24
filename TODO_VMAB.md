@@ -17,9 +17,9 @@ Tabela objetiva do que ainda falta para o sistema atingir um estado forte de pro
 | 09 | Quilometragem percorrida, checklist e manutencao mais profundos | Em andamento | Alta | Ja existe KM por turno, checklist basico, bloqueio de alocacao para viatura irregular e historico de manutencao, mas ainda falta ciclo completo de OS e relatorios operacionais da frota. |
 | 10 | Relatorios executivos e prova de execucao para cliente | Em andamento | Alta | Portal do cliente ganhou leitura executiva, saude do contrato e visao consolidada, mas ainda falta backend dedicado para relatórios formais. |
 | 11 | Exportacao e impressao de relatorios | Em andamento | Media | Exportacao local em Markdown e CSV ja existe no painel; ainda falta exportacao com impressao formal e pipeline de producao. |
-| 12 | Background tracking no mobile | Pendente | Alta | Hoje o GPS esta em foreground. Isso nao fecha operacao real. |
-| 13 | Operacao offline degradada com sincronizacao posterior | Pendente | Alta | Requisito do PRD ainda nao implementado corretamente. |
-| 14 | Antifraude de localizacao e contexto | Pendente | Alta | Falta deteccao de GPS falso, ausencia de sincronizacao e anomalias. |
+| 12 | Background tracking no mobile | Concluido | Alta | Rastreamento continuo e task de segundo plano estao implementados; a validacao completa depende de build nativa/dev client. |
+| 13 | Operacao offline degradada com sincronizacao posterior | Concluido | Alta | Fila local de telemetria, reenvio posterior e sincronizacao ao voltar online estao implementados. |
+| 14 | Antifraude de localizacao e contexto | Concluido | Alta | Sinais basicos de anomalia, salto geografico e GPS preso foram implementados no mobile. |
 | 15 | Evidencias de ocorrencia com fotos e anexos | Pendente | Media | Falta comprovar atendimento com mais robustez. |
 | 16 | Notificacoes em tempo real | Em andamento | Media | Painel agora tem polling automatico, mas ainda nao existe push real por WebSocket, evento ou mobile. |
 | 17 | Auditoria de acoes criticas | Concluido | Alta | Operacoes e auth registram eventos criticos em trilha de auditoria persistida. |
