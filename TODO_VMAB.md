@@ -26,7 +26,7 @@ Tabela objetiva do que ainda falta para o sistema atingir um estado forte de pro
 | 18 | Observabilidade, logs e monitoramento | Concluido | Alta | Logs estruturados, correlation id, actuator, readiness/liveness, metricas e healthcheck real em Docker foram validados tecnicamente. |
 | 19 | LGPD e politicas de retencao | Em andamento | Alta | Limpeza tecnica configuravel, exportacao/exclusao solicitavel e trilha auditavel ja existem; ainda falta revisao juridica e integracao de interface. |
 | 20 | Deploy definitivo na VPS com dominio fixo | Pendente | Alta | Estrutura existe, mas ainda nao foi concluida na VPS real. |
-| 21 | Testes automatizados de backend | Em andamento | Media | A suite de auth e frota foi escrita, mas o runner do Gradle ainda apresenta instabilidade de classpath neste ambiente Windows e nao pode ser tratado como totalmente confiavel. |
+| 21 | Testes automatizados de backend | Concluido | Media | A suite de auth e frota foi validada tecnicamente; o runner do Gradle foi estabilizado ao mover o build para um caminho ASCII fora do workspace com acento. |
 | 22 | Testes automatizados de frontend | Concluido | Media | Vitest com regressao basica da tela de login e limpeza de sessao invalida foi implementado e validado com sucesso. |
 | 23 | Refino visual final do painel web | Em andamento | Media | Painel ficou mais limpo com relatorios executivos e exportacao, mas ainda pode ganhar ajustes finos de hierarquia e espacamento. |
 | 24 | Refino visual final do app da ronda | Em andamento | Media | Ja melhorou, mas ainda pode ficar mais leve e mais objetivo. |

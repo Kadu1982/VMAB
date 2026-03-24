@@ -8,6 +8,10 @@ group = 'com.seguranca'
 version = '0.0.1-SNAPSHOT'
 description = 'Plataforma de Seguranca Comunitaria'
 
+// O Gradle no Windows está montando o classpath de testes com o nome da pasta acentuado corrompido.
+// Para evitar falso negativo de ClassNotFoundException, o diretório de build vai para um caminho ASCII estável.
+layout.buildDirectory = file("${System.getProperty('user.home')}/.vmab-build/backend")
+
 java {
 	toolchain {
 		languageVersion = JavaLanguageVersion.of(21)
