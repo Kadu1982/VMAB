@@ -1,6 +1,7 @@
 package com.seguranca.plataforma.operations.web;
 
 import com.seguranca.plataforma.operations.residentapp.dto.CreateResidentAlertRequest;
+import com.seguranca.plataforma.operations.dto.ActivePatrolResponse;
 import com.seguranca.plataforma.operations.residentapp.dto.RegisterResidentPushTokenRequest;
 import com.seguranca.plataforma.operations.residentapp.dto.RevokeResidentPushTokenRequest;
 import com.seguranca.plataforma.operations.residentapp.dto.ResidentAlertCancelRequest;
@@ -78,6 +79,11 @@ public class ResidentAppController {
             @PathVariable Long id
     ) {
         return residentAlertService.getResidentAlert(authorization, id);
+    }
+
+    @GetMapping("/patrol")
+    public ActivePatrolResponse patrol(@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
+        return residentAlertService.getVisiblePatrol(authorization);
     }
 
     @PostMapping("/alerts")

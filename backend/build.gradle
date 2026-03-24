@@ -43,3 +43,8 @@ testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 tasks.named('test') {
 	useJUnitPlatform()
 }
+
+tasks.named('bootJar') {
+	// A deteccao automatica de main class oscilou no ambiente; fixar o entrypoint evita falso negativo de build.
+	mainClass = 'com.seguranca.plataforma.BackendApplication'
+}

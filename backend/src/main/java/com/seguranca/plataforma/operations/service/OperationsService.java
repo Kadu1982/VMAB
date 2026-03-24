@@ -19,6 +19,8 @@ import com.seguranca.plataforma.operations.dto.ClientPortalResponse;
 import com.seguranca.plataforma.operations.dto.DashboardSummaryResponse;
 import com.seguranca.plataforma.operations.dto.PatrolRouteStopResponse;
 import com.seguranca.plataforma.operations.dto.OnSiteIncidentRequest;
+import com.seguranca.plataforma.operations.dto.RondaCloseIncidentRequest;
+import com.seguranca.plataforma.operations.dto.RondaDispatchIncidentRequest;
 import com.seguranca.plataforma.operations.dto.RequestShiftHandoffRequest;
 import com.seguranca.plataforma.operations.dto.RespondShiftHandoffRequest;
 import com.seguranca.plataforma.operations.dto.ShiftSupervisionAction;
@@ -901,12 +903,12 @@ public class OperationsService {
     public Incident dispatchIncident(Long id, DispatchIncidentRequest request) {
         // Formaliza o despacho da equipe para a ocorrencia com trilha de quem foi enviado.
         Incident incident = getIncident(id);
-        if (incident.getStatus() == IncidentStatus.CLOSED) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nao e possivel despachar uma ocorrencia encerrada.");
-        }
+        ensureIncidentCanBeDispatched(incident);
 
         Agent agent = getAgent(request.assignedAgentId());
         Vehicle vehicle = getVehicle(request.vehicleId());
+        ensureAgentEligibleForDispatch(agent);
+        ensureVehicleEligibleForDispatch(vehicle);
 
         incident.dispatch(
                 agent.getId(),
@@ -918,6 +920,34 @@ public class OperationsService {
         );
         Incident savedIncident = incidentRepository.save(incident);
         recordAudit(AuditActionType.INCIDENT_WORKFLOW, "Incident", savedIncident.getId(), "Despacho da ocorrencia " + savedIncident.getId() + " para " + savedIncident.getAssignedAgentName());
+        return savedIncident;
+    }
+
+    @Transactional
+    public Incident dispatchIncidentForCurrentRonda(Long id, RondaDispatchIncidentRequest request) {
+        // A ronda assume e despacha a ocorrencia usando o proprio vinculo autenticado e a viatura do turno ativo.
+        Long agentId = resolveCurrentOperationalAgentId(true);
+        Incident incident = getIncident(id);
+        ensureIncidentCanBeDispatched(incident);
+        ensureIncidentNotAssignedToAnotherAgent(incident, agentId);
+        ensureAgentHasNoOtherActiveIncident(agentId, id);
+
+        Shift activeShift = resolveCurrentOperationalShift(agentId);
+        Agent agent = getAgent(agentId);
+        Vehicle vehicle = getVehicle(activeShift.getVehicleId());
+        ensureAgentEligibleForDispatch(agent);
+        ensureVehicleEligibleForDispatch(vehicle);
+
+        incident.dispatch(
+                agent.getId(),
+                agent.getFullName(),
+                vehicle.getId(),
+                vehicle.getPlate(),
+                OffsetDateTime.now(ZoneOffset.UTC),
+                normalizeOptionalText(request == null ? null : request.dispatchNotes(), 500)
+        );
+        Incident savedIncident = incidentRepository.save(incident);
+        recordAudit(AuditActionType.INCIDENT_WORKFLOW, "Incident", savedIncident.getId(), "Despacho mobile da ocorrencia " + savedIncident.getId() + " pela ronda " + savedIncident.getAssignedAgentName());
         return savedIncident;
     }
 
@@ -939,19 +969,57 @@ public class OperationsService {
     }
 
     @Transactional
+    public Incident markIncidentOnSiteForCurrentRonda(Long id, OnSiteIncidentRequest request) {
+        // A chegada no local so pode ser confirmada pela ronda responsavel por aquela ocorrencia.
+        Long agentId = resolveCurrentOperationalAgentId(true);
+        Incident incident = getIncident(id);
+        ensureIncidentBelongsToCurrentRonda(incident, agentId);
+        if (incident.getStatus() != IncidentStatus.DISPATCHED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A ocorrencia precisa estar despachada para registrar chegada.");
+        }
+
+        incident.markOnSite(
+                OffsetDateTime.now(ZoneOffset.UTC),
+                normalizeOptionalText(request == null ? null : request.arrivalNotes(), 500)
+        );
+        Incident savedIncident = incidentRepository.save(incident);
+        recordAudit(AuditActionType.INCIDENT_WORKFLOW, "Incident", savedIncident.getId(), "Chegada mobile ao local da ocorrencia " + savedIncident.getId());
+        return savedIncident;
+    }
+
+    @Transactional
     public Incident closeIncident(Long id, CloseIncidentRequest request) {
         // Encerra a ocorrencia quando o atendimento foi concluido e documentado.
         Incident incident = getIncident(id);
-        if (incident.getStatus() == IncidentStatus.OPEN) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nao e possivel encerrar uma ocorrencia que ainda nao foi despachada.");
+        if (incident.getStatus() != IncidentStatus.ON_SITE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A ocorrencia precisa estar no local antes do encerramento.");
         }
 
         incident.close(
                 OffsetDateTime.now(ZoneOffset.UTC),
-                request.closureNotes() != null ? request.closureNotes().trim() : null
+                normalizeOptionalText(request.closureNotes(), 1000)
         );
         Incident savedIncident = incidentRepository.save(incident);
         recordAudit(AuditActionType.INCIDENT_WORKFLOW, "Incident", savedIncident.getId(), "Encerramento da ocorrencia " + savedIncident.getId());
+        return savedIncident;
+    }
+
+    @Transactional
+    public Incident closeIncidentForCurrentRonda(Long id, RondaCloseIncidentRequest request) {
+        // O encerramento mobile exige que a ronda esteja vinculada a ocorrencia e registre observacao final.
+        Long agentId = resolveCurrentOperationalAgentId(true);
+        Incident incident = getIncident(id);
+        ensureIncidentBelongsToCurrentRonda(incident, agentId);
+        if (incident.getStatus() != IncidentStatus.ON_SITE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A ocorrencia precisa estar no local antes do encerramento.");
+        }
+
+        incident.close(
+                OffsetDateTime.now(ZoneOffset.UTC),
+                normalizeRequiredText(request.closureNotes(), "Informe a observacao final do atendimento.", 1000)
+        );
+        Incident savedIncident = incidentRepository.save(incident);
+        recordAudit(AuditActionType.INCIDENT_WORKFLOW, "Incident", savedIncident.getId(), "Encerramento mobile da ocorrencia " + savedIncident.getId());
         return savedIncident;
     }
 
@@ -1106,6 +1174,12 @@ public class OperationsService {
                 shifts,
                 incidents
         );
+    }
+
+    @Transactional(readOnly = true)
+    public ActivePatrolResponse activePatrolSummary() {
+        // Reaproveita o mesmo recorte operacional do dashboard para web, mobile e visao autenticada do morador.
+        return buildActivePatrol(listAgents(), listVehicles(), listShifts(), listIncidents());
     }
 
     @Transactional(readOnly = true)
@@ -1391,6 +1465,72 @@ public class OperationsService {
     private Incident getIncident(Long id) {
         return incidentRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ocorrencia nao encontrada"));
+    }
+
+    private void ensureIncidentCanBeDispatched(Incident incident) {
+        // O despacho parte apenas de ocorrencia aberta; estados posteriores exigem outro fluxo.
+        if (incident.getStatus() == IncidentStatus.CLOSED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nao e possivel despachar uma ocorrencia encerrada.");
+        }
+        if (incident.getStatus() == IncidentStatus.DISPATCHED || incident.getStatus() == IncidentStatus.ON_SITE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A ocorrencia ja esta em atendimento operacional.");
+        }
+    }
+
+    private void ensureIncidentNotAssignedToAnotherAgent(Incident incident, Long currentAgentId) {
+        // A ronda mobile nao pode sequestrar uma ocorrencia que ja foi atribuida para outro vigilante.
+        if (incident.getAssignedAgentId() != null && !incident.getAssignedAgentId().equals(currentAgentId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "A ocorrencia ja esta atribuida a outro vigilante.");
+        }
+    }
+
+    private void ensureIncidentBelongsToCurrentRonda(Incident incident, Long currentAgentId) {
+        // Chegada e encerramento exigem que a conta autenticada represente a mesma ronda despachada.
+        if (incident.getAssignedAgentId() == null || !incident.getAssignedAgentId().equals(currentAgentId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "A ocorrencia nao esta atribuida ao vigilante autenticado.");
+        }
+    }
+
+    private void ensureAgentEligibleForDispatch(Agent agent) {
+        // So vigias ativos ou em servico podem assumir uma ocorrencia.
+        if (agent.getStatus() != AgentStatus.ACTIVE && agent.getStatus() != AgentStatus.ON_DUTY) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O vigilante precisa estar ativo para assumir a ocorrencia.");
+        }
+    }
+
+    private void ensureVehicleEligibleForDispatch(Vehicle vehicle) {
+        // O despacho nao pode usar viatura bloqueada, em manutencao ou com documento vencido.
+        if (vehicle.getStatus() == VehicleStatus.MAINTENANCE || vehicle.getStatus() == VehicleStatus.BLOCKED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A viatura selecionada nao esta disponivel para despacho.");
+        }
+
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        if ((vehicle.getIpvaExpiry() != null && vehicle.getIpvaExpiry().isBefore(today))
+                || (vehicle.getLicensingExpiry() != null && vehicle.getLicensingExpiry().isBefore(today))
+                || (vehicle.getInsuranceExpiry() != null && vehicle.getInsuranceExpiry().isBefore(today))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A viatura possui documentacao vencida e nao pode ser enviada para atendimento.");
+        }
+    }
+
+    private void ensureAgentHasNoOtherActiveIncident(Long agentId, Long currentIncidentId) {
+        // A mesma ronda nao deve assumir dois atendimentos simultaneos pelo mobile sem supervisao.
+        boolean hasAnotherActiveIncident = incidentRepository.findAll().stream()
+                .anyMatch(incident -> incident.getAssignedAgentId() != null
+                        && incident.getAssignedAgentId().equals(agentId)
+                        && !incident.getId().equals(currentIncidentId)
+                        && incident.getStatus() != IncidentStatus.CLOSED);
+        if (hasAnotherActiveIncident) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Ja existe outra ocorrencia em atendimento para este vigilante.");
+        }
+    }
+
+    private Shift resolveCurrentOperationalShift(Long agentId) {
+        // A ronda mobile despacha usando a viatura realmente vinculada ao turno ativo dela.
+        return shiftRepository.findFirstByAgentIdAndStatusInOrderByStartedAtDesc(
+                        agentId,
+                        List.of(ShiftStatus.ACTIVE, ShiftStatus.HANDOFF, ShiftStatus.HANDOFF_PENDING)
+                )
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nao existe turno operacional ativo vinculado ao vigilante autenticado."));
     }
 
     private void validateIncidentTransition(IncidentStatus currentStatus, IncidentStatus requestedStatus) {
@@ -1704,6 +1844,15 @@ public class OperationsService {
 
         String normalized = value.trim();
         return normalized.length() > maxLength ? normalized.substring(0, maxLength) : normalized;
+    }
+
+    private String normalizeRequiredText(String value, String message, int maxLength) {
+        // Fechamentos sensiveis exigem texto minimo para deixar trilha util de auditoria.
+        String normalized = normalizeOptionalText(value, maxLength);
+        if (normalized == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, message);
+        }
+        return normalized;
     }
 
     private String resolveCurrentActorUsername() {

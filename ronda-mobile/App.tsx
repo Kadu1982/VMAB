@@ -18,6 +18,7 @@ import {
   TextInput,
   View,
 } from 'react-native'
+import { WebView } from 'react-native-webview'
 import {
   appendTelemetryQueueItem,
   createTelemetrySample,
@@ -192,6 +193,26 @@ type DashboardSummary = {
   }[]
 }
 
+type OperationalIncident = {
+  id: number
+  type: string
+  priority: IncidentPriority
+  status: IncidentStatus
+  residentName: string
+  address: string
+  openedAt: string
+  assignedAgentId?: number | null
+  assignedAgentName?: string | null
+  vehicleId?: number | null
+  vehiclePlate?: string | null
+  dispatchedAt?: string | null
+  onSiteAt?: string | null
+  closedAt?: string | null
+  dispatchNotes?: string | null
+  arrivalNotes?: string | null
+  closureNotes?: string | null
+}
+
 const initialCredentials = {
   username: 'ronda',
   password: 'ronda123',
@@ -325,6 +346,63 @@ function normalizeApiUrl(value: string) {
   return normalizeApiBaseUrl(value)
 }
 
+function buildPatrolMapHtml(activePatrol: ActivePatrol) {
+  // Desenha um mapa leve em WebView para manter a posicao da ronda visivel ao morador.
+  return `
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link
+          rel="stylesheet"
+          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin=""
+        />
+        <style>
+          html, body, #map {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background: #0b1118;
+          }
+          .leaflet-container {
+            background: #0b1118;
+          }
+        </style>
+      </head>
+      <body>
+        <div id="map"></div>
+        <script
+          src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+          crossorigin=""
+        ></script>
+        <script>
+          const latitude = ${activePatrol.latitude};
+          const longitude = ${activePatrol.longitude};
+          const map = L.map('map', { zoomControl: false }).setView([latitude, longitude], 16);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap',
+          }).addTo(map);
+          const marker = L.marker([latitude, longitude]).addTo(map);
+          marker.bindPopup('${activePatrol.agentName.replace(/'/g, "\\'")}').openPopup();
+          L.circle([latitude, longitude], {
+            radius: ${Math.max(activePatrol.accuracyMeters, 15)},
+            color: '#d8b468',
+            fillColor: '#d8b468',
+            fillOpacity: 0.16,
+            weight: 1,
+          }).addTo(map);
+        </script>
+      </body>
+    </html>
+  `
+}
+
 async function registerExpoPushToken() {
   // Solicita permissao e tenta obter o token Expo apenas em aparelho fisico.
   if (Platform.OS === 'web' || !Constants.isDevice) {
@@ -374,6 +452,26 @@ function getResidentActionHint(type: ResidentAlertType) {
   }[type]
 }
 
+function getCollaboratorIncidentNextAction(incident: OperationalIncident, activeAgentId: number | null) {
+  if (incident.status === 'OPEN') {
+    return 'dispatch'
+  }
+
+  if (incident.assignedAgentId !== activeAgentId) {
+    return null
+  }
+
+  if (incident.status === 'DISPATCHED') {
+    return 'onsite'
+  }
+
+  if (incident.status === 'ON_SITE') {
+    return 'close'
+  }
+
+  return null
+}
+
 export default function App() {
   // Estado do app da ronda: sessao, telemetria, fila offline e resumo operacional.
   const [mode, setMode] = useState<AppMode>('COLLABORATOR')
@@ -383,6 +481,7 @@ export default function App() {
   const [residentSession, setResidentSession] = useState<ResidentSession | null>(null)
   const [residentProfile, setResidentProfile] = useState<ResidentProfile | null>(null)
   const [residentAlerts, setResidentAlerts] = useState<ResidentAlert[]>([])
+  const [residentPatrol, setResidentPatrol] = useState<ActivePatrol | null>(null)
   const [residentAlertDraft, setResidentAlertDraft] = useState(initialResidentAlertDraft)
   const [residentSendingAlert, setResidentSendingAlert] = useState<ResidentAlertType | null>(null)
   const [residentCountdownType, setResidentCountdownType] = useState<ResidentAlertType | null>(null)
@@ -397,13 +496,19 @@ export default function App() {
   const [offlineQueueCount, setOfflineQueueCount] = useState(0)
   const [telemetrySignals, setTelemetrySignals] = useState<TelemetrySignal[]>([])
   const [summary, setSummary] = useState<DashboardSummary | null>(null)
+  const [incidentQueue, setIncidentQueue] = useState<OperationalIncident[]>([])
+  const [incidentActionNotes, setIncidentActionNotes] = useState<Record<number, string>>({})
+  const [incidentActionLoadingId, setIncidentActionLoadingId] = useState<number | null>(null)
+  const [incidentActionLoadingType, setIncidentActionLoadingType] = useState<'dispatch' | 'onsite' | 'close' | null>(null)
   const [evidenceIncidentId, setEvidenceIncidentId] = useState('')
   const [evidenceNotes, setEvidenceNotes] = useState('')
   const [evidenceAsset, setEvidenceAsset] = useState<EvidenceAsset | null>(null)
   const foregroundSubscriptionRef = useRef<Location.LocationSubscription | null>(null)
   const residentNotificationListenerRef = useRef<Notifications.EventSubscription | null>(null)
   const residentNotificationResponseRef = useRef<Notifications.EventSubscription | null>(null)
+  const collaboratorIncidentSnapshotRef = useRef<string>('')
   const activeResidentAlert = residentAlerts.find((alert) => isActiveAlert(alert.status)) ?? null
+  const activeCollaboratorAgentId = summary?.activePatrol?.agentId ?? null
 
   useEffect(() => {
     // Restaura URL da API, credenciais e sessao para nao exigir reconfiguracao a cada abertura.
@@ -635,6 +740,141 @@ export default function App() {
     }
   }
 
+  async function notifyCollaboratorIncidentUpdate(title: string, body: string) {
+    // Usa notificacao local para destacar mudancas operacionais ao colaborador enquanto o app estiver ativo.
+    if (Platform.OS === 'web') {
+      return
+    }
+
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title,
+        body,
+        sound: true,
+      },
+      trigger: null,
+    })
+  }
+
+  async function fetchIncidentQueue(activeSession = session, activeAgentId = summary?.activePatrol?.agentId ?? null) {
+    // Carrega a fila completa de ocorrencias para o colaborador operar despacho, chegada e encerramento pelo celular.
+    const baseUrl = normalizeApiUrl(apiBaseUrl)
+    if (!baseUrl || !activeSession?.accessToken) {
+      return
+    }
+
+    const response = await fetch(`${baseUrl}/api/incidents`, {
+      headers: {
+        Authorization: `Bearer ${activeSession.accessToken}`,
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error('Nao foi possivel carregar a fila operacional de ocorrencias.')
+    }
+
+    const nextIncidents = (await response.json()) as OperationalIncident[]
+    const normalizedSnapshot = JSON.stringify(
+      nextIncidents.map((incident) => ({
+        id: incident.id,
+        status: incident.status,
+        assignedAgentId: incident.assignedAgentId ?? null,
+      })),
+    )
+
+    if (collaboratorIncidentSnapshotRef.current) {
+      const previousSnapshot = new Map<number, { status: IncidentStatus; assignedAgentId: number | null }>(
+        JSON.parse(collaboratorIncidentSnapshotRef.current).map(
+          (incident: { id: number; status: IncidentStatus; assignedAgentId: number | null }) => [incident.id, incident],
+        ),
+      )
+
+      const changedIncident = nextIncidents.find((incident) => {
+        const previous = previousSnapshot.get(incident.id)
+        if (!previous) {
+          return true
+        }
+
+        return previous.status !== incident.status || previous.assignedAgentId !== (incident.assignedAgentId ?? null)
+      })
+
+      if (changedIncident) {
+        const isAssignedToCurrentRonda = activeAgentId != null && changedIncident.assignedAgentId === activeAgentId
+        const title = isAssignedToCurrentRonda ? 'Ocorrencia da sua ronda atualizada' : 'Fila operacional atualizada'
+        const body = `${translateIncidentType(changedIncident.type)} - ${translateIncidentStatus(changedIncident.status)} - ${changedIncident.address}`
+        await notifyCollaboratorIncidentUpdate(title, body)
+      }
+    }
+
+    collaboratorIncidentSnapshotRef.current = normalizedSnapshot
+    setIncidentQueue(nextIncidents)
+  }
+
+  async function handleCollaboratorIncidentAction(
+    incident: OperationalIncident,
+    action: 'dispatch' | 'onsite' | 'close',
+  ) {
+    // Executa o fluxo ponta a ponta da ronda no celular sem exigir que ela volte para o painel web.
+    const baseUrl = normalizeApiUrl(apiBaseUrl)
+    if (!baseUrl || !session?.accessToken) {
+      setError('Sua sessao nao existe mais. Entre novamente.')
+      return
+    }
+
+    const actionNote = incidentActionNotes[incident.id]?.trim() ?? ''
+    if (action === 'close' && !actionNote) {
+      setError('Informe a observacao final para encerrar a ocorrencia.')
+      return
+    }
+
+    const endpoint = action === 'dispatch'
+      ? `/api/incidents/${incident.id}/dispatch/me`
+      : action === 'onsite'
+        ? `/api/incidents/${incident.id}/onsite/me`
+        : `/api/incidents/${incident.id}/close/me`
+    const payload =
+      action === 'dispatch'
+        ? { dispatchNotes: actionNote || null }
+        : action === 'onsite'
+          ? { arrivalNotes: actionNote || null }
+          : { closureNotes: actionNote }
+
+    setIncidentActionLoadingId(incident.id)
+    setIncidentActionLoadingType(action)
+    setError(null)
+
+    try {
+      const response = await fetch(`${baseUrl}${endpoint}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        const responseText = await response.text()
+        throw new Error(responseText || 'Nao foi possivel atualizar a ocorrencia no mobile.')
+      }
+
+      setIncidentActionNotes((current) => ({ ...current, [incident.id]: '' }))
+      setTrackingStatus(
+        action === 'dispatch'
+          ? 'Ocorrencia assumida e despachada pela ronda.'
+          : action === 'onsite'
+            ? 'Chegada ao local registrada.'
+            : 'Ocorrencia encerrada pelo celular da viatura.',
+      )
+      await fetchSummary()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Falha inesperada ao atualizar a ocorrencia.')
+    } finally {
+      setIncidentActionLoadingId(null)
+      setIncidentActionLoadingType(null)
+    }
+  }
+
 
   async function fetchSummary(activeSession = session) {
     // Carrega o resumo que alimenta a tela da ronda usando a sessao autenticada.
@@ -668,6 +908,7 @@ export default function App() {
       const nextSummary = (await response.json()) as DashboardSummary
       setSummary(nextSummary)
       setAuthenticated(true)
+      await fetchIncidentQueue(activeSession, nextSummary.activePatrol?.agentId ?? null)
       await saveStoredActiveShiftId(nextSummary.activePatrol?.shiftId ?? null)
       await refreshOfflineQueueCount()
       return true
@@ -678,6 +919,7 @@ export default function App() {
         setAuthenticated(false)
         setSession(null)
         setSummary(null)
+        setIncidentQueue([])
         await saveStoredActiveShiftId(null)
         await stopBackgroundTracking()
       }
@@ -718,12 +960,15 @@ export default function App() {
       setResidentSession(null)
       setResidentProfile(null)
       setResidentAlerts([])
+      setResidentPatrol(null)
+      setIncidentQueue([])
       await fetchSummary(nextSession)
       await flushOfflineQueue()
     } catch (cause) {
       setAuthenticated(false)
       setSession(null)
       setSummary(null)
+      setResidentPatrol(null)
       setError(cause instanceof Error ? cause.message : 'Falha inesperada no mobile.')
     } finally {
       setLoading(false)
@@ -751,6 +996,9 @@ export default function App() {
       setSession(null)
       setAuthenticated(false)
       setSummary(null)
+      setIncidentQueue([])
+      setIncidentActionNotes({})
+      collaboratorIncidentSnapshotRef.current = ''
       setTelemetrySignals([])
       setOfflineQueueCount(0)
       setTrackingStatus('GPS inativo')
@@ -778,7 +1026,7 @@ export default function App() {
   }
 
   async function refreshResidentData(nextSession = residentSession) {
-    // Carrega ficha e alertas do morador autenticado.
+    // Carrega ficha, alertas e a patrulha ativa visivel para o morador acompanhar a ronda em tempo real.
     if (!nextSession?.accessToken) {
       return
     }
@@ -787,22 +1035,32 @@ export default function App() {
     setError(null)
 
     try {
-      const profileResponse = await residentApiFetch('/api/resident-app/me', undefined, nextSession.accessToken)
+      const [profileResponse, alertsResponse, patrolResponse] = await Promise.all([
+        residentApiFetch('/api/resident-app/me', undefined, nextSession.accessToken),
+        residentApiFetch('/api/resident-app/alerts', undefined, nextSession.accessToken),
+        residentApiFetch('/api/resident-app/patrol', undefined, nextSession.accessToken),
+      ])
+
       if (!profileResponse.ok) {
         throw new Error('Nao foi possivel validar sua sessao de morador.')
       }
-      setResidentProfile((await profileResponse.json()) as ResidentProfile)
-
-      const alertsResponse = await residentApiFetch('/api/resident-app/alerts', undefined, nextSession.accessToken)
       if (!alertsResponse.ok) {
         throw new Error('Nao foi possivel carregar seus alertas.')
       }
+      if (!patrolResponse.ok) {
+        throw new Error('Nao foi possivel carregar a patrulha visivel.')
+      }
+
+      setResidentProfile((await profileResponse.json()) as ResidentProfile)
       setResidentAlerts((await alertsResponse.json()) as ResidentAlert[])
+      const patrolPayload = (await patrolResponse.text()).trim()
+      setResidentPatrol(patrolPayload ? (JSON.parse(patrolPayload) as ActivePatrol) : null)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Falha inesperada ao atualizar o app do morador.')
       setResidentSession(null)
       setResidentProfile(null)
       setResidentAlerts([])
+      setResidentPatrol(null)
     } finally {
       setLoading(false)
     }
@@ -867,6 +1125,10 @@ export default function App() {
       setSession(null)
       setAuthenticated(false)
       setSummary(null)
+      setResidentPatrol(null)
+      setIncidentQueue([])
+      setIncidentActionNotes({})
+      collaboratorIncidentSnapshotRef.current = ''
       setTelemetrySignals([])
       setOfflineQueueCount(0)
       setTrackingStatus('GPS inativo')
@@ -876,6 +1138,7 @@ export default function App() {
       setResidentSession(null)
       setResidentProfile(null)
       setResidentAlerts([])
+      setResidentPatrol(null)
       setError(cause instanceof Error ? cause.message : 'Falha inesperada ao autenticar morador.')
     } finally {
       setLoading(false)
@@ -915,6 +1178,7 @@ export default function App() {
       setResidentSession(null)
       setResidentProfile(null)
       setResidentAlerts([])
+      setResidentPatrol(null)
       setResidentAlertDraft(initialResidentAlertDraft)
       setResidentCountdownType(null)
       setResidentCountdownSeconds(0)
@@ -1322,6 +1586,54 @@ export default function App() {
             {residentProfile?.referenceNote ? <Text style={styles.meta}>Referencia: {residentProfile.referenceNote}</Text> : null}
           </View>
 
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Patrulha visivel</Text>
+            <Text style={styles.meta}>
+              A localizacao atual da ronda fica exposta para dar ciencia do patrulhamento e evidenciar possivel atraso no atendimento.
+            </Text>
+            {residentPatrol ? (
+              <>
+                <View style={styles.mapCard}>
+                  <WebView
+                    source={{ html: buildPatrolMapHtml(residentPatrol) }}
+                    originWhitelist={['*']}
+                    style={styles.mapFrame}
+                    javaScriptEnabled
+                    domStorageEnabled
+                    scrollEnabled={false}
+                  />
+                </View>
+
+                <View style={styles.metricsGrid}>
+                  <View style={styles.metricCard}>
+                    <Text style={styles.metricLabel}>Vigilante</Text>
+                    <Text style={styles.metricValueSmall}>{residentPatrol.agentName}</Text>
+                    <Text style={styles.meta}>Cracha {residentPatrol.agentBadgeCode}</Text>
+                  </View>
+                  <View style={styles.metricCard}>
+                    <Text style={styles.metricLabel}>Viatura</Text>
+                    <Text style={styles.metricValueSmall}>{residentPatrol.vehiclePlate}</Text>
+                    <Text style={styles.meta}>{residentPatrol.vehicleModel}</Text>
+                  </View>
+                  <View style={styles.metricCard}>
+                    <Text style={styles.metricLabel}>Velocidade atual</Text>
+                    <Text style={styles.metricValueSmall}>{residentPatrol.speedKmh.toFixed(0)} km/h</Text>
+                    <Text style={styles.meta}>Precisao {residentPatrol.accuracyMeters.toFixed(0)} m</Text>
+                  </View>
+                  <View style={styles.metricCard}>
+                    <Text style={styles.metricLabel}>Ultima atualizacao</Text>
+                    <Text style={styles.metricValueSmall}>{formatDate(residentPatrol.updatedAt)}</Text>
+                    <Text style={styles.meta}>
+                      {formatCoordinate(residentPatrol.latitude)}, {formatCoordinate(residentPatrol.longitude)}
+                    </Text>
+                  </View>
+                </View>
+              </>
+            ) : (
+              <Text style={styles.meta}>Nenhuma patrulha ativa com GPS disponivel neste momento.</Text>
+            )}
+          </View>
+
           {activeResidentAlert ? (
             <View style={styles.activeAlertCard}>
               <Text style={styles.sectionTitle}>Atendimento em andamento</Text>
@@ -1554,19 +1866,65 @@ export default function App() {
             </View>
 
             <View style={styles.sectionCard}>
-              <Text style={styles.sectionTitle}>Ocorrencias</Text>
-              {summary.incidents.map((incident) => (
-                <View style={styles.rowCard} key={incident.id}>
-                  <Text style={styles.rowTitle}>
-                    {translateIncidentType(incident.type)} | {incident.residentName}
-                  </Text>
-                  <Text style={styles.rowMeta}>{incident.address}</Text>
-                  <Text style={styles.rowMeta}>
-                    {translateIncidentPriority(incident.priority)} | {translateIncidentStatus(incident.status)} |{' '}
-                    {incident.vehiclePlate ?? 'Sem viatura'}
-                  </Text>
-                </View>
-              ))}
+              <Text style={styles.sectionTitle}>Fila operacional de ocorrencias</Text>
+              {incidentQueue.length === 0 ? <Text style={styles.rowMeta}>Nenhuma ocorrencia carregada no momento.</Text> : null}
+              {incidentQueue.map((incident) => {
+                const nextAction = getCollaboratorIncidentNextAction(incident, activeCollaboratorAgentId)
+                const actionLoading = incidentActionLoadingId === incident.id
+                const actionLabel =
+                  nextAction === 'dispatch'
+                    ? 'Assumir e despachar'
+                    : nextAction === 'onsite'
+                      ? 'Cheguei ao local'
+                      : nextAction === 'close'
+                        ? 'Encerrar atendimento'
+                        : null
+                const actionPlaceholder =
+                  nextAction === 'dispatch'
+                    ? 'Observacao do despacho'
+                    : nextAction === 'onsite'
+                      ? 'Observacao da chegada'
+                      : nextAction === 'close'
+                        ? 'Observacao final obrigatoria'
+                        : null
+
+                return (
+                  <View style={styles.rowCard} key={incident.id}>
+                    <Text style={styles.rowTitle}>
+                      {translateIncidentType(incident.type)} | {incident.residentName}
+                    </Text>
+                    <Text style={styles.rowMeta}>{incident.address}</Text>
+                    <Text style={styles.rowMeta}>
+                      {translateIncidentPriority(incident.priority)} | {translateIncidentStatus(incident.status)} |{' '}
+                      {incident.vehiclePlate ?? 'Sem viatura'}
+                    </Text>
+                    <Text style={styles.rowMeta}>Aberta em {formatDate(incident.openedAt)}</Text>
+                    {incident.assignedAgentName ? <Text style={styles.rowMeta}>Ronda responsavel: {incident.assignedAgentName}</Text> : null}
+                    {incident.dispatchNotes ? <Text style={styles.rowMeta}>Despacho: {incident.dispatchNotes}</Text> : null}
+                    {incident.arrivalNotes ? <Text style={styles.rowMeta}>Chegada: {incident.arrivalNotes}</Text> : null}
+                    {incident.closureNotes ? <Text style={styles.rowMeta}>Fechamento: {incident.closureNotes}</Text> : null}
+                    {nextAction && actionPlaceholder ? (
+                      <>
+                        <TextInput
+                          placeholder={actionPlaceholder}
+                          placeholderTextColor="#7f8ca1"
+                          style={styles.input}
+                          value={incidentActionNotes[incident.id] ?? ''}
+                          onChangeText={(value) => setIncidentActionNotes((current) => ({ ...current, [incident.id]: value }))}
+                        />
+                        <Pressable
+                          style={styles.primaryButton}
+                          onPress={() => void handleCollaboratorIncidentAction(incident, nextAction)}
+                        >
+                          <Text style={styles.primaryButtonText}>
+                            {actionLoading ? 'Atualizando...' : actionLabel}
+                          </Text>
+                        </Pressable>
+                      </>
+                    ) : null}
+                  </View>
+                )
+              })}
             </View>
 
             <View style={styles.sectionCard}>
@@ -1844,6 +2202,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#f7f4ec',
   },
+  metricValueSmall: {
+    marginTop: 6,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#f7f4ec',
+  },
   sectionCard: {
     borderRadius: 20,
     padding: 16,
@@ -1935,5 +2299,18 @@ const styles = StyleSheet.create({
   },
   rowMeta: {
     color: '#9ba7b7',
+  },
+  mapCard: {
+    marginTop: 4,
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(228,188,116,0.1)',
+    backgroundColor: '#0b1118',
+  },
+  mapFrame: {
+    width: '100%',
+    height: 260,
+    backgroundColor: '#0b1118',
   },
 })

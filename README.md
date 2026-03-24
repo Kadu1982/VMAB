@@ -63,6 +63,7 @@ Responsabilidades:
 - configuracao persistente da URL da API;
 - envio de localizacao GPS em tempo real no perfil operacional;
 - associacao da telemetria ao turno em execucao;
+- despacho, chegada e encerramento de ocorrencias pelo celular da ronda;
 - abertura, acompanhamento e cancelamento de alertas do morador;
 - notificacoes push Expo do atendimento do morador;
 - base para operacao de atendimento, deslocamento e patrulha.
@@ -101,6 +102,7 @@ Responsabilidades:
 - app mobile unico com selecao de perfil entre morador e colaborador;
 - captura de localizacao no perfil operacional;
 - persistencia de URL da API, sessoes e credenciais por perfil no app mobile;
+- fila operacional de ocorrencias com despacho, chegada e encerramento no perfil colaborador;
 - fluxo do morador com PIN dedicado, alerta ativo unico e push Expo;
 - portal do cliente com leitura da operacao;
 - banco PostgreSQL com Flyway;

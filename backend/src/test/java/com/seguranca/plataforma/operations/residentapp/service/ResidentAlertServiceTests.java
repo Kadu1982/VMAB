@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 
 import com.seguranca.plataforma.operations.model.Resident;
 import com.seguranca.plataforma.operations.model.ResidentStatus;
+import com.seguranca.plataforma.operations.dto.ActivePatrolResponse;
 import com.seguranca.plataforma.operations.repository.AgentRepository;
 import com.seguranca.plataforma.operations.repository.AuditRecordRepository;
 import com.seguranca.plataforma.operations.repository.ResidentRepository;
@@ -29,6 +30,7 @@ import com.seguranca.plataforma.operations.residentapp.repository.ResidentAlertR
 import com.seguranca.plataforma.operations.residentapp.repository.ResidentPushDeviceRepository;
 import com.seguranca.plataforma.operations.residentapp.repository.ResidentSessionRepository;
 import com.seguranca.plataforma.operations.service.OperationsRealtimeService;
+import com.seguranca.plataforma.operations.service.OperationsService;
 import java.security.MessageDigest;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -78,6 +80,9 @@ class ResidentAlertServiceTests {
 
     @Mock
     private ResidentPushNotificationService residentPushNotificationService;
+
+    @Mock
+    private OperationsService operationsService;
 
     @InjectMocks
     private ResidentAlertService residentAlertService;
@@ -237,6 +242,36 @@ class ResidentAlertServiceTests {
         residentAlertService.acknowledge(10L, null);
 
         verify(residentPushNotificationService).notifyResidentAlertStatusChanged(any(ResidentAlert.class));
+    }
+
+    @Test
+    void deveEntregarPatrulhaVisivelAoMoradorAutenticado() {
+        ActivePatrolResponse activePatrol = new ActivePatrolResponse(
+                1L,
+                1L,
+                "Carlos Nunes",
+                "ALPHA-01",
+                null,
+                "ABC1D23",
+                "Duster",
+                48241L,
+                "IN_OPERATION",
+                -23.56,
+                -46.65,
+                18.0,
+                22.0,
+                4.2,
+                100,
+                OffsetDateTime.now(ZoneOffset.UTC),
+                List.of(),
+                List.of()
+        );
+        when(residentSessionRepository.findByTokenHash(anyString())).thenReturn(Optional.of(residentSession));
+        when(operationsService.activePatrolSummary()).thenReturn(activePatrol);
+
+        ActivePatrolResponse response = residentAlertService.getVisiblePatrol("Bearer token-de-teste");
+
+        assertEquals(activePatrol, response);
     }
 
     private ResidentAlert activeAlert() {

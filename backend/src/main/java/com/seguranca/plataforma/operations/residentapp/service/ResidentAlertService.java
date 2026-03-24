@@ -11,6 +11,7 @@ import com.seguranca.plataforma.operations.repository.AgentRepository;
 import com.seguranca.plataforma.operations.repository.AuditRecordRepository;
 import com.seguranca.plataforma.operations.repository.ResidentRepository;
 import com.seguranca.plataforma.operations.repository.VehicleRepository;
+import com.seguranca.plataforma.operations.dto.ActivePatrolResponse;
 import com.seguranca.plataforma.operations.residentapp.dto.CreateResidentAlertRequest;
 import com.seguranca.plataforma.operations.residentapp.dto.DispatchResidentAlertRequest;
 import com.seguranca.plataforma.operations.residentapp.dto.RegisterResidentPushTokenRequest;
@@ -30,6 +31,7 @@ import com.seguranca.plataforma.operations.residentapp.repository.ResidentAlertR
 import com.seguranca.plataforma.operations.residentapp.repository.ResidentPushDeviceRepository;
 import com.seguranca.plataforma.operations.residentapp.repository.ResidentSessionRepository;
 import com.seguranca.plataforma.operations.service.OperationsRealtimeService;
+import com.seguranca.plataforma.operations.service.OperationsService;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -64,6 +66,7 @@ public class ResidentAlertService {
     private final PasswordEncoder passwordEncoder;
     private final ResidentPushDeviceRepository residentPushDeviceRepository;
     private final ResidentPushNotificationService residentPushNotificationService;
+    private final OperationsService operationsService;
 
     public ResidentAlertService(
             ResidentRepository residentRepository,
@@ -75,7 +78,8 @@ public class ResidentAlertService {
             OperationsRealtimeService operationsRealtimeService,
             PasswordEncoder passwordEncoder,
             ResidentPushDeviceRepository residentPushDeviceRepository,
-            ResidentPushNotificationService residentPushNotificationService
+            ResidentPushNotificationService residentPushNotificationService,
+            OperationsService operationsService
     ) {
         this.residentRepository = residentRepository;
         this.residentAlertRepository = residentAlertRepository;
@@ -87,6 +91,7 @@ public class ResidentAlertService {
         this.passwordEncoder = passwordEncoder;
         this.residentPushDeviceRepository = residentPushDeviceRepository;
         this.residentPushNotificationService = residentPushNotificationService;
+        this.operationsService = operationsService;
     }
 
     @Transactional
@@ -156,6 +161,13 @@ public class ResidentAlertService {
     public ResidentAlertResponse getResidentAlert(String authorizationHeader, Long alertId) {
         ResidentSession session = resolveActiveSession(authorizationHeader);
         return toResponse(getResidentAlert(alertId, session.getResidentId()));
+    }
+
+    @Transactional(readOnly = true)
+    public ActivePatrolResponse getVisiblePatrol(String authorizationHeader) {
+        // O morador autenticado pode acompanhar a patrulha ativa em tempo real, sem abrir o dashboard administrativo.
+        resolveActiveSession(authorizationHeader);
+        return operationsService.activePatrolSummary();
     }
 
     @Transactional
