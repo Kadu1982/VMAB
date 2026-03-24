@@ -363,3 +363,11 @@ export interface PrivacyRetentionStatus {
   lastCleanupAt?: string | null
   lastCleanupDescription?: string | null
 }
+
+export interface OperationsStreamEvent {
+  type: string
+  entityName: string
+  entityId?: number | null
+  description: string
+  occurredAt: string
+}

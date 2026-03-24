@@ -40,6 +40,18 @@ public class AuthController {
         return authService.logout(authentication.getName());
     }
 
+    @PostMapping("/push-device")
+    public SessionActionResponse registerPushDevice(Authentication authentication, @Valid @RequestBody RegisterAppPushTokenRequest request) {
+        // Habilita push operacional no app do colaborador sem misturar isso com o login.
+        return authService.registerPushDevice(authentication.getName(), request);
+    }
+
+    @PostMapping("/push-device/revoke")
+    public SessionActionResponse revokePushDevice(Authentication authentication, @Valid @RequestBody RevokeAppPushTokenRequest request) {
+        // Remove um token especifico quando o aparelho sai de uso ou quando o usuario faz logout.
+        return authService.revokePushDevice(authentication.getName(), request);
+    }
+
     @PostMapping("/password-reset/request")
     @ResponseStatus(HttpStatus.OK)
     public PasswordResetRequestResponse requestPasswordReset(@Valid @RequestBody PasswordResetRequest request) {

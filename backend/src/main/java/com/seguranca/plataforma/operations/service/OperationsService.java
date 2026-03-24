@@ -1,6 +1,7 @@
 package com.seguranca.plataforma.operations.service;
 
 import com.seguranca.plataforma.auth.AppUser;
+import com.seguranca.plataforma.auth.AppUserPushNotificationService;
 import com.seguranca.plataforma.auth.AppUserRepository;
 import com.seguranca.plataforma.auth.AppUserRole;
 import com.seguranca.plataforma.config.VmabRetentionProperties;
@@ -95,6 +96,7 @@ public class OperationsService {
 
     private final AgentRepository agentRepository;
     private final AppUserRepository appUserRepository;
+    private final AppUserPushNotificationService appUserPushNotificationService;
     private final AuditRecordRepository auditRecordRepository;
     private final VehicleRepository vehicleRepository;
     private final VehicleMaintenanceRecordRepository vehicleMaintenanceRecordRepository;
@@ -112,6 +114,7 @@ public class OperationsService {
     public OperationsService(
             AgentRepository agentRepository,
             AppUserRepository appUserRepository,
+            AppUserPushNotificationService appUserPushNotificationService,
             AuditRecordRepository auditRecordRepository,
             VehicleRepository vehicleRepository,
             VehicleMaintenanceRecordRepository vehicleMaintenanceRecordRepository,
@@ -128,6 +131,7 @@ public class OperationsService {
     ) {
         this.agentRepository = agentRepository;
         this.appUserRepository = appUserRepository;
+        this.appUserPushNotificationService = appUserPushNotificationService;
         this.auditRecordRepository = auditRecordRepository;
         this.vehicleRepository = vehicleRepository;
         this.vehicleMaintenanceRecordRepository = vehicleMaintenanceRecordRepository;
@@ -860,6 +864,7 @@ public class OperationsService {
         );
         Incident savedIncident = incidentRepository.save(incident);
         recordAudit(AuditActionType.CREATE, "Incident", savedIncident.getId(), "Abertura da ocorrencia para " + savedIncident.getResidentName());
+        appUserPushNotificationService.notifyIncidentWorkflowUpdated(savedIncident);
         return savedIncident;
     }
 
@@ -920,6 +925,7 @@ public class OperationsService {
         );
         Incident savedIncident = incidentRepository.save(incident);
         recordAudit(AuditActionType.INCIDENT_WORKFLOW, "Incident", savedIncident.getId(), "Despacho da ocorrencia " + savedIncident.getId() + " para " + savedIncident.getAssignedAgentName());
+        appUserPushNotificationService.notifyIncidentWorkflowUpdated(savedIncident);
         return savedIncident;
     }
 
@@ -948,6 +954,7 @@ public class OperationsService {
         );
         Incident savedIncident = incidentRepository.save(incident);
         recordAudit(AuditActionType.INCIDENT_WORKFLOW, "Incident", savedIncident.getId(), "Despacho mobile da ocorrencia " + savedIncident.getId() + " pela ronda " + savedIncident.getAssignedAgentName());
+        appUserPushNotificationService.notifyIncidentWorkflowUpdated(savedIncident);
         return savedIncident;
     }
 
@@ -965,6 +972,7 @@ public class OperationsService {
         );
         Incident savedIncident = incidentRepository.save(incident);
         recordAudit(AuditActionType.INCIDENT_WORKFLOW, "Incident", savedIncident.getId(), "Chegada ao local da ocorrencia " + savedIncident.getId());
+        appUserPushNotificationService.notifyIncidentWorkflowUpdated(savedIncident);
         return savedIncident;
     }
 
@@ -984,6 +992,7 @@ public class OperationsService {
         );
         Incident savedIncident = incidentRepository.save(incident);
         recordAudit(AuditActionType.INCIDENT_WORKFLOW, "Incident", savedIncident.getId(), "Chegada mobile ao local da ocorrencia " + savedIncident.getId());
+        appUserPushNotificationService.notifyIncidentWorkflowUpdated(savedIncident);
         return savedIncident;
     }
 
@@ -1001,6 +1010,7 @@ public class OperationsService {
         );
         Incident savedIncident = incidentRepository.save(incident);
         recordAudit(AuditActionType.INCIDENT_WORKFLOW, "Incident", savedIncident.getId(), "Encerramento da ocorrencia " + savedIncident.getId());
+        appUserPushNotificationService.notifyIncidentWorkflowUpdated(savedIncident);
         return savedIncident;
     }
 
@@ -1020,6 +1030,7 @@ public class OperationsService {
         );
         Incident savedIncident = incidentRepository.save(incident);
         recordAudit(AuditActionType.INCIDENT_WORKFLOW, "Incident", savedIncident.getId(), "Encerramento mobile da ocorrencia " + savedIncident.getId());
+        appUserPushNotificationService.notifyIncidentWorkflowUpdated(savedIncident);
         return savedIncident;
     }
 

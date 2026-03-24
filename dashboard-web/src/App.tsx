@@ -19,6 +19,7 @@ import type {
   IncidentPriority,
   IncidentStatus,
   IncidentType,
+  OperationsStreamEvent,
   PrivacyRequest,
   PrivacyRequestStatus,
   PrivacyRequestType,
@@ -292,6 +293,21 @@ function translateRole(role: AppUserRole | string) {
   }[role] ?? role
 }
 
+function translateRealtimeEventType(type: string) {
+  return {
+    CONNECTED: 'Canal conectado',
+    CREATE: 'Criacao',
+    UPDATE: 'Atualizacao',
+    DELETE: 'Exclusao',
+    HANDOFF: 'Troca de turno',
+    MAINTENANCE: 'Manutencao',
+    TELEMETRY: 'Telemetria',
+    INCIDENT_WORKFLOW: 'Workflow de ocorrencia',
+    AUTH: 'Autenticacao',
+    RESIDENT_ALERT: 'Alerta do morador',
+  }[type] ?? type
+}
+
 function translateGenericOperationalText(value: string) {
   const lookup: Record<string, string> = {
     OPEN: 'Aberta',
@@ -493,6 +509,7 @@ function App() {
   const [retentionStatus, setRetentionStatus] = useState<PrivacyRetentionStatus | null>(null)
   const [privacyForm, setPrivacyForm] = useState(initialPrivacyForm)
   const [editingPrivacyRequestId, setEditingPrivacyRequestId] = useState<number | null>(null)
+  const [realtimeEvents, setRealtimeEvents] = useState<OperationsStreamEvent[]>([])
   const [isPending, startTransition] = useTransition()
 
   // Deriva os escopos reais do usuario para nao exibir acoes que o backend vai negar.
@@ -607,7 +624,14 @@ function App() {
     }
 
     const eventSource = new EventSource(`${API_BASE_URL}/api/events/stream?token=${encodeURIComponent(session.accessToken)}`)
-    const handleRealtimeRefresh = () => {
+    const handleRealtimeRefresh = (event: MessageEvent<string>) => {
+      try {
+        const parsedEvent = JSON.parse(event.data) as OperationsStreamEvent
+        setRealtimeEvents((current) => [parsedEvent, ...current].slice(0, 6))
+      } catch {
+        // Se o payload vier malformado, o reload do painel ainda preserva a consistencia do dado.
+      }
+
       startTransition(() => {
         void loadData()
       })
@@ -788,6 +812,7 @@ function App() {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(loginSession))
       setSession(loginSession)
       setAuthenticated(true)
+      setRealtimeEvents([])
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Falha ao autenticar.')
     }
@@ -802,6 +827,7 @@ function App() {
       window.localStorage.removeItem(STORAGE_KEY)
       setSession(null)
       setAuthenticated(false)
+      setRealtimeEvents([])
       setCurrentUsername(null)
       setCurrentRoles([])
       setCurrentLinkedAgentId(null)
@@ -820,6 +846,7 @@ function App() {
       window.localStorage.removeItem(STORAGE_KEY)
       setSession(null)
       setAuthenticated(false)
+      setRealtimeEvents([])
       setCurrentUsername(null)
       setCurrentRoles([])
       setCurrentLinkedAgentId(null)
@@ -1302,6 +1329,30 @@ function App() {
           <section className="panel">
             <div className="panel-header">
               <div>
+                <p className="eyebrow">Tempo real</p>
+                <h3>Atualizacoes recebidas</h3>
+              </div>
+            </div>
+            {realtimeEvents.length === 0 ? (
+              <p className="panel-note">Nenhum evento recebido nesta sessao ainda.</p>
+            ) : (
+              <div className="list">
+                {realtimeEvents.map((event, index) => (
+                  <article className="list-row" key={`${event.occurredAt}-${event.entityName}-${index}`}>
+                    <div>
+                      <strong>{translateRealtimeEventType(event.type)} | {event.entityName}</strong>
+                      <small>{event.description}</small>
+                    </div>
+                    <span className="tag">{formatDate(event.occurredAt)}</span>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="panel">
+            <div className="panel-header">
+              <div>
                 <p className="eyebrow">Incidentes recentes</p>
                 <h3>Ultimas ocorrencias</h3>
               </div>
@@ -1371,9 +1422,34 @@ function App() {
         {error ? <div className="alert error">{error}</div> : null}
         {loading ? <div className="alert">Carregando painel...</div> : null}
         {isPending ? <div className="alert">Sincronizando alteracoes...</div> : null}
+        {realtimeEvents[0] ? <div className="alert success">Tempo real ativo: {realtimeEvents[0].description}</div> : null}
 
         {summary ? (
           <>
+            <section className="panel">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Tempo real</p>
+                  <h3>Ultimos eventos recebidos</h3>
+                </div>
+              </div>
+              {realtimeEvents.length === 0 ? (
+                <p className="panel-note">Nenhum evento operacional recebido nesta sessao ainda.</p>
+              ) : (
+                <div className="list">
+                  {realtimeEvents.map((event, index) => (
+                    <article className="list-row" key={`${event.occurredAt}-${event.entityName}-${index}`}>
+                      <div>
+                        <strong>{translateRealtimeEventType(event.type)} | {event.entityName}</strong>
+                        <small>{event.description}</small>
+                      </div>
+                      <span className="tag">{formatDate(event.occurredAt)}</span>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+
             {summary.activePatrol ? (
               // Bloco principal de acompanhamento da patrulha ativa em tempo real.
               <section className="panel patrol-panel">

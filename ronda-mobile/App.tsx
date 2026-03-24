@@ -42,6 +42,7 @@ const API_URL_STORAGE_KEY = 'vmab-mobile-api-url'
 const MODE_STORAGE_KEY = 'vmab-mobile-mode'
 const COLLABORATOR_CREDENTIALS_STORAGE_KEY = 'vmab-mobile-collaborator-creds'
 const COLLABORATOR_SESSION_STORAGE_KEY = 'vmab-mobile-collaborator-session'
+const COLLABORATOR_PUSH_TOKEN_STORAGE_KEY = 'vmab-mobile-collaborator-push-token'
 const RESIDENT_CREDENTIALS_STORAGE_KEY = 'vmab-mobile-resident-creds'
 const RESIDENT_SESSION_STORAGE_KEY = 'vmab-mobile-resident-session'
 const RESIDENT_PUSH_TOKEN_STORAGE_KEY = 'vmab-mobile-resident-push-token'
@@ -601,17 +602,21 @@ export default function App() {
   }, [residentSession])
 
   useEffect(() => {
-    // Quando um push chega com o app aberto, o morador recarrega o estado para refletir a mudanca real.
+    // Quando um push chega com o app aberto, o perfil ativo recarrega seus dados reais.
     residentNotificationListenerRef.current?.remove()
     residentNotificationResponseRef.current?.remove()
     residentNotificationListenerRef.current = Notifications.addNotificationReceivedListener(() => {
       if (residentSession?.accessToken) {
         void refreshResidentData()
+      } else if (session?.accessToken) {
+        void fetchSummary()
       }
     })
     residentNotificationResponseRef.current = Notifications.addNotificationResponseReceivedListener(() => {
       if (residentSession?.accessToken) {
         void refreshResidentData()
+      } else if (session?.accessToken) {
+        void fetchSummary()
       }
     })
 
@@ -621,7 +626,7 @@ export default function App() {
       residentNotificationResponseRef.current?.remove()
       residentNotificationResponseRef.current = null
     }
-  }, [residentSession?.accessToken])
+  }, [residentSession?.accessToken, session?.accessToken])
 
   async function refreshOfflineQueueCount() {
     const queue = await loadTelemetryQueue()
@@ -962,6 +967,7 @@ export default function App() {
       setResidentAlerts([])
       setResidentPatrol(null)
       setIncidentQueue([])
+      await registerCollaboratorPushToken(nextSession.accessToken)
       await fetchSummary(nextSession)
       await flushOfflineQueue()
     } catch (cause) {
@@ -980,6 +986,20 @@ export default function App() {
     try {
       const baseUrl = normalizeApiUrl(apiBaseUrl)
       if (baseUrl && session?.accessToken) {
+        const storedPushToken = await AsyncStorage.getItem(COLLABORATOR_PUSH_TOKEN_STORAGE_KEY)
+        if (storedPushToken) {
+          await fetch(`${baseUrl}/api/auth/push-device/revoke`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${session.accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              expoPushToken: storedPushToken,
+            }),
+          })
+        }
+
         await fetch(`${baseUrl}/api/auth/logout`, {
           method: 'POST',
           headers: {
@@ -990,6 +1010,7 @@ export default function App() {
     } catch {
       // O logout local ainda precisa acontecer mesmo se o backend estiver fora.
     } finally {
+      await AsyncStorage.removeItem(COLLABORATOR_PUSH_TOKEN_STORAGE_KEY)
       await stopBackgroundTracking()
       foregroundSubscriptionRef.current?.remove()
       foregroundSubscriptionRef.current = null
@@ -1098,6 +1119,46 @@ export default function App() {
       await AsyncStorage.setItem(RESIDENT_PUSH_TOKEN_STORAGE_KEY, expoPushToken)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Falha ao ativar notificacoes do morador.')
+    }
+  }
+
+  async function registerCollaboratorPushToken(accessToken: string) {
+    // Registra o aparelho operacional para push remoto quando a fila da ronda mudar fora do app.
+    try {
+      const expoPushToken = await registerExpoPushToken()
+      if (!expoPushToken) {
+        return
+      }
+
+      const storedPushToken = await AsyncStorage.getItem(COLLABORATOR_PUSH_TOKEN_STORAGE_KEY)
+      if (storedPushToken === expoPushToken) {
+        return
+      }
+
+      const baseUrl = normalizeApiUrl(apiBaseUrl)
+      if (!baseUrl) {
+        return
+      }
+
+      const response = await fetch(`${baseUrl}/api/auth/push-device`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          expoPushToken,
+          deviceLabel: `${Platform.OS}-${Constants.deviceName ?? 'dispositivo-operacional'}`,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Nao foi possivel registrar o dispositivo operacional para notificacoes.')
+      }
+
+      await AsyncStorage.setItem(COLLABORATOR_PUSH_TOKEN_STORAGE_KEY, expoPushToken)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Falha ao ativar notificacoes operacionais.')
     }
   }
 

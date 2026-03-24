@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 import com.seguranca.plataforma.auth.AppUser;
 import com.seguranca.plataforma.auth.AppUserRepository;
 import com.seguranca.plataforma.auth.AppUserRole;
+import com.seguranca.plataforma.auth.AppUserPushNotificationService;
 import com.seguranca.plataforma.config.VmabRetentionProperties;
 import com.seguranca.plataforma.operations.dto.RondaCloseIncidentRequest;
 import com.seguranca.plataforma.operations.dto.RondaDispatchIncidentRequest;
@@ -54,6 +55,7 @@ class OperationsServiceIncidentWorkflowTests {
 
     @Mock private AgentRepository agentRepository;
     @Mock private AppUserRepository appUserRepository;
+    @Mock private AppUserPushNotificationService appUserPushNotificationService;
     @Mock private AuditRecordRepository auditRecordRepository;
     @Mock private VehicleRepository vehicleRepository;
     @Mock private VehicleMaintenanceRecordRepository vehicleMaintenanceRecordRepository;
@@ -74,6 +76,7 @@ class OperationsServiceIncidentWorkflowTests {
         operationsService = new OperationsService(
                 agentRepository,
                 appUserRepository,
+                appUserPushNotificationService,
                 auditRecordRepository,
                 vehicleRepository,
                 vehicleMaintenanceRecordRepository,
@@ -170,6 +173,7 @@ class OperationsServiceIncidentWorkflowTests {
         assertEquals(7L, dispatchedIncident.getAssignedAgentId());
         assertEquals("ABC1D23", dispatchedIncident.getVehiclePlate());
         verify(incidentRepository).save(incident);
+        verify(appUserPushNotificationService).notifyIncidentWorkflowUpdated(incident);
     }
 
     @Test

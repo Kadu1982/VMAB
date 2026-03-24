@@ -66,6 +66,7 @@ Responsabilidades:
 - despacho, chegada e encerramento de ocorrencias pelo celular da ronda;
 - abertura, acompanhamento e cancelamento de alertas do morador;
 - notificacoes push Expo do atendimento do morador;
+- notificacoes push Expo operacionais para o colaborador em mudancas relevantes da fila de ocorrencias;
 - base para operacao de atendimento, deslocamento e patrulha.
 
 ### 3. Backend operacional
@@ -104,6 +105,7 @@ Responsabilidades:
 - persistencia de URL da API, sessoes e credenciais por perfil no app mobile;
 - fila operacional de ocorrencias com despacho, chegada e encerramento no perfil colaborador;
 - fluxo do morador com PIN dedicado, alerta ativo unico e push Expo;
+- centro de eventos em tempo real no painel web para operacao e cliente;
 - portal do cliente com leitura da operacao;
 - banco PostgreSQL com Flyway;
 - stack Docker para ambiente local;

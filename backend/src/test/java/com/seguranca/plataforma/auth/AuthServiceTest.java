@@ -52,6 +52,9 @@ class AuthServiceTest {
     private AgentRepository agentRepository;
 
     @Mock
+    private AppUserPushNotificationService appUserPushNotificationService;
+
+    @Mock
     private JwtTokenService jwtTokenService;
 
     @Mock
@@ -188,6 +191,48 @@ class AuthServiceTest {
         assertEquals(0, user.getFailedLoginAttempts());
         assertNull(user.getLockedUntil());
         assertNotNull(token.getConsumedAt());
+        verify(auditRecordRepository).save(any(AuditRecord.class));
+    }
+
+    @Test
+    void registerPushDeviceDeveDelegarAoServicoDePush() {
+        AppUser user = new AppUser(
+                "ronda",
+                "{noop}senha",
+                AppUserRole.RONDA,
+                true,
+                OffsetDateTime.parse("2026-03-23T10:00:00Z")
+        );
+        when(appUserRepository.findByUsername("ronda")).thenReturn(Optional.of(user));
+
+        SessionActionResponse response = authService.registerPushDevice(
+                "ronda",
+                new RegisterAppPushTokenRequest("ExponentPushToken[abc]", "android-ronda")
+        );
+
+        assertEquals("Dispositivo operacional registrado com sucesso.", response.message());
+        verify(appUserPushNotificationService).registerDevice(user, "ExponentPushToken[abc]", "android-ronda");
+        verify(auditRecordRepository).save(any(AuditRecord.class));
+    }
+
+    @Test
+    void revokePushDeviceDeveDelegarAoServicoDePush() {
+        AppUser user = new AppUser(
+                "ronda",
+                "{noop}senha",
+                AppUserRole.RONDA,
+                true,
+                OffsetDateTime.parse("2026-03-23T10:00:00Z")
+        );
+        when(appUserRepository.findByUsername("ronda")).thenReturn(Optional.of(user));
+
+        SessionActionResponse response = authService.revokePushDevice(
+                "ronda",
+                new RevokeAppPushTokenRequest("ExponentPushToken[abc]")
+        );
+
+        assertEquals("Dispositivo operacional revogado com sucesso.", response.message());
+        verify(appUserPushNotificationService).revokeDevice(user, "ExponentPushToken[abc]");
         verify(auditRecordRepository).save(any(AuditRecord.class));
     }
 }

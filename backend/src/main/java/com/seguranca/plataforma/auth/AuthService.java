@@ -35,6 +35,7 @@ public class AuthService {
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final AuditRecordRepository auditRecordRepository;
     private final AgentRepository agentRepository;
+    private final AppUserPushNotificationService appUserPushNotificationService;
     private final JwtTokenService jwtTokenService;
     private final PasswordEncoder passwordEncoder;
     private final SecureRandom secureRandom = new SecureRandom();
@@ -45,6 +46,7 @@ public class AuthService {
             PasswordResetTokenRepository passwordResetTokenRepository,
             AuditRecordRepository auditRecordRepository,
             AgentRepository agentRepository,
+            AppUserPushNotificationService appUserPushNotificationService,
             JwtTokenService jwtTokenService,
             PasswordEncoder passwordEncoder
     ) {
@@ -53,6 +55,7 @@ public class AuthService {
         this.passwordResetTokenRepository = passwordResetTokenRepository;
         this.auditRecordRepository = auditRecordRepository;
         this.agentRepository = agentRepository;
+        this.appUserPushNotificationService = appUserPushNotificationService;
         this.jwtTokenService = jwtTokenService;
         this.passwordEncoder = passwordEncoder;
     }
@@ -99,6 +102,24 @@ public class AuthService {
         appUserRepository.save(user);
         recordAudit(AuditActionType.AUTH, "Auth", user.getId(), "Logout realizado para o usuario " + user.getUsername());
         return new SessionActionResponse("Sessao encerrada com sucesso.");
+    }
+
+    @Transactional
+    public SessionActionResponse registerPushDevice(String username, RegisterAppPushTokenRequest request) {
+        // Registra o dispositivo Expo do usuario interno para notificacoes operacionais fora do painel web.
+        AppUser user = getActiveUser(username.trim());
+        appUserPushNotificationService.registerDevice(user, request.expoPushToken(), request.deviceLabel());
+        recordAudit(AuditActionType.AUTH, "AuthPushDevice", user.getId(), "Dispositivo push registrado para o usuario " + user.getUsername());
+        return new SessionActionResponse("Dispositivo operacional registrado com sucesso.");
+    }
+
+    @Transactional
+    public SessionActionResponse revokePushDevice(String username, RevokeAppPushTokenRequest request) {
+        // Revoga um token especifico para evitar push em aparelho que saiu de operacao.
+        AppUser user = getActiveUser(username.trim());
+        appUserPushNotificationService.revokeDevice(user, request.expoPushToken());
+        recordAudit(AuditActionType.AUTH, "AuthPushDevice", user.getId(), "Dispositivo push revogado para o usuario " + user.getUsername());
+        return new SessionActionResponse("Dispositivo operacional revogado com sucesso.");
     }
 
     @Transactional
