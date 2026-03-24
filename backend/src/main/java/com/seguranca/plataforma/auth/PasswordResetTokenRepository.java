@@ -13,6 +13,8 @@ public interface PasswordResetTokenRepository extends JpaRepository<PasswordRese
 
     List<PasswordResetToken> findByUserIdAndConsumedAtIsNull(Long userId);
 
+    long deleteByExpiresAtBefore(OffsetDateTime expiresAt);
+
     @Modifying
     @Query("update PasswordResetToken token set token.consumedAt = :now where token.userId = :userId and token.consumedAt is null")
     int consumeActiveTokensByUserId(@Param("userId") Long userId, @Param("now") OffsetDateTime now);

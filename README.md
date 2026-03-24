@@ -253,12 +253,36 @@ O que ainda falta para fechamento forte de producao:
 - observabilidade, logs e monitoramento;
 - endurecimento de seguranca e politicas LGPD.
 
+## LGPD e retencao
+
+A politica tecnica de retencao foi documentada em [LGPD_RETENCAO.md](LGPD_RETENCAO.md).
+
+Resumo objetivo:
+- artefatos temporarios sao limpos automaticamente;
+- evidencias antigas sao removidas do banco e do disco;
+- pedidos de exportacao e exclusao ficam registrados em trilha auditavel;
+- o que exige decisao juridica ou contratual continua manual.
+
 ## Validacoes feitas
 
 - `npm run build` em [dashboard-web](C:\Users\G15\Documents\Segurança\dashboard-web)
 - `.\gradlew.bat compileJava bootJar -x test` em [backend](C:\Users\G15\Documents\Segurança\backend)
 - `npx tsc --noEmit` em [ronda-mobile](C:\Users\G15\Documents\Segurança\ronda-mobile)
 - `docker compose config` nas stacks locais e de producao
+
+## Observabilidade e monitoramento
+
+O backend agora expõe sinais úteis para operação e produção:
+- `GET /actuator/health` para verificação simples de disponibilidade;
+- `GET /actuator/health/readiness` e `GET /actuator/health/liveness` para probes de container;
+- `GET /actuator/info` para metadados básicos da aplicação;
+- `GET /actuator/metrics` e `GET /actuator/prometheus` para integração com monitoramento externo;
+- `GET /actuator/loggers` para ajuste administrativo de níveis de log.
+
+Os logs do backend carregam:
+- `X-Correlation-Id` na resposta;
+- método, rota, usuário autenticado, IP de origem, status e duração no contexto de log;
+- persistência em arquivo no container em `/app/logs/vmab.log`, além da saída no console.
 
 ## Proximos passos recomendados
 

@@ -1,5 +1,6 @@
 package com.seguranca.plataforma.auth;
 
+import com.seguranca.plataforma.config.VmabRetentionProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,7 +17,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableConfigurationProperties({JwtProperties.class, VmabRetentionProperties.class})
 public class SecurityConfig {
     // Centraliza autenticacao por token e regras de acesso por perfil da operacao.
 
@@ -26,13 +27,17 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/actuator/health").permitAll()
+                        // Health probes ficam publicos para Docker, Caddy e verificacao externa.
+                        .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
+                        // Informacoes administrativas continuam protegidas por perfil.
+                        .requestMatchers("/actuator/info", "/actuator/metrics", "/actuator/metrics/**", "/actuator/prometheus", "/actuator/loggers", "/actuator/loggers/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/password-reset/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/events/stream").permitAll()
                         .requestMatchers("/api/auth/**").authenticated()
                         .requestMatchers("/api/users/**").hasRole("ADMIN")
+                        .requestMatchers("/api/privacy/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/client/portal").hasAnyRole("CLIENT", "SUPERVISOR", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/dashboard/**").hasAnyRole("RONDA", "SUPERVISOR", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/agents/**", "/api/vehicles/**", "/api/residents/**", "/api/shifts/**", "/api/incidents/**", "/api/resident-alerts/**").hasAnyRole("RONDA", "SUPERVISOR", "ADMIN")
