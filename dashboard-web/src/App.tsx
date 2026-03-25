@@ -1299,6 +1299,26 @@ function App() {
     }
   }
 
+  async function handlePrivacyNotificationDraftDownload(requestId: number) {
+    // Baixa um rascunho formal da comunicacao ao titular para registro e envio externo controlado.
+    try {
+      const response = await apiFetch(`/api/privacy/requests/${requestId}/notification-draft`)
+      if (!response.ok) {
+        throw new Error('Nao foi possivel gerar o rascunho de notificacao do titular.')
+      }
+
+      const blob = await response.blob()
+      const downloadUrl = window.URL.createObjectURL(blob)
+      const anchor = window.document.createElement('a')
+      anchor.href = downloadUrl
+      anchor.download = `vmab-lgpd-notificacao-${requestId}.txt`
+      anchor.click()
+      window.URL.revokeObjectURL(downloadUrl)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Falha inesperada ao gerar o rascunho de notificacao.')
+    }
+  }
+
   async function handleClientReportCsvExport() {
     try {
       const response = await apiFetch('/api/client/report/export.csv')
@@ -2464,6 +2484,7 @@ function App() {
                             {request.requestType === 'EXPORT' ? (
                               <button className="ghost-button" onClick={() => void handlePrivacyExportDownload(request.subjectType, request.subjectId)} type="button">Baixar JSON</button>
                             ) : null}
+                            <button className="ghost-button" onClick={() => void handlePrivacyNotificationDraftDownload(request.id)} type="button">Baixar notificacao</button>
                             {request.status === 'OPEN' || request.status === 'IN_PROGRESS' ? (
                               <>
                                 <button className="ghost-button" onClick={() => startPrivacyRequestEdit(request)} type="button">Editar fluxo</button>

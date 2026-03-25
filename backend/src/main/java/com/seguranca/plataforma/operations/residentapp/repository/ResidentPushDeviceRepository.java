@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface ResidentPushDeviceRepository extends JpaRepository<ResidentPushDevice, Long> {
     List<ResidentPushDevice> findByResidentIdAndRevokedAtIsNullOrderByUpdatedAtDesc(Long residentId);
 
+    List<ResidentPushDevice> findByResidentIdOrderByUpdatedAtDesc(Long residentId);
+
     Optional<ResidentPushDevice> findByResidentIdAndExpoPushToken(Long residentId, String expoPushToken);
 
     Optional<ResidentPushDevice> findByExpoPushToken(String expoPushToken);

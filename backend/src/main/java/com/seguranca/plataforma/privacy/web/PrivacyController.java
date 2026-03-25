@@ -63,6 +63,15 @@ public class PrivacyController {
                 .body(new ByteArrayResource(payload));
     }
 
+    @GetMapping("/requests/{id}/notification-draft")
+    public ResponseEntity<ByteArrayResource> downloadNotificationDraft(@PathVariable Long id) {
+        byte[] payload = privacyService.buildNotificationDraft(id).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        return ResponseEntity.ok()
+                .contentType(MediaType.TEXT_PLAIN)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"vmab-lgpd-notificacao-" + id + ".txt\"")
+                .body(new ByteArrayResource(payload));
+    }
+
     @GetMapping("/status")
     public PrivacyRetentionStatusResponse retentionStatus() {
         return privacyService.retentionStatus();

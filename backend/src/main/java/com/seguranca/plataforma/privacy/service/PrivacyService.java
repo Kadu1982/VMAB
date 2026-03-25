@@ -1,6 +1,7 @@
 package com.seguranca.plataforma.privacy.service;
 
 import com.seguranca.plataforma.auth.AppUser;
+import com.seguranca.plataforma.auth.AppUserPushDeviceRepository;
 import com.seguranca.plataforma.auth.AppUserRepository;
 import com.seguranca.plataforma.auth.PasswordResetTokenRepository;
 import com.seguranca.plataforma.config.VmabRetentionProperties;
@@ -14,8 +15,10 @@ import com.seguranca.plataforma.operations.repository.AuditRecordRepository;
 import com.seguranca.plataforma.operations.repository.ResidentRepository;
 import com.seguranca.plataforma.operations.repository.ShiftRepository;
 import com.seguranca.plataforma.operations.residentapp.model.ResidentAlert;
+import com.seguranca.plataforma.operations.residentapp.model.ResidentPushDevice;
 import com.seguranca.plataforma.operations.residentapp.model.ResidentSession;
 import com.seguranca.plataforma.operations.residentapp.repository.ResidentAlertRepository;
+import com.seguranca.plataforma.operations.residentapp.repository.ResidentPushDeviceRepository;
 import com.seguranca.plataforma.operations.residentapp.repository.ResidentSessionRepository;
 import com.seguranca.plataforma.privacy.dto.CreatePrivacyRequestRequest;
 import com.seguranca.plataforma.privacy.dto.PrivacyExportResponse;
@@ -51,9 +54,11 @@ public class PrivacyService {
     private final ResidentSessionRepository residentSessionRepository;
     private final VmabRetentionProperties retentionProperties;
     private final AppUserRepository appUserRepository;
+    private final AppUserPushDeviceRepository appUserPushDeviceRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final AgentRepository agentRepository;
     private final ShiftRepository shiftRepository;
+    private final ResidentPushDeviceRepository residentPushDeviceRepository;
     private final AuditRecordRepository auditRecordRepository;
     private final ObjectMapper objectMapper;
 
@@ -64,9 +69,11 @@ public class PrivacyService {
             ResidentSessionRepository residentSessionRepository,
             VmabRetentionProperties retentionProperties,
             AppUserRepository appUserRepository,
+            AppUserPushDeviceRepository appUserPushDeviceRepository,
             PasswordResetTokenRepository passwordResetTokenRepository,
             AgentRepository agentRepository,
             ShiftRepository shiftRepository,
+            ResidentPushDeviceRepository residentPushDeviceRepository,
             AuditRecordRepository auditRecordRepository,
             ObjectMapper objectMapper
     ) {
@@ -76,9 +83,11 @@ public class PrivacyService {
         this.residentSessionRepository = residentSessionRepository;
         this.retentionProperties = retentionProperties;
         this.appUserRepository = appUserRepository;
+        this.appUserPushDeviceRepository = appUserPushDeviceRepository;
         this.passwordResetTokenRepository = passwordResetTokenRepository;
         this.agentRepository = agentRepository;
         this.shiftRepository = shiftRepository;
+        this.residentPushDeviceRepository = residentPushDeviceRepository;
         this.auditRecordRepository = auditRecordRepository;
         this.objectMapper = objectMapper;
     }
@@ -165,6 +174,42 @@ public class PrivacyService {
     }
 
     @Transactional(readOnly = true)
+    public String buildNotificationDraft(Long requestId) {
+        // Gera um comunicado padrao para o titular sem depender de integracao externa de envio.
+        PrivacyRequest request = getRequest(requestId);
+        return """
+                VMAB - Comunicacao de privacidade
+
+                Titular: %s
+                Tipo do pedido: %s
+                Status atual: %s
+                Solicitado em: %s
+                Tratado por: %s
+                Tratado em: %s
+                Canal registrado: %s
+
+                Observacoes operacionais:
+                %s
+
+                Observacoes da notificacao:
+                %s
+
+                Este documento foi gerado para apoiar a comunicacao formal do atendimento ao titular dentro do fluxo LGPD da plataforma VMAB.
+                """
+                .formatted(
+                        request.getSubjectLabel(),
+                        request.getRequestType().name(),
+                        request.getStatus().name(),
+                        request.getRequestedAt(),
+                        request.getHandledBy() != null ? request.getHandledBy() : "nao definido",
+                        request.getHandledAt() != null ? request.getHandledAt() : "nao definido",
+                        request.getSubjectNotificationChannel() != null ? request.getSubjectNotificationChannel() : "nao registrado",
+                        request.getNotes() != null ? request.getNotes() : "Sem observacoes.",
+                        request.getSubjectNotificationNotes() != null ? request.getSubjectNotificationNotes() : "Sem observacoes."
+                );
+    }
+
+    @Transactional(readOnly = true)
     public PrivacyRetentionStatusResponse retentionStatus() {
         // Exibe o estado operacional da retencao e o ultimo ciclo efetivamente auditado.
         AuditRecord lastCleanup = auditRecordRepository.findTopByEntityNameOrderByOccurredAtDesc("RetentionCleanup").orElse(null);
@@ -194,6 +239,10 @@ public class PrivacyService {
         payload.put("resident", residentSnapshot(resident));
         payload.put("alerts", alerts.stream().map(this::residentAlertSnapshot).toList());
         payload.put("sessions", sessions.stream().map(this::residentSessionSnapshot).toList());
+        payload.put("pushDevices", residentPushDeviceRepository.findByResidentIdOrderByUpdatedAtDesc(residentId)
+                .stream()
+                .map(this::residentPushDeviceSnapshot)
+                .toList());
         return payload;
     }
 
@@ -211,6 +260,18 @@ public class PrivacyService {
                     tokenSnapshot.put("expiresAt", token.getExpiresAt());
                     tokenSnapshot.put("consumedAt", token.getConsumedAt());
                     return tokenSnapshot;
+                })
+                .toList());
+        payload.put("pushDevices", appUserPushDeviceRepository.findByUserIdOrderByUpdatedAtDesc(userId)
+                .stream()
+                .map(device -> {
+                    Map<String, Object> snapshot = new LinkedHashMap<>();
+                    snapshot.put("id", device.getId());
+                    snapshot.put("deviceLabel", device.getDeviceLabel());
+                    snapshot.put("createdAt", device.getCreatedAt());
+                    snapshot.put("updatedAt", device.getUpdatedAt());
+                    snapshot.put("revokedAt", device.getRevokedAt());
+                    return snapshot;
                 })
                 .toList());
         return payload;
@@ -284,6 +345,8 @@ public class PrivacyService {
 
         residentSessionRepository.findByResidentIdOrderByCreatedAtDesc(residentId)
                 .forEach(session -> session.revoke(now));
+        residentPushDeviceRepository.findByResidentIdOrderByUpdatedAtDesc(residentId)
+                .forEach(device -> device.revoke(now));
         residentAlertRepository.findByResidentIdOrderByOpenedAtDesc(residentId)
                 .forEach(alert -> alert.anonymizeResidentData("Morador removido #" + residentId, "anon-resident-" + residentId, "Endereco anonimizado"));
     }
@@ -295,6 +358,8 @@ public class PrivacyService {
         user.updatePasswordHash("{noop}bloqueado-" + userId);
         user.resetSecurityState();
         user.bumpTokenVersion();
+        appUserPushDeviceRepository.findByUserIdOrderByUpdatedAtDesc(userId)
+                .forEach(device -> device.revoke(OffsetDateTime.now(ZoneOffset.UTC)));
         appUserRepository.save(user);
     }
 
@@ -336,6 +401,16 @@ public class PrivacyService {
         snapshot.put("expiresAt", session.getExpiresAt());
         snapshot.put("lastSeenAt", session.getLastSeenAt());
         snapshot.put("revokedAt", session.getRevokedAt());
+        return snapshot;
+    }
+
+    private Map<String, Object> residentPushDeviceSnapshot(ResidentPushDevice device) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("id", device.getId());
+        snapshot.put("deviceLabel", device.getDeviceLabel());
+        snapshot.put("createdAt", device.getCreatedAt());
+        snapshot.put("updatedAt", device.getUpdatedAt());
+        snapshot.put("revokedAt", device.getRevokedAt());
         return snapshot;
     }
 
