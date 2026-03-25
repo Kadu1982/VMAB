@@ -3,7 +3,7 @@ import type { FormEvent } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import './styles.css'
-import logoVmab from './assets/vmab-logo.svg'
+import logoVmab from './assets/vmab-logo.png'
 import type {
   Agent,
   AgentStatus,
