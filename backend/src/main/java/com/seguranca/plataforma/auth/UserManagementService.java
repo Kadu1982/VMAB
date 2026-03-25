@@ -35,7 +35,11 @@ public class UserManagementService {
                 .toList();
         Map<Long, String> agentNames = loadAgentNames(users.stream().map(AppUser::getLinkedAgentId).toList());
         return users.stream()
-                .map(user -> AppUserResponse.fromEntity(user, agentNames.get(user.getLinkedAgentId())))
+                // Usuario sem agente vinculado e valido; o mapa imutavel do Java nao aceita get(null).
+                .map(user -> AppUserResponse.fromEntity(
+                        user,
+                        user.getLinkedAgentId() != null ? agentNames.get(user.getLinkedAgentId()) : null
+                ))
                 .toList();
     }
 
