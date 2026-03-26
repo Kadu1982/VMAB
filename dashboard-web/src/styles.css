@@ -81,13 +81,13 @@ button {
 }
 
 .login-logo {
-  width: 150px;
+  width: 250px;
   margin: 0 auto 22px;
   filter: drop-shadow(0 16px 28px rgba(0, 0, 0, 0.5));
 }
 
 .sidebar-logo {
-  width: 126px;
+  width: 200px;
   margin: 0 0 18px;
   filter: drop-shadow(0 14px 24px rgba(0, 0, 0, 0.42));
 }
@@ -240,7 +240,7 @@ button {
 .hero-refresh {
   display: inline-block;
   margin-top: 10px;
-  color: var(--text-soft);
+  color: var(--muted-2);
 }
 
 .hero-actions,

@@ -17,9 +17,12 @@
         "NSLocationWhenInUseUsageDescription": "A localizacao e usada para rastrear a viatura e mostrar o vigilante em ronda em tempo real.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "A localizacao em segundo plano permite manter a telemetria da ronda mesmo quando o app nao esta aberto.",
         "UIBackgroundModes": [
+          "location",
           "location"
-        ]
-      }
+        ],
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "bundleIdentifier": "com.kadu1982.rondamobile"
     },
     "android": {
       "adaptiveIcon": {
@@ -33,10 +36,16 @@
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION"
-      ]
+      ],
+      "package": "com.kadu1982.rondamobile"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "0c5b7691-d71d-4460-9d00-293215d625dd"
+      }
     }
   }
 }

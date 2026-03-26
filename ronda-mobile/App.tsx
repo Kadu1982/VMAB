@@ -150,12 +150,6 @@ type ResidentLoginForm = {
   accessPin: string
 }
 
-type ResidentAlertDraft = {
-  notes: string
-  escortDestination: string
-  coercionPin: string
-}
-
 type EvidenceAsset = {
   uri: string
   fileName: string
@@ -222,12 +216,6 @@ const initialCredentials = {
 const initialResidentCredentials: ResidentLoginForm = {
   residentId: '1',
   accessPin: '1122',
-}
-
-const initialResidentAlertDraft: ResidentAlertDraft = {
-  notes: '',
-  escortDestination: '',
-  coercionPin: '',
 }
 
 function formatDate(value: string) {
@@ -483,7 +471,6 @@ export default function App() {
   const [residentProfile, setResidentProfile] = useState<ResidentProfile | null>(null)
   const [residentAlerts, setResidentAlerts] = useState<ResidentAlert[]>([])
   const [residentPatrol, setResidentPatrol] = useState<ActivePatrol | null>(null)
-  const [residentAlertDraft, setResidentAlertDraft] = useState(initialResidentAlertDraft)
   const [residentSendingAlert, setResidentSendingAlert] = useState<ResidentAlertType | null>(null)
   const [residentCountdownType, setResidentCountdownType] = useState<ResidentAlertType | null>(null)
   const [residentCountdownSeconds, setResidentCountdownSeconds] = useState(0)
@@ -1240,7 +1227,6 @@ export default function App() {
       setResidentProfile(null)
       setResidentAlerts([])
       setResidentPatrol(null)
-      setResidentAlertDraft(initialResidentAlertDraft)
       setResidentCountdownType(null)
       setResidentCountdownSeconds(0)
       setError(null)
@@ -1262,21 +1248,23 @@ export default function App() {
       let longitude: number | null = null
 
       const permission = await Location.requestForegroundPermissionsAsync()
-      if (permission.status === 'granted') {
-        const currentPosition = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        })
-        latitude = currentPosition.coords.latitude
-        longitude = currentPosition.coords.longitude
+      if (permission.status !== 'granted') {
+        setError('Permissao de localizacao obrigatoria para enviar alerta.')
+        setResidentCountdownType(null)
+        setResidentCountdownSeconds(0)
+        return
       }
+
+      const currentPosition = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      })
+      latitude = currentPosition.coords.latitude
+      longitude = currentPosition.coords.longitude
 
       const response = await residentApiFetch('/api/resident-app/alerts', {
         method: 'POST',
         body: JSON.stringify({
           type,
-          notes: residentAlertDraft.notes,
-          escortDestination: type === 'ESCOLTA' ? residentAlertDraft.escortDestination : null,
-          coercionPin: type === 'COACAO' ? residentAlertDraft.coercionPin : null,
           latitude,
           longitude,
         }),
@@ -1286,7 +1274,6 @@ export default function App() {
         throw new Error('Nao foi possivel abrir o alerta.')
       }
 
-      setResidentAlertDraft(initialResidentAlertDraft)
       setResidentCountdownType(null)
       setResidentCountdownSeconds(0)
       await refreshResidentData()
@@ -1696,6 +1683,10 @@ export default function App() {
                     scrollEnabled={false}
                   />
                 </View>
+                <Text style={styles.meta}>
+                  Ultima atualizacao: {formatDate(residentPatrol.updatedAt)} • {formatCoordinate(residentPatrol.latitude)},{' '}
+                  {formatCoordinate(residentPatrol.longitude)}
+                </Text>
 
                 <View style={styles.metricsGrid}>
                   <View style={styles.metricCard}>
@@ -1712,13 +1703,6 @@ export default function App() {
                     <Text style={styles.metricLabel}>Velocidade atual</Text>
                     <Text style={styles.metricValueSmall}>{residentPatrol.speedKmh.toFixed(0)} km/h</Text>
                     <Text style={styles.meta}>Precisao {residentPatrol.accuracyMeters.toFixed(0)} m</Text>
-                  </View>
-                  <View style={styles.metricCard}>
-                    <Text style={styles.metricLabel}>Ultima atualizacao</Text>
-                    <Text style={styles.metricValueSmall}>{formatDate(residentPatrol.updatedAt)}</Text>
-                    <Text style={styles.meta}>
-                      {formatCoordinate(residentPatrol.latitude)}, {formatCoordinate(residentPatrol.longitude)}
-                    </Text>
                   </View>
                 </View>
               </>
@@ -1755,32 +1739,8 @@ export default function App() {
             <Text style={styles.meta}>
               {activeResidentAlert
                 ? 'Ja existe um alerta em atendimento. Aguarde a central concluir ou cancele o alerta atual.'
-                : 'A localizacao e opcional, mas ajuda a central a encurtar o atendimento.'}
+                : 'A localizacao e obrigatoria para abrir um alerta.'}
             </Text>
-            <TextInput
-              multiline
-              placeholder="Observacao do alerta"
-              placeholderTextColor="#8c8e92"
-              style={[styles.input, styles.textArea]}
-              value={residentAlertDraft.notes}
-              onChangeText={(value) => setResidentAlertDraft((current) => ({ ...current, notes: value }))}
-            />
-            <TextInput
-              placeholder="Destino da escolta"
-              placeholderTextColor="#8c8e92"
-              style={styles.input}
-              value={residentAlertDraft.escortDestination}
-              onChangeText={(value) => setResidentAlertDraft((current) => ({ ...current, escortDestination: value }))}
-            />
-            <TextInput
-              secureTextEntry
-              keyboardType="numeric"
-              placeholder="PIN discreto"
-              placeholderTextColor="#8c8e92"
-              style={styles.input}
-              value={residentAlertDraft.coercionPin}
-              onChangeText={(value) => setResidentAlertDraft((current) => ({ ...current, coercionPin: value }))}
-            />
             {residentCountdownType ? (
               <Text style={styles.meta}>
                 Alerta {translateResidentActionLabel(residentCountdownType)} sera enviado em {residentCountdownSeconds}s. Toque no mesmo botao para cancelar.
@@ -1905,16 +1865,8 @@ export default function App() {
 
             <View style={styles.metricsGrid}>
               <View style={styles.metricCard}>
-                <Text style={styles.metricLabel}>Velocidade</Text>
-                <Text style={styles.metricValue}>{summary.activePatrol.speedKmh.toFixed(0)} km/h</Text>
-              </View>
-              <View style={styles.metricCard}>
                 <Text style={styles.metricLabel}>KM percorridos no turno</Text>
                 <Text style={styles.metricValue}>{summary.activePatrol.traveledKmInShift.toFixed(1)} km</Text>
-              </View>
-              <View style={styles.metricCard}>
-                <Text style={styles.metricLabel}>Precisao</Text>
-                <Text style={styles.metricValue}>{summary.activePatrol.accuracyMeters.toFixed(0)} m</Text>
               </View>
               <View style={styles.metricCard}>
                 <Text style={styles.metricLabel}>Fila offline</Text>
@@ -1969,16 +1921,8 @@ export default function App() {
           <>
             <View style={styles.metricsGrid}>
               <View style={styles.metricCard}>
-                <Text style={styles.metricLabel}>Turnos ativos</Text>
-                <Text style={styles.metricValue}>{summary.activeShifts}</Text>
-              </View>
-              <View style={styles.metricCard}>
                 <Text style={styles.metricLabel}>Ocorrencias abertas</Text>
                 <Text style={styles.metricValue}>{summary.openIncidents}</Text>
-              </View>
-              <View style={styles.metricCard}>
-                <Text style={styles.metricLabel}>Viaturas disponiveis</Text>
-                <Text style={styles.metricValue}>{summary.availableVehicles}</Text>
               </View>
               <View style={styles.metricCard}>
                 <Text style={styles.metricLabel}>Alertas manutencao</Text>
