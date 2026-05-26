@@ -205,6 +205,11 @@ Arquivos principais:
 - [.env.production.example](C:\Users\G15\Documents\Segurança\.env.production.example)
 - [Caddyfile](C:\Users\G15\Documents\Segurança\infra\caddy\Caddyfile)
 
+Observacao para esta VPS:
+- o VMAB nao deve subir um Caddy proprio se `saude_nginx` ja estiver usando `80/443`;
+- os servicos `backend` e `dashboard-web` devem entrar na rede compartilhada `saude_saude_network`;
+- os aliases esperados sao `vmab-backend` e `vmab-dashboard`.
+
 Fluxo de producao esperado:
 - `painel.axiumsistemas.com` para o frontend;
 - `api.axiumsistemas.com` para o backend.

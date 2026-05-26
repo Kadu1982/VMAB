@@ -1,25 +1,6 @@
 name: seguranca-comunitaria
 
 services:
-  caddy:
-    image: caddy:2.10-alpine
-    container_name: seguranca-caddy
-    restart: unless-stopped
-    depends_on:
-      - backend
-      - dashboard-web
-    ports:
-      - "80:80"
-      - "443:443"
-    environment:
-      APP_DOMAIN: ${APP_DOMAIN}
-      API_DOMAIN: ${API_DOMAIN}
-      ACME_EMAIL: ${ACME_EMAIL}
-    volumes:
-      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-
   postgres:
     image: postgres:17-alpine
     container_name: seguranca-postgres
@@ -52,6 +33,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      default: {}
+      shared_proxy:
+        aliases:
+          - vmab-backend
     # Em producao, o proxy e a orquestracao precisam saber quando a API realmente ficou pronta.
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health/readiness >/dev/null"]
@@ -71,9 +57,17 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    networks:
+      default: {}
+      shared_proxy:
+        aliases:
+          - vmab-dashboard
+
+networks:
+  shared_proxy:
+    external: true
+    name: saude_saude_network
 
 volumes:
   postgres_data:
-  caddy_data:
-  caddy_config:
   backend_logs:

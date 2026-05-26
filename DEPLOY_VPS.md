@@ -39,6 +39,14 @@ Se quiser manter o site atual da Hostinger no dominio raiz, deixe `@` e `www` co
 - [.env.production.example](C:\Users\G15\Documents\Segurança\.env.production.example)
 - [Caddyfile](C:\Users\G15\Documents\Segurança\infra\caddy\Caddyfile)
 
+## Observacao importante para esta VPS
+Existe outra aplicacao ja usando `80/443` com `saude_nginx`.
+Para nao quebrar esse ambiente, o VMAB deve subir sem o container Caddy proprio e deve entrar na rede Docker compartilhada `saude_saude_network` com os aliases:
+- `vmab-backend`
+- `vmab-dashboard`
+
+Nesse cenario, o proxy externo continua sendo o `saude_nginx` existente, que encaminha as requisicoes para o VMAB.
+
 ## Observabilidade em producao
 O backend expõe endpoints uteis para verificacao operacional e monitoramento:
 - `GET /actuator/health`
