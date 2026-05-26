@@ -22,6 +22,12 @@ public class VmabRetentionProperties {
     @Min(30)
     private int incidentEvidenceRetentionDays = 3650;
 
+    @Min(30)
+    private int vehicleMaintenanceRetentionDays = 3650;
+
+    @Min(30)
+    private int hrAttendanceRetentionDays = 3650;
+
     private boolean removeOrphanEvidenceFiles = true;
 
     public boolean isEnabled() {
@@ -62,6 +68,22 @@ public class VmabRetentionProperties {
 
     public void setIncidentEvidenceRetentionDays(int incidentEvidenceRetentionDays) {
         this.incidentEvidenceRetentionDays = incidentEvidenceRetentionDays;
+    }
+
+    public int getVehicleMaintenanceRetentionDays() {
+        return vehicleMaintenanceRetentionDays;
+    }
+
+    public void setVehicleMaintenanceRetentionDays(int vehicleMaintenanceRetentionDays) {
+        this.vehicleMaintenanceRetentionDays = vehicleMaintenanceRetentionDays;
+    }
+
+    public int getHrAttendanceRetentionDays() {
+        return hrAttendanceRetentionDays;
+    }
+
+    public void setHrAttendanceRetentionDays(int hrAttendanceRetentionDays) {
+        this.hrAttendanceRetentionDays = hrAttendanceRetentionDays;
     }
 
     public boolean isRemoveOrphanEvidenceFiles() {

@@ -220,6 +220,8 @@ public class PrivacyService {
                 retentionProperties.getPasswordResetTokenRetentionHours(),
                 retentionProperties.getResidentSessionRetentionDays(),
                 retentionProperties.getIncidentEvidenceRetentionDays(),
+                retentionProperties.getVehicleMaintenanceRetentionDays(),
+                retentionProperties.getHrAttendanceRetentionDays(),
                 retentionProperties.isRemoveOrphanEvidenceFiles(),
                 privacyRequestRepository.countByStatus(PrivacyRequestStatus.OPEN),
                 privacyRequestRepository.countByStatus(PrivacyRequestStatus.IN_PROGRESS),

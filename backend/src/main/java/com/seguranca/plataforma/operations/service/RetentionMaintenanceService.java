@@ -2,11 +2,15 @@ package com.seguranca.plataforma.operations.service;
 
 import com.seguranca.plataforma.auth.PasswordResetTokenRepository;
 import com.seguranca.plataforma.config.VmabRetentionProperties;
+import com.seguranca.plataforma.hr.model.HrAttendance;
+import com.seguranca.plataforma.hr.repository.HrAttendanceRepository;
 import com.seguranca.plataforma.operations.model.AuditActionType;
 import com.seguranca.plataforma.operations.model.AuditRecord;
 import com.seguranca.plataforma.operations.model.IncidentEvidence;
+import com.seguranca.plataforma.operations.model.VehicleMaintenanceRecord;
 import com.seguranca.plataforma.operations.repository.AuditRecordRepository;
 import com.seguranca.plataforma.operations.repository.IncidentEvidenceRepository;
+import com.seguranca.plataforma.operations.repository.VehicleMaintenanceRecordRepository;
 import com.seguranca.plataforma.operations.residentapp.repository.ResidentSessionRepository;
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
@@ -33,6 +37,8 @@ public class RetentionMaintenanceService {
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final ResidentSessionRepository residentSessionRepository;
     private final IncidentEvidenceRepository incidentEvidenceRepository;
+    private final VehicleMaintenanceRecordRepository vehicleMaintenanceRecordRepository;
+    private final HrAttendanceRepository hrAttendanceRepository;
     private final AuditRecordRepository auditRecordRepository;
     private final Path storageRoot;
 
@@ -41,6 +47,8 @@ public class RetentionMaintenanceService {
             PasswordResetTokenRepository passwordResetTokenRepository,
             ResidentSessionRepository residentSessionRepository,
             IncidentEvidenceRepository incidentEvidenceRepository,
+            VehicleMaintenanceRecordRepository vehicleMaintenanceRecordRepository,
+            HrAttendanceRepository hrAttendanceRepository,
             AuditRecordRepository auditRecordRepository,
             @Value("${vmab.storage-root}") String storageRoot
     ) {
@@ -48,6 +56,8 @@ public class RetentionMaintenanceService {
         this.passwordResetTokenRepository = passwordResetTokenRepository;
         this.residentSessionRepository = residentSessionRepository;
         this.incidentEvidenceRepository = incidentEvidenceRepository;
+        this.vehicleMaintenanceRecordRepository = vehicleMaintenanceRecordRepository;
+        this.hrAttendanceRepository = hrAttendanceRepository;
         this.auditRecordRepository = auditRecordRepository;
         this.storageRoot = Path.of(storageRoot).toAbsolutePath().normalize();
     }
@@ -85,6 +95,8 @@ public class RetentionMaintenanceService {
         OffsetDateTime passwordResetCutoff = now.minusHours(retentionProperties.getPasswordResetTokenRetentionHours());
         OffsetDateTime residentSessionCutoff = now.minusDays(retentionProperties.getResidentSessionRetentionDays());
         OffsetDateTime evidenceCutoff = now.minusDays(retentionProperties.getIncidentEvidenceRetentionDays());
+        OffsetDateTime maintenanceCutoff = now.minusDays(retentionProperties.getVehicleMaintenanceRetentionDays());
+        OffsetDateTime attendanceCutoff = now.minusDays(retentionProperties.getHrAttendanceRetentionDays());
 
         List<com.seguranca.plataforma.auth.PasswordResetToken> expiredPasswordResetTokens = passwordResetTokenRepository.findByExpiresAtBefore(passwordResetCutoff);
         long removedPasswordResetTokens = expiredPasswordResetTokens.size();
@@ -97,15 +109,31 @@ public class RetentionMaintenanceService {
         List<IncidentEvidence> expiredEvidence = incidentEvidenceRepository.findByUploadedAtBeforeAndDeletedAtIsNullOrderByUploadedAtAsc(evidenceCutoff);
         incidentEvidenceRepository.deleteAll(expiredEvidence);
 
+        List<VehicleMaintenanceRecord> expiredMaintenanceRecords = vehicleMaintenanceRecordRepository.findRetainableRecordsBefore(maintenanceCutoff);
+        long removedMaintenanceRecords = expiredMaintenanceRecords.size();
+        vehicleMaintenanceRecordRepository.deleteAllInBatch(expiredMaintenanceRecords);
+
+        List<HrAttendance> expiredAttendanceRecords = hrAttendanceRepository.findByOccurredAtBeforeOrderByOccurredAtAsc(attendanceCutoff);
+        long removedAttendanceRecords = expiredAttendanceRecords.size();
+        hrAttendanceRepository.deleteAllInBatch(expiredAttendanceRecords);
+
         int removedEvidenceFiles = deleteEvidenceFiles(expiredEvidence);
         int removedOrphanEvidenceFiles = retentionProperties.isRemoveOrphanEvidenceFiles() ? deleteOrphanEvidenceFiles() : 0;
 
-        if (removedPasswordResetTokens > 0 || removedResidentSessions > 0 || !expiredEvidence.isEmpty() || removedEvidenceFiles > 0 || removedOrphanEvidenceFiles > 0) {
+        if (removedPasswordResetTokens > 0
+                || removedResidentSessions > 0
+                || !expiredEvidence.isEmpty()
+                || removedMaintenanceRecords > 0
+                || removedAttendanceRecords > 0
+                || removedEvidenceFiles > 0
+                || removedOrphanEvidenceFiles > 0) {
             recordAudit(
                     "Limpeza de retencao executada via " + trigger
                             + ": resetTokens=" + removedPasswordResetTokens
                             + ", residentSessions=" + removedResidentSessions
                             + ", evidencias=" + expiredEvidence.size()
+                            + ", manutencoes=" + removedMaintenanceRecords
+                            + ", pontos=" + removedAttendanceRecords
                             + ", arquivosRemovidos=" + removedEvidenceFiles
                             + ", arquivosOrfaos=" + removedOrphanEvidenceFiles
             );

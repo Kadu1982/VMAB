@@ -8,6 +8,8 @@ public record PrivacyRetentionStatusResponse(
         int passwordResetTokenRetentionHours,
         int residentSessionRetentionDays,
         int incidentEvidenceRetentionDays,
+        int vehicleMaintenanceRetentionDays,
+        int hrAttendanceRetentionDays,
         boolean removeOrphanEvidenceFiles,
         long openRequests,
         long inProgressRequests,

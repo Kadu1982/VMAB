@@ -1512,7 +1512,7 @@ export default function App() {
     // Tela de acesso unificada com selecao de perfil antes de entrar.
     return (
       <SafeAreaView style={styles.safeArea}>
-        <StatusBar style="light" />
+        <StatusBar style="dark" />
         <View style={styles.loginShell}>
           {/* Camada visual de entrada: deixa o app com leitura mais premium sem alterar o fluxo de autenticacao. */}
           <View style={styles.heroCard}>
@@ -1579,19 +1579,22 @@ export default function App() {
               <>
                 <TextInput
                   keyboardType="numeric"
+                  inputMode="numeric"
                   placeholder="ID do morador"
                   placeholderTextColor="#857759"
                   style={styles.input}
                   value={residentCredentials.residentId}
-                  onChangeText={(value) => setResidentCredentials((current) => ({ ...current, residentId: value }))}
+                  onChangeText={(value) => setResidentCredentials((current) => ({ ...current, residentId: value.replace(/\D/g, '') }))}
                 />
                 <TextInput
                   keyboardType="numeric"
+                  secureTextEntry
+                  inputMode="numeric"
                   placeholder="PIN de acesso"
                   placeholderTextColor="#857759"
                   style={styles.input}
                   value={residentCredentials.accessPin}
-                  onChangeText={(value) => setResidentCredentials((current) => ({ ...current, accessPin: value }))}
+                  onChangeText={(value) => setResidentCredentials((current) => ({ ...current, accessPin: value.replace(/\D/g, '').slice(0, 6) }))}
                 />
                 <Pressable style={styles.primaryButton} onPress={() => void handleResidentLogin()}>
                   <Text style={styles.primaryButtonText}>{loading ? 'Entrando...' : 'Entrar como morador'}</Text>
@@ -1625,7 +1628,7 @@ export default function App() {
     // Tela do morador: alerta, cancelamento, contagem regressiva e historico.
     return (
       <SafeAreaView style={styles.safeArea}>
-        <StatusBar style="light" />
+        <StatusBar style="dark" />
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {/* Cabecalho principal do morador com linguagem mais leve e orientada ao estado do atendimento. */}
           <View style={styles.heroCard}>
@@ -1802,7 +1805,7 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Hero da operacao: concentra contexto do turno e acoes frequentes sem poluir a tela. */}
         <View style={styles.heroCard}>
@@ -2011,11 +2014,13 @@ export default function App() {
               <Text style={styles.rowMeta}>Selecione a ocorrencia e envie a foto direto do celular da viatura.</Text>
               <View style={styles.formStack}>
                 <TextInput
+                  keyboardType="numeric"
+                  inputMode="numeric"
                   placeholder="ID da ocorrencia"
                   placeholderTextColor="#7f8ca1"
                   style={styles.input}
                   value={evidenceIncidentId}
-                  onChangeText={setEvidenceIncidentId}
+                  onChangeText={(value) => setEvidenceIncidentId(value.replace(/\D/g, ''))}
                 />
                 <TextInput
                   placeholder="Observacao da evidencia"
@@ -2053,7 +2058,7 @@ export default function App() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#050b12',
+    backgroundColor: '#eef2f7',
   },
   loginShell: {
     flex: 1,
@@ -2064,32 +2069,32 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 18,
     gap: 16,
-    backgroundColor: '#050b12',
+    backgroundColor: '#eef2f7',
   },
   eyebrow: {
     fontSize: 11,
     letterSpacing: 2.6,
     textTransform: 'uppercase',
-    color: '#f2c97d',
+    color: '#a97422',
     marginBottom: 6,
     fontWeight: '700',
   },
   title: {
     fontSize: 31,
     fontWeight: '800',
-    color: '#f8fafc',
+    color: '#15202b',
   },
   copy: {
     fontSize: 15,
     lineHeight: 22,
-    color: '#afbbca',
+    color: '#556477',
   },
   body: {
-    color: '#d8e1eb',
+    color: '#2c3a48',
     lineHeight: 21,
   },
   meta: {
-    color: '#8fa0b4',
+    color: '#6d7a89',
     lineHeight: 20,
   },
   modeSwitcher: {
@@ -2101,71 +2106,77 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     paddingVertical: 14,
     alignItems: 'center',
-    backgroundColor: 'rgba(13,23,35,0.92)',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(114,145,180,0.16)',
+    borderColor: 'rgba(42,57,75,0.1)',
   },
   modeButtonActive: {
-    backgroundColor: 'rgba(18,35,53,0.98)',
-    borderColor: 'rgba(242,201,125,0.45)',
-    shadowColor: '#d8b468',
+    backgroundColor: 'rgba(77,125,142,0.08)',
+    borderColor: 'rgba(77,125,142,0.28)',
+    shadowColor: '#4d7d8e',
     shadowOpacity: 0.18,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 10 },
     elevation: 2,
   },
   modeButtonText: {
-    color: '#dce5ee',
+    color: '#1f2d3a',
     fontWeight: '700',
   },
   modeButtonTextActive: {
-    color: '#f7d79a',
+    color: '#4d7d8e',
   },
   formCard: {
     padding: 18,
     borderRadius: 24,
-    backgroundColor: 'rgba(11,19,30,0.96)',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(125,163,204,0.15)',
+    borderColor: 'rgba(42,57,75,0.1)',
     gap: 13,
   },
   card: {
     padding: 18,
     borderRadius: 24,
-    backgroundColor: 'rgba(11,19,30,0.95)',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(125,163,204,0.14)',
+    borderColor: 'rgba(42,57,75,0.1)',
     gap: 12,
   },
   profileCard: {
     padding: 18,
     borderRadius: 24,
-    backgroundColor: 'rgba(9,17,27,0.94)',
+    backgroundColor: '#f7fafc',
     borderWidth: 1,
-    borderColor: 'rgba(125,163,204,0.14)',
+    borderColor: 'rgba(42,57,75,0.1)',
     gap: 6,
   },
   activeAlertCard: {
     padding: 18,
     borderRadius: 24,
-    backgroundColor: 'rgba(39,18,24,0.92)',
+    backgroundColor: 'rgba(200,85,68,0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(246,129,118,0.28)',
+    borderColor: 'rgba(200,85,68,0.18)',
     gap: 10,
   },
   activeAlertTitle: {
-    color: '#ffe1db',
+    color: '#7f2a1f',
     fontWeight: '800',
     fontSize: 18,
   },
   input: {
-    borderWidth: 1,
-    borderColor: 'rgba(121,151,186,0.18)',
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    backgroundColor: 'rgba(5,11,18,0.58)',
-    color: '#f8fafc',
+    minHeight: 54,
+    borderWidth: 1.5,
+    borderColor: 'rgba(200,154,69,0.45)',
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: '#ffffff',
+    color: '#15202b',
+    shadowColor: '#15202b',
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
   },
   textArea: {
     minHeight: 88,
@@ -2173,10 +2184,10 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     borderRadius: 18,
-    backgroundColor: '#e1b767',
+    backgroundColor: '#c89a45',
     paddingVertical: 14,
     alignItems: 'center',
-    shadowColor: '#d8b468',
+    shadowColor: '#c89a45',
     shadowOpacity: 0.26,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 8 },
@@ -2188,47 +2199,47 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     borderRadius: 16,
-    backgroundColor: 'rgba(10,18,29,0.86)',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(125,163,204,0.14)',
+    borderColor: 'rgba(42,57,75,0.1)',
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
   secondaryButtonSmall: {
     alignSelf: 'flex-start',
     borderRadius: 16,
-    backgroundColor: 'rgba(10,18,29,0.86)',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(125,163,204,0.14)',
+    borderColor: 'rgba(42,57,75,0.1)',
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
   secondaryButtonText: {
-    color: '#eff4f9',
+    color: '#1f2d3a',
     fontWeight: '700',
   },
   infoBlock: {
     padding: 14,
     borderRadius: 20,
-    backgroundColor: 'rgba(8,15,24,0.94)',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(125,163,204,0.13)',
+    borderColor: 'rgba(42,57,75,0.1)',
     gap: 5,
   },
   infoTitle: {
     fontWeight: '700',
-    color: '#f7fafc',
+    color: '#15202b',
     marginBottom: 8,
   },
   infoText: {
-    color: '#8fa0b4',
+    color: '#6d7a89',
   },
   errorText: {
-    color: '#ffb6aa',
+    color: '#c85544',
     fontWeight: '600',
-    backgroundColor: 'rgba(73,18,23,0.55)',
+    backgroundColor: 'rgba(200,85,68,0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(255,145,130,0.2)',
+    borderColor: 'rgba(200,85,68,0.18)',
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderRadius: 16,
@@ -2250,9 +2261,9 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 18,
     borderRadius: 24,
-    backgroundColor: 'rgba(10,18,29,0.96)',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(125,163,204,0.15)',
+    borderColor: 'rgba(42,57,75,0.1)',
   },
   profileRow: {
     flexDirection: 'row',
@@ -2289,13 +2300,13 @@ const styles = StyleSheet.create({
   metricCard: {
     borderRadius: 20,
     padding: 15,
-    backgroundColor: 'rgba(16,28,42,0.92)',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(125,163,204,0.13)',
+    borderColor: 'rgba(42,57,75,0.1)',
   },
   metricLabel: {
     fontSize: 13,
-    color: '#8fa1b6',
+    color: '#6d7a89',
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
@@ -2303,42 +2314,42 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 30,
     fontWeight: '800',
-    color: '#f8fafc',
+    color: '#15202b',
   },
   metricValueSmall: {
     marginTop: 6,
     fontSize: 18,
     fontWeight: '800',
-    color: '#f8fafc',
+    color: '#15202b',
   },
   sectionCard: {
     borderRadius: 22,
     padding: 16,
-    backgroundColor: 'rgba(10,18,29,0.94)',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(125,163,204,0.13)',
+    borderColor: 'rgba(42,57,75,0.1)',
     gap: 12,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#f8fafc',
+    color: '#15202b',
     marginBottom: 4,
   },
   rowCard: {
     borderRadius: 18,
-    backgroundColor: 'rgba(16,28,42,0.9)',
+    backgroundColor: '#f7fafc',
     borderWidth: 1,
-    borderColor: 'rgba(125,163,204,0.12)',
+    borderColor: 'rgba(42,57,75,0.08)',
     padding: 14,
     gap: 5,
   },
   alertItem: {
     padding: 15,
     borderRadius: 20,
-    backgroundColor: 'rgba(15,24,35,0.9)',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(125,163,204,0.12)',
+    borderColor: 'rgba(42,57,75,0.1)',
     gap: 7,
   },
   alertHeader: {
@@ -2348,12 +2359,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   alertTitle: {
-    color: '#f8fafc',
+    color: '#15202b',
     fontWeight: '800',
     flex: 1,
   },
   statusPill: {
-    color: '#f6cf86',
+    color: '#a97422',
     fontWeight: '800',
   },
   alertGrid: {
@@ -2363,20 +2374,20 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     paddingVertical: 15,
     alignItems: 'center',
-    backgroundColor: 'rgba(16,28,42,0.9)',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(125,163,204,0.16)',
+    borderColor: 'rgba(42,57,75,0.1)',
   },
   alertButtonDisabled: {
     opacity: 0.45,
   },
   alertButtonLabel: {
-    color: '#f8fafc',
+    color: '#15202b',
     fontWeight: '800',
     marginBottom: 4,
   },
   alertButtonHint: {
-    color: '#8da0b5',
+    color: '#6d7a89',
     fontSize: 12,
     lineHeight: 17,
     paddingHorizontal: 12,
@@ -2390,8 +2401,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(125,163,204,0.18)',
-    backgroundColor: 'rgba(8,16,26,0.9)',
+    borderColor: 'rgba(42,57,75,0.1)',
+    backgroundColor: '#ffffff',
   },
   evidencePreview: {
     width: '100%',
@@ -2399,10 +2410,10 @@ const styles = StyleSheet.create({
   },
   rowTitle: {
     fontWeight: '800',
-    color: '#f8fafc',
+    color: '#15202b',
   },
   rowMeta: {
-    color: '#90a0b4',
+    color: '#6d7a89',
     lineHeight: 19,
   },
   mapCard: {
@@ -2410,23 +2421,23 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(125,163,204,0.15)',
-    backgroundColor: '#081018',
+    borderColor: 'rgba(42,57,75,0.1)',
+    backgroundColor: '#f7fafc',
   },
   mapFrame: {
     width: '100%',
     height: 260,
-    backgroundColor: '#081018',
+    backgroundColor: '#f7fafc',
   },
   heroCard: {
     borderRadius: 28,
     padding: 20,
     gap: 14,
-    backgroundColor: 'rgba(8,15,24,0.96)',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(125,163,204,0.16)',
-    shadowColor: '#000000',
-    shadowOpacity: 0.22,
+    borderColor: 'rgba(42,57,75,0.1)',
+    shadowColor: '#16202b',
+    shadowOpacity: 0.12,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 10 },
     elevation: 3,
@@ -2436,12 +2447,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: 'rgba(225,183,103,0.12)',
+    backgroundColor: 'rgba(200,154,69,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(242,201,125,0.24)',
+    borderColor: 'rgba(200,154,69,0.22)',
   },
   heroBadgeText: {
-    color: '#f2c97d',
+    color: '#a97422',
     fontWeight: '800',
     letterSpacing: 0.8,
     textTransform: 'uppercase',
@@ -2449,10 +2460,10 @@ const styles = StyleSheet.create({
   },
   heroDivider: {
     height: 1,
-    backgroundColor: 'rgba(125,163,204,0.16)',
+    backgroundColor: 'rgba(42,57,75,0.12)',
   },
   heroSupportingText: {
-    color: '#7f95ac',
+    color: '#6d7a89',
     lineHeight: 20,
   },
   sectionHeaderRow: {
@@ -2466,12 +2477,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 999,
-    backgroundColor: 'rgba(225,183,103,0.12)',
+    backgroundColor: 'rgba(200,154,69,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(242,201,125,0.22)',
+    borderColor: 'rgba(200,154,69,0.22)',
   },
   inlinePillText: {
-    color: '#f7d79a',
+    color: '#a97422',
     fontSize: 11,
     fontWeight: '800',
     textTransform: 'uppercase',
@@ -2481,12 +2492,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 999,
-    backgroundColor: 'rgba(125,163,204,0.08)',
+    backgroundColor: 'rgba(77,125,142,0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(125,163,204,0.16)',
+    borderColor: 'rgba(77,125,142,0.16)',
   },
   inlinePillMutedText: {
-    color: '#9bb2c8',
+    color: '#4d7d8e',
     fontSize: 11,
     fontWeight: '800',
     textTransform: 'uppercase',
@@ -2496,12 +2507,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 999,
-    backgroundColor: 'rgba(246,129,118,0.14)',
+    backgroundColor: 'rgba(200,85,68,0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(246,129,118,0.22)',
+    borderColor: 'rgba(200,85,68,0.18)',
   },
   alertPulsePillText: {
-    color: '#ffd5cf',
+    color: '#c85544',
     fontSize: 11,
     fontWeight: '800',
     textTransform: 'uppercase',
@@ -2511,12 +2522,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: 'rgba(242,201,125,0.1)',
+    backgroundColor: 'rgba(200,154,69,0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(242,201,125,0.22)',
+    borderColor: 'rgba(200,154,69,0.2)',
   },
   priorityBadgeText: {
-    color: '#f6cf86',
+    color: '#a97422',
     fontSize: 11,
     fontWeight: '800',
     textTransform: 'uppercase',
@@ -2533,19 +2544,19 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    backgroundColor: 'rgba(16,28,42,0.9)',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(125,163,204,0.12)',
+    borderColor: 'rgba(42,57,75,0.1)',
   },
   highlightLabel: {
-    color: '#8ca0b5',
+    color: '#6d7a89',
     fontSize: 12,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 6,
   },
   highlightValue: {
-    color: '#f8fafc',
+    color: '#15202b',
     fontWeight: '800',
   },
   headerCopyBlock: {

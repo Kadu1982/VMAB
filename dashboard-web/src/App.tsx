@@ -32,6 +32,9 @@ import type {
   Resident,
   ResidentStatus,
   AuditActionType,
+  AuditRecord,
+  AuditReportCategory,
+  AuditReportResponse,
   Shift,
   ShiftAttendanceStatus,
   ShiftStatus,
@@ -160,6 +163,18 @@ const initialPrivacyForm = {
   notificationNotes: '',
 }
 
+const dashboardSectionLinks = [
+  { id: 'sec-tempo-real', label: 'Tempo real', description: 'Eventos recentes e trilha operacional' },
+  { id: 'sec-patrulha', label: 'Patrulha', description: 'Mapa, rota e telemetria da viatura' },
+  { id: 'sec-indicadores', label: 'Indicadores', description: 'Resumo geral da operação' },
+  { id: 'sec-rh', label: 'RH', description: 'Cadastros, acessos, turnos e ponto' },
+  { id: 'sec-frota', label: 'Frota', description: 'Saude e manutencao das viaturas' },
+  { id: 'sec-auditoria', label: 'Auditoria', description: 'Acoes criticas e rastreabilidade' },
+  { id: 'sec-evidencias', label: 'Evidencias', description: 'Arquivos operacionais e LGPD' },
+] as const
+
+type DashboardSectionId = (typeof dashboardSectionLinks)[number]['id'] | 'sec-acesso' | 'sec-cadastro' | 'sec-operacao'
+
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
 }
@@ -186,6 +201,37 @@ function formatDateTimeLocal(value: string) {
   const offset = date.getTimezoneOffset()
   const local = new Date(date.getTime() - offset * 60000)
   return local.toISOString().slice(0, 16)
+}
+
+function normalizeUppercaseInput(value: string) {
+  return value.toUpperCase()
+}
+
+function normalizeDigitsInput(value: string, maxLength?: number) {
+  const digitsOnly = value.replace(/\D/g, '')
+  return typeof maxLength === 'number' ? digitsOnly.slice(0, maxLength) : digitsOnly
+}
+
+function formatBrazilPhoneInput(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 11)
+
+  if (digits.length === 0) {
+    return ''
+  }
+
+  if (digits.length <= 2) {
+    return `(${digits}`
+  }
+
+  if (digits.length <= 6) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2)}`
+  }
+
+  if (digits.length <= 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`
+  }
+
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
 }
 
 function hasAnyRole(roles: string[], allowed: string[]) {
@@ -309,7 +355,41 @@ function translateAuditActionType(actionType: AuditActionType) {
     TELEMETRY: 'Telemetria',
     INCIDENT_WORKFLOW: 'Fluxo da ocorrencia',
     AUTH: 'Autenticacao',
+    RESIDENT_ALERT: 'Alerta do morador',
   }[actionType]
+}
+
+function auditCategoryForRecord(record: AuditRecord) {
+  const entityName = record.entityName.toLowerCase()
+
+  if (record.actionType === 'AUTH' || record.actionType === 'RESIDENT_ALERT') {
+    return 'SEGURANCA' as const
+  }
+
+  if (record.actionType === 'MAINTENANCE' || entityName.includes('vehiclemaintenance') || entityName.includes('vehicle')) {
+    return 'FROTA' as const
+  }
+
+  if (record.actionType === 'HANDOFF' || record.actionType === 'INCIDENT_WORKFLOW' || entityName.includes('incident') || entityName.includes('residentalert')) {
+    return 'OPERACIONAL' as const
+  }
+
+  if (entityName.includes('hr') || entityName.includes('agent')) {
+    return 'RH' as const
+  }
+
+  return 'GESTAO' as const
+}
+
+function translateAuditCategory(category: AuditReportCategory) {
+  return {
+    ALL: 'Todas',
+    GESTAO: 'Gestao',
+    OPERACIONAL: 'Operacional',
+    FROTA: 'Frota',
+    RH: 'RH',
+    SEGURANCA: 'Seguranca',
+  }[category]
 }
 
 function translateIncidentType(type: IncidentType) {
@@ -569,6 +649,13 @@ function App() {
   const [privacyForm, setPrivacyForm] = useState(initialPrivacyForm)
   const [editingPrivacyRequestId, setEditingPrivacyRequestId] = useState<number | null>(null)
   const [realtimeEvents, setRealtimeEvents] = useState<OperationsStreamEvent[]>([])
+  const [activeDashboardSection, setActiveDashboardSection] = useState<DashboardSectionId>('sec-tempo-real')
+  const [auditReport, setAuditReport] = useState<AuditReportResponse | null>(null)
+  const [auditReportError, setAuditReportError] = useState<string | null>(null)
+  const [auditReportLoading, setAuditReportLoading] = useState(false)
+  const [auditFilter, setAuditFilter] = useState<AuditReportCategory>('ALL')
+  const [auditPeriodDays, setAuditPeriodDays] = useState(30)
+  const [auditIncludeAuth, setAuditIncludeAuth] = useState(false)
   const [isPending, startTransition] = useTransition()
 
   // Deriva os escopos reais do usuario para nao exibir acoes que o backend vai negar.
@@ -578,6 +665,16 @@ function App() {
   const canManageCatalog = hasAnyRole(currentRoles, ['ROLE_ADMIN', 'ROLE_SUPERVISOR'])
   const canUpdateOperations = hasAnyRole(currentRoles, ['ROLE_ADMIN', 'ROLE_SUPERVISOR', 'ROLE_RONDA'])
   const canCreateOperations = hasAnyRole(currentRoles, ['ROLE_ADMIN', 'ROLE_SUPERVISOR'])
+  const auditRecords = auditReport?.records ?? []
+  const auditCategoryCounts = {
+    GESTAO: auditReport?.recordsByCategory?.GESTAO ?? 0,
+    OPERACIONAL: auditReport?.recordsByCategory?.OPERACIONAL ?? 0,
+    FROTA: auditReport?.recordsByCategory?.FROTA ?? 0,
+    RH: auditReport?.recordsByCategory?.RH ?? 0,
+    SEGURANCA: auditReport?.recordsByCategory?.SEGURANCA ?? 0,
+  }
+  const auditTopActors = Object.entries(auditReport?.recordsByActor ?? {}).slice(0, 4)
+  const auditTopActions = Object.entries(auditReport?.recordsByActionType ?? {}).slice(0, 4)
 
   const shiftSubmitDisabled = !canCreateOperations && editingShiftId === null
   const incidentSubmitDisabled = !canCreateOperations && editingIncidentId === null
@@ -669,6 +766,53 @@ function App() {
   useEffect(() => {
     void loadData()
   }, [authenticated])
+
+  useEffect(() => {
+    if (!authenticated || activeDashboardSection !== 'sec-auditoria') {
+      return
+    }
+
+    let cancelled = false
+
+    async function loadAuditReport() {
+      setAuditReportLoading(true)
+      setAuditReportError(null)
+      setAuditReport(null)
+
+      try {
+        const response = await apiFetch(`/api/audit/report?days=${auditPeriodDays}&category=${auditFilter}&includeAuth=${auditIncludeAuth}`)
+        if (!response.ok) {
+          throw new Error('Nao foi possivel carregar o relatorio de auditoria.')
+        }
+
+        const report = (await response.json()) as AuditReportResponse
+        if (!cancelled) {
+          setAuditReport(report)
+        }
+      } catch (cause) {
+        if (cancelled) {
+          return
+        }
+
+        setAuditReportError(cause instanceof Error ? cause.message : 'Falha inesperada ao carregar o relatorio de auditoria.')
+      } finally {
+        if (!cancelled) {
+          setAuditReportLoading(false)
+        }
+      }
+    }
+
+    void loadAuditReport()
+
+    const intervalId = window.setInterval(() => {
+      void loadAuditReport()
+    }, 30000)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(intervalId)
+    }
+  }, [authenticated, activeDashboardSection, auditFilter, auditPeriodDays, auditIncludeAuth, session])
 
   useEffect(() => {
     // Mantem o painel fresco em ambiente operacional sem exigir clique manual o tempo inteiro.
@@ -1548,7 +1692,14 @@ function App() {
           </form>
           <form className="login-form" onSubmit={handlePasswordResetConfirm}>
             <strong>Confirmar reset</strong>
-            <input required placeholder="Codigo de reset" value={passwordResetForm.resetCode} onChange={(event) => setPasswordResetForm((current) => ({ ...current, resetCode: event.target.value }))} />
+            <input
+              required
+              inputMode="numeric"
+              maxLength={6}
+              placeholder="Codigo de reset"
+              value={passwordResetForm.resetCode}
+              onChange={(event) => setPasswordResetForm((current) => ({ ...current, resetCode: normalizeDigitsInput(event.target.value, 6) }))}
+            />
             <input required minLength={8} type="password" placeholder="Nova senha" value={passwordResetForm.newPassword} onChange={(event) => setPasswordResetForm((current) => ({ ...current, newPassword: event.target.value }))} />
             <button className="secondary-button" type="submit">Redefinir senha</button>
           </form>
@@ -1808,6 +1959,33 @@ function App() {
             <li>dashboard em tempo real via backend</li>
           </ul>
         </div>
+
+        <div className="sidebar-block">
+          <span className="sidebar-label">Acoes</span>
+          <div className="sidebar-action-list">
+            <button className="sidebar-action-button" onClick={() => void loadData()} type="button">Atualizar</button>
+            <button className="sidebar-action-button sidebar-action-button-primary" onClick={handleLogout} type="button">Sair</button>
+          </div>
+          {lastRefreshAt ? <small className="sidebar-refresh-note">Ultimo sync {formatDate(lastRefreshAt)}</small> : null}
+        </div>
+
+        <div className="sidebar-block">
+          <span className="sidebar-label">Seções</span>
+          <div className="sidebar-section-list">
+            {dashboardSectionLinks.map((section) => (
+              <button
+                aria-pressed={activeDashboardSection === section.id}
+                className={`sidebar-section-button${activeDashboardSection === section.id ? ' active' : ''}`}
+                key={section.id}
+                onClick={() => setActiveDashboardSection(section.id)}
+                type="button"
+              >
+                <strong>{section.label}</strong>
+                <small>{section.description}</small>
+              </button>
+            ))}
+          </div>
+        </div>
       </aside>
 
       <main className="workspace">
@@ -1830,8 +2008,10 @@ function App() {
         {realtimeEvents[0] ? <div className="alert success">Tempo real ativo: {realtimeEvents[0].description}</div> : null}
 
         {summary ? (
-          <>
-            <section className="panel">
+          <div className="dashboard-layout">
+            <div className="dashboard-content dashboard-content-centered">
+            {activeDashboardSection === 'sec-tempo-real' ? (
+            <section className="panel dashboard-section-shell" id="sec-tempo-real">
               <div className="panel-header">
                 <div>
                   <p className="eyebrow">Tempo real</p>
@@ -1854,10 +2034,11 @@ function App() {
                 </div>
               )}
             </section>
+            ) : null}
 
-            {summary.activePatrol ? (
+            {activeDashboardSection === 'sec-patrulha' && summary.activePatrol ? (
               // Bloco principal de acompanhamento da patrulha ativa em tempo real.
-              <section className="panel patrol-panel">
+              <section className="panel patrol-panel dashboard-section-shell" id="sec-patrulha">
                 <div className="panel-header">
                   <div>
                     <p className="eyebrow">Patrulha Ativa</p>
@@ -1931,7 +2112,8 @@ function App() {
               </section>
             ) : null}
 
-            <section className="stats-grid">
+            {activeDashboardSection === 'sec-indicadores' ? (
+            <section className="stats-grid dashboard-section-shell" id="sec-indicadores">
               <article className="metric-card"><span>Moradores no cadastro</span><strong>{summary.totalResidents}</strong></article>
               <article className="metric-card"><span>Agentes no cadastro</span><strong>{summary.totalAgents}</strong></article>
               <article className="metric-card"><span>Agentes ativos</span><strong>{summary.activeAgents}</strong></article>
@@ -1942,15 +2124,35 @@ function App() {
               <article className="metric-card"><span>Ocorrencias abertas</span><strong>{summary.openIncidents}</strong></article>
               <article className="metric-card"><span>Alertas de manutencao</span><strong>{summary.maintenanceAlerts}</strong></article>
             </section>
+            ) : null}
 
-            <section className="panel">
+            {activeDashboardSection === 'sec-rh' ? (
+            <section className="panel dashboard-section-shell" id="sec-rh">
               <div className="panel-header">
                 <div>
                   <p className="eyebrow">RH</p>
                   <h3>Cadastro mestre e ponto operacional</h3>
                 </div>
               </div>
-              <p className="panel-note">O RH agora acompanha vigias e demais funcionarios em um cadastro unico, com CNH, exames, status e controle operacional de ponto.</p>
+              <p className="panel-note">O RH centraliza vigilantes e demais funcionarios, com cadastro, acessos, turnos, ponto operacional e alertas de validade.</p>
+              <div className="dashboard-hub-grid">
+                <button className="hub-card" onClick={() => setActiveDashboardSection('sec-cadastro')} type="button">
+                  <strong>Funcionarios / Vigilantes</strong>
+                  <small>Cadastro mestre, documentos e vinculos</small>
+                </button>
+                <button className="hub-card" onClick={() => setActiveDashboardSection('sec-acesso')} type="button">
+                  <strong>Acessos</strong>
+                  <small>Usuarios, perfis e permissões</small>
+                </button>
+                <button className="hub-card" onClick={() => setActiveDashboardSection('sec-operacao')} type="button">
+                  <strong>Turnos e ponto</strong>
+                  <small>Jornada, cobertura e ocorrências</small>
+                </button>
+                <button className="hub-card" onClick={() => setActiveDashboardSection('sec-rh')} type="button">
+                  <strong>Alertas</strong>
+                  <small>CNH, exames e treinamentos</small>
+                </button>
+              </div>
               <div className="subpanel-grid">
                 <article className="telemetry-card">
                   <span>Total de funcionarios</span>
@@ -2060,9 +2262,10 @@ function App() {
                 </div>
               </div>
             </section>
+            ) : null}
 
-            {fleetReport ? (
-              <section className="panel">
+            {activeDashboardSection === 'sec-frota' && fleetReport ? (
+              <section className="panel dashboard-section-shell" id="sec-frota">
                 <div className="panel-header">
                   <div>
                     <p className="eyebrow">Frota</p>
@@ -2112,33 +2315,138 @@ function App() {
               </section>
             ) : null}
 
-            <section className="panel">
+            {activeDashboardSection === 'sec-auditoria' ? (
+            <section className="panel dashboard-section-shell" id="sec-auditoria">
               <div className="panel-header">
                 <div>
                   <p className="eyebrow">Auditoria</p>
-                  <h3>Acoes criticas recentes</h3>
+                  <h3>Relatorio de eventos criticos</h3>
                 </div>
               </div>
-              <p className="panel-note">Trilha resumida das ultimas acoes relevantes da operacao para supervisao e compliance.</p>
-              <div className="list">
-                {summary.auditRecords.map((record) => (
-                  <article className="list-row" key={record.id}>
-                    <div>
-                      <strong>{translateAuditActionType(record.actionType)} | {record.entityName}{record.entityId != null ? ` #${record.entityId}` : ''}</strong>
-                      <small>{record.description}</small>
-                    </div>
-                    <div className="row-actions">
-                      <span className="tag active">{record.actorUsername}</span>
-                      <small>{formatDate(record.occurredAt)}</small>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </section>
+              <p className="panel-note">Relatorio operacional por periodo. Autenticacoes ficam ocultas por padrao e podem ser incluídas quando necessario.</p>
+              <div className="audit-report-controls">
+                <div className="audit-period-row" role="tablist" aria-label="Periodo do relatorio">
+                  {[7, 30, 90].map((days) => {
+                    const isActive = auditPeriodDays === days
 
-            <section className="content-grid">
+                    return (
+                      <button
+                        key={days}
+                        aria-pressed={isActive}
+                        className={`audit-period-chip ${isActive ? 'active' : ''}`}
+                        onClick={() => setAuditPeriodDays(days)}
+                        type="button"
+                      >
+                        Ultimos {days} dias
+                      </button>
+                    )
+                  })}
+                </div>
+                <label className="checkbox-field audit-auth-toggle">
+                  <input checked={auditIncludeAuth} onChange={(event) => setAuditIncludeAuth(event.target.checked)} type="checkbox" />
+                  <span>Incluir autenticacoes</span>
+                </label>
+              </div>
+              <div className="audit-filter-row" role="tablist" aria-label="Filtros de auditoria">
+                {(['ALL', 'GESTAO', 'OPERACIONAL', 'FROTA', 'RH', 'SEGURANCA'] as AuditReportCategory[]).map((category) => {
+                  const isActive = auditFilter === category
+                  const categoryCount = category === 'ALL'
+                    ? (auditReport?.totalRecords ?? 0)
+                    : auditCategoryCounts[category as Exclude<AuditReportCategory, 'ALL'>]
+
+                  return (
+                    <button
+                      key={category}
+                      aria-pressed={isActive}
+                      className={`audit-filter-chip ${isActive ? 'active' : ''}`}
+                      onClick={() => setAuditFilter(category)}
+                      type="button"
+                    >
+                      <span>{translateAuditCategory(category)}</span>
+                      <strong>{categoryCount}</strong>
+                    </button>
+                  )
+                })}
+              </div>
+              {auditReportLoading ? <p className="panel-note">Carregando relatorio de auditoria.</p> : null}
+              {!auditReportLoading && auditReportError ? <p className="panel-note audit-error">{auditReportError}</p> : null}
+              {!auditReportLoading && !auditReportError && auditReport ? (
+                <>
+                  <div className="subpanel-grid audit-report-grid">
+                    <article className="telemetry-card">
+                      <span>Periodo</span>
+                      <strong>{auditReport.days} dias</strong>
+                      <small>Gerado em {formatDate(auditReport.generatedAt)}</small>
+                    </article>
+                    <article className="telemetry-card">
+                      <span>Registros do periodo</span>
+                      <strong>{auditReport.totalRecords}</strong>
+                      <small>{auditReport.includeAuth ? 'Autenticacoes incluídas' : 'Autenticacoes ocultas'}</small>
+                    </article>
+                    <article className="telemetry-card">
+                      <span>Registros visiveis</span>
+                      <strong>{auditReport.visibleRecords}</strong>
+                      <small>Filtro atual: {translateAuditCategory(auditReport.category)}</small>
+                    </article>
+                    <article className="telemetry-card">
+                      <span>Seguranca</span>
+                      <strong>{auditCategoryCounts.SEGURANCA}</strong>
+                      <small>Alertas e autenticacoes sob demanda</small>
+                    </article>
+                  </div>
+                  <div className="subpanel-grid audit-breakdown-grid">
+                    <article className="mini-panel audit-breakdown-panel">
+                      <span>Principais acoes</span>
+                      <div className="audit-breakdown-list">
+                        {auditTopActions.length > 0 ? auditTopActions.map(([actionType, total]) => (
+                          <div key={actionType} className="audit-breakdown-row">
+                            <strong>{translateAuditActionType(actionType as AuditActionType)}</strong>
+                            <span>{total}</span>
+                          </div>
+                        )) : <small>Nenhuma acao consolidada no periodo.</small>}
+                      </div>
+                    </article>
+                    <article className="mini-panel audit-breakdown-panel">
+                      <span>Principais responsaveis</span>
+                      <div className="audit-breakdown-list">
+                        {auditTopActors.length > 0 ? auditTopActors.map(([actor, total]) => (
+                          <div key={actor} className="audit-breakdown-row">
+                            <strong>{actor}</strong>
+                            <span>{total}</span>
+                          </div>
+                        )) : <small>Nenhum responsavel consolidado no periodo.</small>}
+                      </div>
+                    </article>
+                  </div>
+                  <div className="list">
+                    {auditRecords.length === 0 ? (
+                      <p className="panel-note">Nenhum evento encontrado para o filtro selecionado.</p>
+                    ) : null}
+                    {auditRecords.map((record) => (
+                      <article className="list-row" key={record.id}>
+                        <div>
+                          <strong>{translateAuditActionType(record.actionType)} | {record.entityName}{record.entityId != null ? ` #${record.entityId}` : ''}</strong>
+                          <small>{record.description}</small>
+                          <small>{translateAuditCategory(auditCategoryForRecord(record))}</small>
+                        </div>
+                        <div className="row-actions">
+                          <span className="tag active">{record.actorUsername}</span>
+                          <small>{formatDate(record.occurredAt)}</small>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </>
+              ) : !auditReportLoading && !auditReportError ? (
+                <p className="panel-note">Carregando relatorio de auditoria.</p>
+              ) : null}
+            </section>
+            ) : null}
+
+            {activeDashboardSection === 'sec-acesso' || activeDashboardSection === 'sec-cadastro' || activeDashboardSection === 'sec-operacao' || activeDashboardSection === 'sec-evidencias' ? (
+            <section className="content-grid dashboard-section-shell" id="sec-gestao">
               {/* Area transacional do painel com cadastros e operacao diaria. */}
-              {canManageUsers ? (
+              {activeDashboardSection === 'sec-acesso' && canManageUsers ? (
                 <section className="panel">
                   <div className="panel-header">
                     <div>
@@ -2147,6 +2455,9 @@ function App() {
                     </div>
                   </div>
                   <p className="panel-note">Apenas administradores podem criar, editar, ativar ou remover acessos do sistema.</p>
+                  <div className="button-row">
+                    <button className="secondary-button" onClick={() => setActiveDashboardSection('sec-rh')} type="button">Voltar ao RH</button>
+                  </div>
                   <form className="form-grid" onSubmit={handleUserSubmit}>
                     <input required placeholder="Nome de usuario" value={userForm.username} onChange={(event) => setUserForm((current) => ({ ...current, username: event.target.value }))} />
                     <input required={editingUserId === null} type="password" placeholder={editingUserId === null ? 'Senha inicial' : 'Nova senha (opcional)'} value={userForm.password} onChange={(event) => setUserForm((current) => ({ ...current, password: event.target.value }))} />
@@ -2186,6 +2497,7 @@ function App() {
                 </section>
               ) : null}
 
+              {activeDashboardSection === 'sec-cadastro' ? (
               <section className="panel">
                 <div className="panel-header">
                   <div>
@@ -2194,11 +2506,14 @@ function App() {
                   </div>
                 </div>
                 <p className="panel-note">{canManageCatalog ? 'Cadastro completo liberado para admin e supervisor.' : 'Seu perfil possui apenas leitura neste bloco.'}</p>
+                <div className="button-row">
+                  <button className="secondary-button" onClick={() => setActiveDashboardSection('sec-rh')} type="button">Voltar ao RH</button>
+                </div>
                 {canManageCatalog ? (
                   <form className="form-grid" onSubmit={handleAgentSubmit}>
                     <input required placeholder="Nome completo" value={agentForm.fullName} onChange={(event) => setAgentForm((current) => ({ ...current, fullName: event.target.value }))} />
-                    <input required placeholder="Codigo / cracha" value={agentForm.badgeCode} onChange={(event) => setAgentForm((current) => ({ ...current, badgeCode: event.target.value }))} />
-                    <input required placeholder="Categoria CNH" value={agentForm.cnhCategory} onChange={(event) => setAgentForm((current) => ({ ...current, cnhCategory: event.target.value }))} />
+                    <input required placeholder="Codigo / cracha" value={agentForm.badgeCode} onChange={(event) => setAgentForm((current) => ({ ...current, badgeCode: normalizeUppercaseInput(event.target.value) }))} />
+                    <input required placeholder="Categoria CNH" value={agentForm.cnhCategory} onChange={(event) => setAgentForm((current) => ({ ...current, cnhCategory: normalizeUppercaseInput(event.target.value) }))} />
                     <input required type="date" value={agentForm.cnhExpiry} onChange={(event) => setAgentForm((current) => ({ ...current, cnhExpiry: event.target.value }))} />
                     <input type="date" value={agentForm.medicalExamExpiry} onChange={(event) => setAgentForm((current) => ({ ...current, medicalExamExpiry: event.target.value }))} />
                     <input type="date" value={agentForm.workExamsExpiry} onChange={(event) => setAgentForm((current) => ({ ...current, workExamsExpiry: event.target.value }))} />
@@ -2229,7 +2544,9 @@ function App() {
                   ))}
                 </div>
               </section>
+              ) : null}
 
+              {activeDashboardSection === 'sec-cadastro' ? (
               <section className="panel">
                 <div className="panel-header">
                   <div>
@@ -2241,11 +2558,11 @@ function App() {
                 {canManageCatalog ? (
                   <form className="form-grid" onSubmit={handleResidentSubmit}>
                     <input required placeholder="Nome completo" value={residentForm.fullName} onChange={(event) => setResidentForm((current) => ({ ...current, fullName: event.target.value }))} />
-                    <input required placeholder="Telefone" value={residentForm.phoneNumber} onChange={(event) => setResidentForm((current) => ({ ...current, phoneNumber: event.target.value }))} />
+                    <input required inputMode="tel" placeholder="Telefone" value={residentForm.phoneNumber} onChange={(event) => setResidentForm((current) => ({ ...current, phoneNumber: formatBrazilPhoneInput(event.target.value) }))} />
                     <input required placeholder="Endereco" value={residentForm.address} onChange={(event) => setResidentForm((current) => ({ ...current, address: event.target.value }))} />
                     <input placeholder="Observacao / referencia" value={residentForm.referenceNote} onChange={(event) => setResidentForm((current) => ({ ...current, referenceNote: event.target.value }))} />
-                    <input placeholder="PIN de acesso (4 a 6 digitos)" value={residentForm.accessPin} onChange={(event) => setResidentForm((current) => ({ ...current, accessPin: event.target.value }))} />
-                    <input placeholder="PIN de coacao (4 a 6 digitos)" value={residentForm.coercionPin} onChange={(event) => setResidentForm((current) => ({ ...current, coercionPin: event.target.value }))} />
+                    <input placeholder="PIN de acesso (4 a 6 digitos)" inputMode="numeric" maxLength={6} value={residentForm.accessPin} onChange={(event) => setResidentForm((current) => ({ ...current, accessPin: normalizeDigitsInput(event.target.value, 6) }))} />
+                    <input placeholder="PIN de coacao (4 a 6 digitos)" inputMode="numeric" maxLength={6} value={residentForm.coercionPin} onChange={(event) => setResidentForm((current) => ({ ...current, coercionPin: normalizeDigitsInput(event.target.value, 6) }))} />
                     <select value={residentForm.status} onChange={(event) => setResidentForm((current) => ({ ...current, status: event.target.value as ResidentStatus }))}>
                       {residentStatusOptions.map((status) => <option key={status} value={status}>{translateResidentStatus(status)}</option>)}
                     </select>
@@ -2271,7 +2588,9 @@ function App() {
                   ))}
                 </div>
               </section>
+              ) : null}
 
+              {activeDashboardSection === 'sec-cadastro' ? (
               <section className="panel">
                 <div className="panel-header">
                   <div>
@@ -2282,10 +2601,10 @@ function App() {
                 <p className="panel-note">{canManageCatalog ? 'Cadastre, edite e acompanhe manutencao da frota.' : 'Seu perfil acompanha a frota em leitura.'}</p>
                 {canManageCatalog ? (
                   <form className="form-grid" onSubmit={handleVehicleSubmit}>
-                    <input required placeholder="Placa" value={vehicleForm.plate} onChange={(event) => setVehicleForm((current) => ({ ...current, plate: event.target.value }))} />
+                    <input required placeholder="Placa" value={vehicleForm.plate} onChange={(event) => setVehicleForm((current) => ({ ...current, plate: normalizeUppercaseInput(event.target.value) }))} />
                     <input required placeholder="Modelo" value={vehicleForm.model} onChange={(event) => setVehicleForm((current) => ({ ...current, model: event.target.value }))} />
-                    <input required min="0" type="number" placeholder="KM atual" value={vehicleForm.currentKm} onChange={(event) => setVehicleForm((current) => ({ ...current, currentKm: event.target.value }))} />
-                    <input required min="1" type="number" placeholder="Proxima manutencao" value={vehicleForm.nextMaintenanceKm} onChange={(event) => setVehicleForm((current) => ({ ...current, nextMaintenanceKm: event.target.value }))} />
+                    <input required min="0" inputMode="numeric" type="number" placeholder="KM atual" value={vehicleForm.currentKm} onChange={(event) => setVehicleForm((current) => ({ ...current, currentKm: event.target.value }))} />
+                    <input required min="1" inputMode="numeric" type="number" placeholder="Proxima manutencao" value={vehicleForm.nextMaintenanceKm} onChange={(event) => setVehicleForm((current) => ({ ...current, nextMaintenanceKm: event.target.value }))} />
                     <input type="date" value={vehicleForm.lastMaintenanceAt} onChange={(event) => setVehicleForm((current) => ({ ...current, lastMaintenanceAt: event.target.value }))} />
                     <input type="date" value={vehicleForm.ipvaExpiry} onChange={(event) => setVehicleForm((current) => ({ ...current, ipvaExpiry: event.target.value }))} />
                     <input type="date" value={vehicleForm.licensingExpiry} onChange={(event) => setVehicleForm((current) => ({ ...current, licensingExpiry: event.target.value }))} />
@@ -2311,9 +2630,9 @@ function App() {
                       {vehicleMaintenanceTypeOptions.map((type) => <option key={type} value={type}>{translateVehicleMaintenanceType(type)}</option>)}
                     </select>
                     <input type="date" value={maintenanceForm.serviceDate} onChange={(event) => setMaintenanceForm((current) => ({ ...current, serviceDate: event.target.value }))} />
-                    <input min="0" type="number" placeholder="KM da manutencao" value={maintenanceForm.kmAtService} onChange={(event) => setMaintenanceForm((current) => ({ ...current, kmAtService: event.target.value }))} />
-                    <input min="0" type="number" placeholder="Proxima revisao (km)" value={maintenanceForm.nextMaintenanceKm} onChange={(event) => setMaintenanceForm((current) => ({ ...current, nextMaintenanceKm: event.target.value }))} />
-                    <input min="0" step="0.01" type="number" placeholder="Custo (R$)" value={maintenanceForm.costAmount} onChange={(event) => setMaintenanceForm((current) => ({ ...current, costAmount: event.target.value }))} />
+                    <input min="0" inputMode="numeric" type="number" placeholder="KM da manutencao" value={maintenanceForm.kmAtService} onChange={(event) => setMaintenanceForm((current) => ({ ...current, kmAtService: event.target.value }))} />
+                    <input min="0" inputMode="numeric" type="number" placeholder="Proxima revisao (km)" value={maintenanceForm.nextMaintenanceKm} onChange={(event) => setMaintenanceForm((current) => ({ ...current, nextMaintenanceKm: event.target.value }))} />
+                    <input min="0" step="0.01" inputMode="decimal" type="number" placeholder="Custo (R$)" value={maintenanceForm.costAmount} onChange={(event) => setMaintenanceForm((current) => ({ ...current, costAmount: event.target.value }))} />
                     <input placeholder="Fornecedor / oficina" value={maintenanceForm.supplierName} onChange={(event) => setMaintenanceForm((current) => ({ ...current, supplierName: event.target.value }))} />
                     <input required placeholder="Descricao do servico" value={maintenanceForm.description} onChange={(event) => setMaintenanceForm((current) => ({ ...current, description: event.target.value }))} />
                     <label className="checkbox-field">
@@ -2357,7 +2676,9 @@ function App() {
                   ))}
                 </div>
               </section>
+              ) : null}
 
+              {activeDashboardSection === 'sec-operacao' ? (
               <section className="panel">
                 <div className="panel-header">
                   <div>
@@ -2382,8 +2703,8 @@ function App() {
                     </select>
                     <input required type="datetime-local" value={shiftForm.scheduledStartAt} onChange={(event) => setShiftForm((current) => ({ ...current, scheduledStartAt: event.target.value }))} />
                     <input required type="datetime-local" value={shiftForm.scheduledEndAt} onChange={(event) => setShiftForm((current) => ({ ...current, scheduledEndAt: event.target.value }))} />
-                    <input min="0" type="number" placeholder="KM final ao encerrar" value={shiftForm.endKm} onChange={(event) => setShiftForm((current) => ({ ...current, endKm: event.target.value }))} />
-                    <input min="0" max="100" type="number" placeholder="Combustivel (%)" value={shiftForm.fuelLevelPercent} onChange={(event) => setShiftForm((current) => ({ ...current, fuelLevelPercent: event.target.value }))} />
+                    <input min="0" inputMode="numeric" type="number" placeholder="KM final ao encerrar" value={shiftForm.endKm} onChange={(event) => setShiftForm((current) => ({ ...current, endKm: event.target.value }))} />
+                    <input min="0" max="100" inputMode="numeric" type="number" placeholder="Combustivel (%)" value={shiftForm.fuelLevelPercent} onChange={(event) => setShiftForm((current) => ({ ...current, fuelLevelPercent: event.target.value }))} />
                     <select value={shiftForm.status} onChange={(event) => setShiftForm((current) => ({ ...current, status: event.target.value as ShiftStatus }))}>
                       {shiftStatusOptions.map((status) => <option key={status} value={status}>{translateShiftStatus(status)}</option>)}
                     </select>
@@ -2462,7 +2783,9 @@ function App() {
                   ))}
                 </div>
               </section>
+              ) : null}
 
+              {activeDashboardSection === 'sec-operacao' ? (
               <section className="panel">
                 <div className="panel-header">
                   <div>
@@ -2475,6 +2798,9 @@ function App() {
                     ? 'Admin e supervisor podem registrar novas ocorrencias e encerrar o ciclo completo.'
                     : 'A ronda pode atualizar status de ocorrencias ja abertas.'}
                 </p>
+                <div className="button-row">
+                  <button className="secondary-button" onClick={() => setActiveDashboardSection('sec-rh')} type="button">Voltar ao RH</button>
+                </div>
                 {canUpdateOperations ? (
                   <form className="form-grid" onSubmit={handleIncidentSubmit}>
                     <select value={incidentForm.type} onChange={(event) => setIncidentForm((current) => ({ ...current, type: event.target.value as IncidentType }))}>
@@ -2529,8 +2855,9 @@ function App() {
                   ))}
                 </div>
               </section>
+              ) : null}
 
-              {incidentEvidences.length > 0 ? (
+              {activeDashboardSection === 'sec-evidencias' && incidentEvidences.length > 0 ? (
                 <section className="panel">
                   <div className="panel-header">
                     <div>
@@ -2556,7 +2883,7 @@ function App() {
                 </section>
               ) : null}
 
-              {canManagePrivacy ? (
+              {activeDashboardSection === 'sec-evidencias' && canManagePrivacy ? (
                 <section className="panel">
                   <div className="panel-header">
                     <div>
@@ -2602,7 +2929,7 @@ function App() {
                     <select disabled={editingPrivacyRequestId !== null} value={privacyForm.subjectType} onChange={(event) => setPrivacyForm((current) => ({ ...current, subjectType: event.target.value as PrivacySubjectType }))}>
                       {privacySubjectTypeOptions.map((type) => <option key={type} value={type}>{translatePrivacySubjectType(type)}</option>)}
                     </select>
-                    <input disabled={editingPrivacyRequestId !== null} required placeholder="ID do titular" type="number" value={privacyForm.subjectId} onChange={(event) => setPrivacyForm((current) => ({ ...current, subjectId: event.target.value }))} />
+                    <input disabled={editingPrivacyRequestId !== null} required placeholder="ID do titular" inputMode="numeric" type="number" value={privacyForm.subjectId} onChange={(event) => setPrivacyForm((current) => ({ ...current, subjectId: normalizeDigitsInput(event.target.value) }))} />
                     <input placeholder="Observacoes (opcional)" value={privacyForm.notes} onChange={(event) => setPrivacyForm((current) => ({ ...current, notes: event.target.value }))} />
                     {editingPrivacyRequestId !== null ? (
                       <>
@@ -2657,7 +2984,9 @@ function App() {
                 </section>
               ) : null}
             </section>
-          </>
+            ) : null}
+            </div>
+          </div>
         ) : null}
       </main>
     </div>

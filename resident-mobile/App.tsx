@@ -441,7 +441,7 @@ export default function App() {
     // Tela de acesso enxuta para o morador iniciar o uso do app.
     return (
       <SafeAreaView style={styles.safeArea}>
-        <StatusBar style="light" />
+        <StatusBar style="dark" />
         <View style={styles.shell}>
           <View style={styles.heroGlow} />
           <Text style={styles.eyebrow}>VMAB Morador</Text>
@@ -454,6 +454,7 @@ export default function App() {
 
           <View style={styles.card}>
             <TextInput
+              autoCapitalize="none"
               placeholder="URL da API"
               placeholderTextColor="#8c8e92"
               style={styles.input}
@@ -462,19 +463,22 @@ export default function App() {
             />
             <TextInput
               keyboardType="numeric"
+              inputMode="numeric"
               placeholder="ID do morador"
               placeholderTextColor="#8c8e92"
               style={styles.input}
               value={loginForm.residentId}
-              onChangeText={(value) => setLoginForm((current) => ({ ...current, residentId: value }))}
+              onChangeText={(value) => setLoginForm((current) => ({ ...current, residentId: value.replace(/\D/g, '') }))}
             />
             <TextInput
               keyboardType="numeric"
+              secureTextEntry
+              inputMode="numeric"
               placeholder="PIN de acesso"
               placeholderTextColor="#8c8e92"
               style={styles.input}
               value={loginForm.accessPin}
-              onChangeText={(value) => setLoginForm((current) => ({ ...current, accessPin: value }))}
+              onChangeText={(value) => setLoginForm((current) => ({ ...current, accessPin: value.replace(/\D/g, '').slice(0, 6) }))}
             />
             <Pressable style={styles.primaryButton} onPress={() => void handleLogin()}>
               <Text style={styles.primaryButtonText}>{loading ? 'Entrando...' : 'Entrar'}</Text>
@@ -493,7 +497,7 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
           <View>
@@ -558,11 +562,13 @@ export default function App() {
           />
           <TextInput
             keyboardType="numeric"
+            secureTextEntry
+            inputMode="numeric"
             placeholder="PIN de coacao"
             placeholderTextColor="#8c8e92"
             style={styles.input}
             value={alertDraft.coercionPin}
-            onChangeText={(value) => setAlertDraft((current) => ({ ...current, coercionPin: value }))}
+            onChangeText={(value) => setAlertDraft((current) => ({ ...current, coercionPin: value.replace(/\D/g, '').slice(0, 6) }))}
           />
           {countdownAlertType ? <Text style={styles.meta}>Alerta {translateAlertType(countdownAlertType)} sera enviado em {countdownSeconds}s. Toque no mesmo botao para cancelar.</Text> : null}
           <View style={styles.alertGrid}>
@@ -611,7 +617,7 @@ export default function App() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#090b0f',
+    backgroundColor: '#eef2f7',
   },
   shell: {
     flex: 1,
@@ -630,62 +636,68 @@ const styles = StyleSheet.create({
     width: 180,
     height: 180,
     borderRadius: 999,
-    backgroundColor: 'rgba(216, 180, 104, 0.14)',
+    backgroundColor: 'rgba(200, 154, 69, 0.12)',
   },
   eyebrow: {
     fontSize: 11,
     letterSpacing: 2,
     textTransform: 'uppercase',
-    color: '#d8b468',
+    color: '#a97422',
     marginBottom: 6,
   },
   title: {
     fontSize: 30,
     fontWeight: '800',
-    color: '#f7f5ef',
+    color: '#15202b',
   },
   copy: {
     fontSize: 15,
     lineHeight: 22,
-    color: '#b7bec7',
+    color: '#556477',
   },
   card: {
     padding: 18,
     borderRadius: 22,
-    backgroundColor: '#11151c',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(216,180,104,0.12)',
+    borderColor: 'rgba(42,57,75,0.1)',
     gap: 10,
   },
   profileCard: {
     padding: 18,
     borderRadius: 22,
-    backgroundColor: '#10141b',
+    backgroundColor: '#f7fafc',
     borderWidth: 1,
-    borderColor: 'rgba(216,180,104,0.12)',
+    borderColor: 'rgba(42,57,75,0.1)',
     gap: 4,
   },
   activeAlertCard: {
     padding: 18,
     borderRadius: 22,
-    backgroundColor: '#161014',
+    backgroundColor: 'rgba(200,85,68,0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(216,104,104,0.24)',
+    borderColor: 'rgba(200,85,68,0.18)',
     gap: 8,
   },
   activeAlertTitle: {
-    color: '#ffd6d0',
+    color: '#7f2a1f',
     fontWeight: '800',
     fontSize: 18,
   },
   input: {
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    color: '#f7f5ef',
+    minHeight: 54,
+    borderWidth: 1.5,
+    borderColor: 'rgba(200,154,69,0.45)',
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: '#ffffff',
+    color: '#15202b',
+    shadowColor: '#15202b',
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
   },
   textArea: {
     minHeight: 88,
@@ -693,33 +705,33 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     borderRadius: 18,
-    backgroundColor: '#d8b468',
+    backgroundColor: '#c89a45',
     paddingVertical: 14,
     alignItems: 'center',
   },
   primaryButtonText: {
-    color: '#221605',
+    color: '#1f1508',
     fontWeight: '800',
   },
   secondaryButton: {
     borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.03)',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(216,180,104,0.14)',
+    borderColor: 'rgba(42,57,75,0.1)',
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
   secondaryButtonSmall: {
     alignSelf: 'flex-start',
     borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.03)',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(216,180,104,0.14)',
+    borderColor: 'rgba(42,57,75,0.1)',
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
   secondaryButtonText: {
-    color: '#f5f1e8',
+    color: '#1f2d3a',
     fontWeight: '700',
   },
   header: {
@@ -731,33 +743,33 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#f7f5ef',
+    color: '#15202b',
   },
   meta: {
-    color: '#9aa3ad',
+    color: '#6d7a89',
   },
   body: {
-    color: '#dbe1e8',
+    color: '#2c3a48',
     lineHeight: 20,
   },
   errorText: {
-    color: '#ffb7ab',
+    color: '#c85544',
     fontWeight: '700',
   },
   hintCard: {
     padding: 16,
     borderRadius: 18,
-    backgroundColor: '#10141b',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(216,180,104,0.12)',
+    borderColor: 'rgba(42,57,75,0.1)',
   },
   hintTitle: {
-    color: '#f7f5ef',
+    color: '#15202b',
     fontWeight: '800',
     marginBottom: 6,
   },
   hintText: {
-    color: '#9aa3ad',
+    color: '#6d7a89',
   },
   alertGrid: {
     gap: 10,
@@ -766,23 +778,23 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     paddingVertical: 14,
     alignItems: 'center',
-    backgroundColor: '#171c25',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(216,180,104,0.18)',
+    borderColor: 'rgba(42,57,75,0.1)',
   },
   alertButtonDisabled: {
     opacity: 0.45,
   },
   alertButtonLabel: {
-    color: '#f7f5ef',
+    color: '#15202b',
     fontWeight: '800',
   },
   alertItem: {
     padding: 14,
     borderRadius: 18,
-    backgroundColor: '#171c25',
+    backgroundColor: '#f7fafc',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
+    borderColor: 'rgba(42,57,75,0.08)',
     gap: 6,
   },
   alertHeader: {
@@ -792,11 +804,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   alertTitle: {
-    color: '#f7f5ef',
+    color: '#15202b',
     fontWeight: '800',
   },
   statusPill: {
-    color: '#d8b468',
+    color: '#a97422',
     fontWeight: '800',
   },
 })

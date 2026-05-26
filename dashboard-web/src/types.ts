@@ -11,7 +11,8 @@ export type VehicleMaintenanceType = 'PREVENTIVE' | 'CORRECTIVE' | 'INSPECTION' 
 export type VehicleMaintenancePriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
 export type VehicleMaintenanceStatus = 'OPEN' | 'IN_PROGRESS' | 'WAITING_PARTS' | 'COMPLETED' | 'CANCELLED'
 export type VehicleMaintenanceLifecycleStatus = 'OPEN' | 'BLOCKING' | 'DOCUMENTATION' | 'RESOLVED' | 'CANCELLED'
-export type AuditActionType = 'CREATE' | 'UPDATE' | 'DELETE' | 'HANDOFF' | 'MAINTENANCE' | 'TELEMETRY' | 'INCIDENT_WORKFLOW' | 'AUTH'
+export type AuditActionType = 'CREATE' | 'UPDATE' | 'DELETE' | 'HANDOFF' | 'MAINTENANCE' | 'TELEMETRY' | 'INCIDENT_WORKFLOW' | 'AUTH' | 'RESIDENT_ALERT'
+export type AuditReportCategory = 'ALL' | 'GESTAO' | 'OPERACIONAL' | 'FROTA' | 'RH' | 'SEGURANCA'
 export type IncidentStatus = 'OPEN' | 'DISPATCHED' | 'ON_SITE' | 'CLOSED'
 export type IncidentType = 'PANIC' | 'SUSPICIOUS_ACTIVITY' | 'MEDICAL' | 'ESCORT'
 export type IncidentPriority = 'HIGH' | 'MEDIUM' | 'LOW'
@@ -138,6 +139,21 @@ export interface AuditRecord {
   actorUsername: string
   occurredAt: string
   description: string
+}
+
+export interface AuditReportResponse {
+  generatedAt: string
+  from: string
+  to: string
+  days: number
+  category: AuditReportCategory
+  includeAuth: boolean
+  totalRecords: number
+  visibleRecords: number
+  recordsByCategory: Record<string, number>
+  recordsByActionType: Record<string, number>
+  recordsByActor: Record<string, number>
+  records: AuditRecord[]
 }
 
 export interface Shift {
@@ -449,6 +465,8 @@ export interface PrivacyRetentionStatus {
   passwordResetTokenRetentionHours: number
   residentSessionRetentionDays: number
   incidentEvidenceRetentionDays: number
+  vehicleMaintenanceRetentionDays: number
+  hrAttendanceRetentionDays: number
   removeOrphanEvidenceFiles: boolean
   openRequests: number
   inProgressRequests: number
