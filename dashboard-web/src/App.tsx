@@ -1941,34 +1941,6 @@ function App() {
         <p className="eyebrow">Painel Operacional</p>
         <h1>Operacao Comunitaria</h1>
         <p className="sidebar-copy">Sessao autenticada como {currentUsername}. O conteudo abaixo respeita o perfil logado e as permissoes do backend.</p>
-
-        <div className="sidebar-block">
-          <span className="sidebar-label">Perfis ativos</span>
-          <div className="role-list">
-            {currentRoles.map((role) => (
-              <span className="role-chip" key={role}>{translateRole(role)}</span>
-            ))}
-          </div>
-        </div>
-
-        <div className="sidebar-block">
-          <span className="sidebar-label">Escopo liberado</span>
-          <ul>
-            <li>{canManageCatalog ? 'cadastros completos de equipe e frota' : 'cadastros apenas em leitura'}</li>
-            <li>{canCreateOperations ? 'criacao e exclusao de turnos e ocorrencias' : 'atualizacao operacional apenas em itens existentes'}</li>
-            <li>dashboard em tempo real via backend</li>
-          </ul>
-        </div>
-
-        <div className="sidebar-block">
-          <span className="sidebar-label">Acoes</span>
-          <div className="sidebar-action-list">
-            <button className="sidebar-action-button" onClick={() => void loadData()} type="button">Atualizar</button>
-            <button className="sidebar-action-button sidebar-action-button-primary" onClick={handleLogout} type="button">Sair</button>
-          </div>
-          {lastRefreshAt ? <small className="sidebar-refresh-note">Ultimo sync {formatDate(lastRefreshAt)}</small> : null}
-        </div>
-
         <div className="sidebar-block">
           <span className="sidebar-label">Seções</span>
           <div className="sidebar-section-list">
@@ -1985,6 +1957,10 @@ function App() {
               </button>
             ))}
           </div>
+        </div>
+        <div className="sidebar-block sidebar-logout-block">
+          <button className="sidebar-action-button sidebar-action-button-primary" onClick={handleLogout} type="button">Sair</button>
+          {lastRefreshAt ? <small className="sidebar-refresh-note">Ultimo sync {formatDate(lastRefreshAt)}</small> : null}
         </div>
       </aside>
 
@@ -2121,17 +2097,6 @@ function App() {
                 </div>
               </div>
               <p className="panel-note">Visão única da operação, com indicadores que ajudam a decidir agora e não só a olhar o histórico.</p>
-              <section className="stats-grid">
-                <article className="metric-card"><span>Agentes no cadastro</span><strong>{summary.totalAgents}</strong></article>
-                <article className="metric-card"><span>Agentes ativos</span><strong>{summary.activeAgents}</strong></article>
-                <article className="metric-card"><span>Viaturas disponiveis</span><strong>{summary.availableVehicles}</strong></article>
-                <article className="metric-card"><span>Turnos em operacao</span><strong>{summary.activeShifts}</strong></article>
-                <article className="metric-card"><span>Turnos atrasados</span><strong>{summary.lateShifts}</strong></article>
-                <article className="metric-card"><span>Faltas abertas</span><strong>{summary.absentShifts}</strong></article>
-                <article className="metric-card"><span>Ocorrencias abertas</span><strong>{summary.openIncidents}</strong></article>
-                <article className="metric-card"><span>Alertas de manutencao</span><strong>{summary.maintenanceAlerts}</strong></article>
-                <article className="metric-card"><span>RH com alerta</span><strong>{summary.hr.expiringSoonAlerts}</strong></article>
-              </section>
               <div className="report-summary-grid">
                 <article className="report-insight-card">
                   <span>Ocorrencias em aberto</span>
@@ -3072,3 +3037,5 @@ function App() {
 }
 
 export default App
+
+
