@@ -4,6 +4,9 @@ export type ResidentStatus = 'ACTIVE' | 'INACTIVE'
 export type VehicleStatus = 'AVAILABLE' | 'IN_OPERATION' | 'MAINTENANCE' | 'BLOCKED'
 export type ShiftStatus = 'PLANNED' | 'ACTIVE' | 'HANDOFF_PENDING' | 'HANDOFF' | 'CLOSED'
 export type ShiftAttendanceStatus = 'PENDING' | 'ON_TIME' | 'LATE' | 'ABSENT' | 'COVERED'
+export type HrEmployeeCategory = 'VIGILANTE' | 'SUPERVISOR' | 'ADMINISTRATIVO' | 'OPERACIONAL' | 'OUTRO'
+export type HrEmployeeStatus = 'ACTIVE' | 'BLOCKED' | 'VACATION' | 'LEAVE' | 'TERMINATED'
+export type HrAttendanceType = 'CHECK_IN' | 'CHECK_OUT'
 export type VehicleMaintenanceType = 'PREVENTIVE' | 'CORRECTIVE' | 'INSPECTION' | 'DOCUMENTATION'
 export type VehicleMaintenancePriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
 export type VehicleMaintenanceStatus = 'OPEN' | 'IN_PROGRESS' | 'WAITING_PARTS' | 'COMPLETED' | 'CANCELLED'
@@ -174,6 +177,79 @@ export interface Shift {
   attendanceNotes?: string | null
 }
 
+export interface HrEmployee {
+  id: number
+  employeeCode: string
+  fullName: string
+  category: HrEmployeeCategory
+  status: HrEmployeeStatus
+  documentNumber?: string | null
+  phoneNumber?: string | null
+  email?: string | null
+  photoUrl?: string | null
+  cnhCategory?: string | null
+  cnhExpiry?: string | null
+  medicalExamExpiry?: string | null
+  trainingExpiry?: string | null
+  trainingNotes?: string | null
+  documentNotes?: string | null
+  hireDate?: string | null
+  terminationDate?: string | null
+  linkedAgentId?: number | null
+  linkedAgentName?: string | null
+  linkedAppUserId?: number | null
+  linkedAppUserUsername?: string | null
+  pointEnabled: boolean
+  createdAt: string
+  updatedAt: string
+  lastCheckInAt?: string | null
+  lastCheckOutAt?: string | null
+  lastCheckInDevice?: string | null
+  lastCheckOutDevice?: string | null
+  lastCheckInLatitude?: number | null
+  lastCheckInLongitude?: number | null
+  lastCheckOutLatitude?: number | null
+  lastCheckOutLongitude?: number | null
+  lastPointNotes?: string | null
+  cnhRenewalDue: boolean
+  medicalExamRenewalDue: boolean
+  trainingRenewalDue: boolean
+}
+
+export interface HrEmployeeAlert {
+  employeeId: number
+  employeeName: string
+  alertType: string
+  dueDate?: string | null
+  daysRemaining: number
+  message: string
+}
+
+export interface HrAttendance {
+  id: number
+  employeeId: number
+  employeeName?: string | null
+  eventType: HrAttendanceType
+  occurredAt: string
+  deviceLabel?: string | null
+  latitude?: number | null
+  longitude?: number | null
+  note?: string | null
+  anomalyFlag: boolean
+  anomalyReason?: string | null
+}
+
+export interface HrSummary {
+  totalEmployees: number
+  activeEmployees: number
+  blockedEmployees: number
+  checkedInNowEmployees: number
+  expiringSoonAlerts: number
+  employees: HrEmployee[]
+  alerts: HrEmployeeAlert[]
+  attendance: HrAttendance[]
+}
+
 export interface PatrolRouteStop {
   title: string
   detail: string
@@ -288,6 +364,7 @@ export interface DashboardSummary {
   openMaintenanceOrders: number
   criticalMaintenanceOrders: number
   activePatrol?: ActivePatrol | null
+  hr: HrSummary
   auditRecords: AuditRecord[]
   residents: Resident[]
   agents: Agent[]

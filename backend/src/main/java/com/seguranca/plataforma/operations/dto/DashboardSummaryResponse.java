@@ -7,6 +7,7 @@ import com.seguranca.plataforma.operations.model.Resident;
 import com.seguranca.plataforma.operations.model.Shift;
 import com.seguranca.plataforma.operations.model.Vehicle;
 import com.seguranca.plataforma.operations.model.VehicleMaintenanceRecord;
+import com.seguranca.plataforma.hr.dto.HrSummaryResponse;
 import java.util.List;
 
 // Resposta agregada do painel administrativo.
@@ -23,6 +24,7 @@ public record DashboardSummaryResponse(
         long openMaintenanceOrders,
         long criticalMaintenanceOrders,
         ActivePatrolResponse activePatrol,
+        HrSummaryResponse hr,
         List<AuditRecord> auditRecords,
         List<Resident> residents,
         List<Agent> agents,

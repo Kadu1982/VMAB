@@ -14,6 +14,9 @@ import type {
   ClientOperationalReport,
   ClientPortal,
   DashboardSummary,
+  HrAttendanceType,
+  HrEmployeeCategory,
+  HrEmployeeStatus,
   FleetOperationalReport,
   Incident,
   IncidentEvidence,
@@ -161,6 +164,10 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
 }
 
+function formatOptionalDate(value?: string | null) {
+  return value ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(new Date(value)) : 'Nao informado'
+}
+
 function formatCurrency(value?: number | null) {
   if (value == null) {
     return 'Sem custo'
@@ -257,6 +264,39 @@ function translateVehicleMaintenanceType(type: VehicleMaintenanceType) {
     INSPECTION: 'Inspecao',
     DOCUMENTATION: 'Documentacao',
   }[type]
+}
+
+function translateHrEmployeeCategory(category: HrEmployeeCategory) {
+  return {
+    VIGILANTE: 'Vigilante',
+    SUPERVISOR: 'Supervisor',
+    ADMINISTRATIVO: 'Administrativo',
+    OPERACIONAL: 'Operacional',
+    OUTRO: 'Outro',
+  }[category]
+}
+
+function translateHrEmployeeStatus(status: HrEmployeeStatus) {
+  return {
+    ACTIVE: 'Ativo',
+    BLOCKED: 'Bloqueado',
+    VACATION: 'Ferias',
+    LEAVE: 'Afastado',
+    TERMINATED: 'Desligado',
+  }[status]
+}
+
+function translateHrAttendanceType(type: HrAttendanceType) {
+  return {
+    CHECK_IN: 'Entrada',
+    CHECK_OUT: 'Saida',
+  }[type]
+}
+
+function hrStatusTagClass(status: HrEmployeeStatus) {
+  if (status === 'ACTIVE') return 'active'
+  if (status === 'BLOCKED' || status === 'TERMINATED') return 'blocked'
+  return 'maintenance'
 }
 
 function translateAuditActionType(actionType: AuditActionType) {
@@ -1901,6 +1941,124 @@ function App() {
               <article className="metric-card"><span>Faltas abertas</span><strong>{summary.absentShifts}</strong></article>
               <article className="metric-card"><span>Ocorrencias abertas</span><strong>{summary.openIncidents}</strong></article>
               <article className="metric-card"><span>Alertas de manutencao</span><strong>{summary.maintenanceAlerts}</strong></article>
+            </section>
+
+            <section className="panel">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">RH</p>
+                  <h3>Cadastro mestre e ponto operacional</h3>
+                </div>
+              </div>
+              <p className="panel-note">O RH agora acompanha vigias e demais funcionarios em um cadastro unico, com CNH, exames, status e controle operacional de ponto.</p>
+              <div className="subpanel-grid">
+                <article className="telemetry-card">
+                  <span>Total de funcionarios</span>
+                  <strong>{summary.hr.totalEmployees}</strong>
+                  <small>{summary.hr.activeEmployees} ativos | {summary.hr.blockedEmployees} bloqueados/desligados</small>
+                </article>
+                <article className="telemetry-card">
+                  <span>Ponto ativo agora</span>
+                  <strong>{summary.hr.checkedInNowEmployees}</strong>
+                  <small>{summary.hr.expiringSoonAlerts} alertas de renovacao nas proximas 4 semanas</small>
+                </article>
+                <article className="telemetry-card">
+                  <span>CNH / exames</span>
+                  <strong>{summary.hr.alerts.filter((alert) => alert.alertType === 'CNH').length}</strong>
+                  <small>{summary.hr.alerts.filter((alert) => alert.alertType === 'EXAME_MEDICO').length} exames | {summary.hr.alerts.filter((alert) => alert.alertType === 'TREINAMENTO').length} treinamentos</small>
+                </article>
+                <article className="telemetry-card">
+                  <span>Registros recentes</span>
+                  <strong>{summary.hr.attendance.length}</strong>
+                  <small>Ultimas entradas e saidas consolidadas no proprio backend</small>
+                </article>
+              </div>
+
+              <div className="subpanel-grid hr-summary-grid" style={{ marginTop: 16 }}>
+                <div>
+                  <div className="panel-header">
+                    <div>
+                      <p className="eyebrow">Funcionarios</p>
+                      <h3>Quadro atual</h3>
+                    </div>
+                  </div>
+                  <div className="list">
+                    {summary.hr.employees.slice(0, 8).map((employee) => (
+                      <article className="list-row" key={employee.id}>
+                        <div>
+                          <strong>{employee.fullName}</strong>
+                          <small>{employee.employeeCode} | {translateHrEmployeeCategory(employee.category)} | CNH {employee.cnhCategory ?? 'nao informada'} {employee.cnhExpiry ? `ate ${formatOptionalDate(employee.cnhExpiry)}` : ''}</small>
+                          <small>{employee.linkedAgentName ? `Vinculado ao vigilante ${employee.linkedAgentName}` : 'Sem vinculo operacional'}</small>
+                        </div>
+                        <div className="row-actions">
+                          <span className={`tag ${hrStatusTagClass(employee.status)}`}>{translateHrEmployeeStatus(employee.status)}</span>
+                          <span className={`tag ${employee.pointEnabled ? 'active' : 'blocked'}`}>{employee.pointEnabled ? 'Ponto liberado' : 'Ponto bloqueado'}</span>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="panel-header">
+                    <div>
+                      <p className="eyebrow">Alertas</p>
+                      <h3>Renovacoes e pendencias</h3>
+                    </div>
+                  </div>
+                  <div className="list">
+                    {summary.hr.alerts.length === 0 ? (
+                      <article className="list-row">
+                        <div>
+                          <strong>Sem alertas no momento</strong>
+                          <small>Nenhuma CNH, exame ou treinamento entrou na janela de renovacao.</small>
+                        </div>
+                      </article>
+                    ) : (
+                      summary.hr.alerts.slice(0, 8).map((alert) => (
+                        <article className="list-row" key={`${alert.employeeId}-${alert.alertType}`}>
+                          <div>
+                            <strong>{alert.employeeName}</strong>
+                            <small>{alert.alertType} | vence em {alert.daysRemaining} dia(s)</small>
+                            <small>{alert.message}</small>
+                          </div>
+                          <span className={`tag ${alert.daysRemaining < 0 ? 'blocked' : 'maintenance'}`}>{formatOptionalDate(alert.dueDate)}</span>
+                        </article>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="panel-header">
+                    <div>
+                      <p className="eyebrow">Ponto</p>
+                      <h3>Registros recentes</h3>
+                    </div>
+                  </div>
+                  <div className="list">
+                    {summary.hr.attendance.length === 0 ? (
+                      <article className="list-row">
+                        <div>
+                          <strong>Sem registros de ponto</strong>
+                          <small>O modulo de ponto operacional ainda nao recebeu eventos nesta sessao.</small>
+                        </div>
+                      </article>
+                    ) : (
+                      summary.hr.attendance.slice(0, 8).map((attendance) => (
+                        <article className="list-row" key={attendance.id}>
+                          <div>
+                            <strong>{attendance.employeeName ?? `Funcionario #${attendance.employeeId}`}</strong>
+                            <small>{translateHrAttendanceType(attendance.eventType)} | {attendance.deviceLabel ?? 'dispositivo nao informado'} | {formatDate(attendance.occurredAt)}</small>
+                            <small>{attendance.anomalyFlag ? `Anomalia: ${attendance.anomalyReason ?? 'sem detalhamento'}` : 'Sem anomalia registrada'}</small>
+                          </div>
+                          <span className={`tag ${attendance.anomalyFlag ? 'blocked' : 'active'}`}>{attendance.anomalyFlag ? 'Revisar' : 'Normal'}</span>
+                        </article>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
             </section>
 
             {fleetReport ? (

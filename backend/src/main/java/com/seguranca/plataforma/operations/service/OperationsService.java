@@ -5,6 +5,8 @@ import com.seguranca.plataforma.auth.AppUserPushNotificationService;
 import com.seguranca.plataforma.auth.AppUserRepository;
 import com.seguranca.plataforma.auth.AppUserRole;
 import com.seguranca.plataforma.config.VmabRetentionProperties;
+import com.seguranca.plataforma.hr.dto.HrSummaryResponse;
+import com.seguranca.plataforma.hr.service.HrService;
 import com.seguranca.plataforma.operations.dto.CreateAgentRequest;
 import com.seguranca.plataforma.operations.dto.ActivePatrolResponse;
 import com.seguranca.plataforma.operations.dto.CreateIncidentRequest;
@@ -108,6 +110,7 @@ public class OperationsService {
     private final IncidentEvidenceRepository incidentEvidenceRepository;
     private final OperationsRealtimeService operationsRealtimeService;
     private final VehicleFleetReportCalculator vehicleFleetReportCalculator;
+    private final HrService hrService;
     private final VmabRetentionProperties retentionProperties;
     private final PasswordEncoder passwordEncoder;
     private final Path storageRoot;
@@ -126,6 +129,7 @@ public class OperationsService {
             IncidentEvidenceRepository incidentEvidenceRepository,
             OperationsRealtimeService operationsRealtimeService,
             VehicleFleetReportCalculator vehicleFleetReportCalculator,
+            HrService hrService,
             VmabRetentionProperties retentionProperties,
             PasswordEncoder passwordEncoder,
             @Value("${vmab.storage-root}") String storageRoot
@@ -143,6 +147,7 @@ public class OperationsService {
         this.incidentEvidenceRepository = incidentEvidenceRepository;
         this.operationsRealtimeService = operationsRealtimeService;
         this.vehicleFleetReportCalculator = vehicleFleetReportCalculator;
+        this.hrService = hrService;
         this.retentionProperties = retentionProperties;
         this.passwordEncoder = passwordEncoder;
         this.storageRoot = Path.of(storageRoot).toAbsolutePath().normalize();
@@ -160,6 +165,7 @@ public class OperationsService {
         Agent carlos = agentRepository.save(new Agent("Carlos Nunes", "ALPHA-01", "AB", LocalDate.now().plusYears(2), AgentStatus.ON_DUTY, "https://i.pravatar.cc/160?img=12", LocalDate.now().plusMonths(8), LocalDate.now().plusMonths(6), "Exames ocupacionais em dia"));
         Agent marina = agentRepository.save(new Agent("Marina Luz", "BETA-02", "AB", LocalDate.now().plusYears(3), AgentStatus.ACTIVE, "https://i.pravatar.cc/160?img=32", LocalDate.now().plusMonths(10), LocalDate.now().plusMonths(7), "Apta para cobertura noturna"));
         agentRepository.save(new Agent("Joao Prado", "SUP-01", "B", LocalDate.now().plusYears(1), AgentStatus.OFF_DUTY, null, LocalDate.now().plusMonths(4), LocalDate.now().plusMonths(5), "Necessita reciclagem semestral"));
+        hrService.synchronizeAllAgentsSilently();
         Resident ana = residentRepository.save(new Resident(
                 "Ana Souza",
                 "(11) 99888-1122",
@@ -301,6 +307,7 @@ public class OperationsService {
                 request.documentNotes()
         );
         Agent savedAgent = agentRepository.save(agent);
+        hrService.syncAgent(savedAgent.getId(), savedAgent);
         recordAudit(AuditActionType.CREATE, "Agent", savedAgent.getId(), "Cadastro de agente " + savedAgent.getFullName());
         return savedAgent;
     }
@@ -320,6 +327,7 @@ public class OperationsService {
                 request.documentNotes()
         );
         Agent savedAgent = agentRepository.save(agent);
+        hrService.syncAgent(savedAgent.getId(), savedAgent);
         recordAudit(AuditActionType.UPDATE, "Agent", savedAgent.getId(), "Atualizacao do agente " + savedAgent.getFullName());
         return savedAgent;
     }
@@ -327,6 +335,7 @@ public class OperationsService {
     @Transactional
     public void deleteAgent(Long id) {
         Agent agent = getAgent(id);
+        hrService.archiveLinkedAgent(agent);
         agentRepository.delete(agent);
         recordAudit(AuditActionType.DELETE, "Agent", id, "Exclusao do agente " + agent.getFullName());
     }
@@ -1185,6 +1194,7 @@ public class OperationsService {
                 .filter(record -> record.getPriority() == VehicleMaintenancePriority.CRITICAL || record.getStatus() == VehicleMaintenanceStatus.WAITING_PARTS)
                 .count();
         ActivePatrolResponse activePatrol = buildActivePatrol(agents, vehicles, shifts, incidents);
+        HrSummaryResponse hrSummary = hrService.summary();
 
         return new DashboardSummaryResponse(
                 residents.size(),
@@ -1199,6 +1209,7 @@ public class OperationsService {
                 openMaintenanceOrders,
                 criticalMaintenanceOrders,
                 activePatrol,
+                hrSummary,
                 auditRecords,
                 residents,
                 agents,

@@ -12,6 +12,7 @@ import com.seguranca.plataforma.auth.AppUserRepository;
 import com.seguranca.plataforma.auth.AppUserRole;
 import com.seguranca.plataforma.auth.AppUserPushNotificationService;
 import com.seguranca.plataforma.config.VmabRetentionProperties;
+import com.seguranca.plataforma.hr.service.HrService;
 import com.seguranca.plataforma.operations.dto.RondaCloseIncidentRequest;
 import com.seguranca.plataforma.operations.dto.RondaDispatchIncidentRequest;
 import com.seguranca.plataforma.operations.dto.ShiftSupervisionAction;
@@ -69,6 +70,7 @@ class OperationsServiceIncidentWorkflowTests {
     @Mock private IncidentEvidenceRepository incidentEvidenceRepository;
     @Mock private OperationsRealtimeService operationsRealtimeService;
     @Mock private VehicleFleetReportCalculator vehicleFleetReportCalculator;
+    @Mock private HrService hrService;
     @Mock private PasswordEncoder passwordEncoder;
 
     private OperationsService operationsService;
@@ -90,6 +92,7 @@ class OperationsServiceIncidentWorkflowTests {
                 incidentEvidenceRepository,
                 operationsRealtimeService,
                 vehicleFleetReportCalculator,
+                hrService,
                 retentionProperties,
                 passwordEncoder,
                 "C:/temp/vmab-test-storage"
