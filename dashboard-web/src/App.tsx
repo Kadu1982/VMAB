@@ -35,6 +35,10 @@ import type {
   AuditRecord,
   AuditReportCategory,
   AuditReportResponse,
+  BusinessSector,
+  BusinessUnit,
+  BusinessUnitType,
+  HrEmployeeAssignment,
   Shift,
   ShiftAttendanceStatus,
   ShiftStatus,
@@ -57,6 +61,7 @@ const shiftStatusOptions: ShiftStatus[] = ['PLANNED', 'ACTIVE', 'HANDOFF_PENDING
 const privacyRequestTypeOptions: PrivacyRequestType[] = ['EXPORT', 'DELETE']
 const privacySubjectTypeOptions: PrivacySubjectType[] = ['RESIDENT', 'APP_USER', 'AGENT']
 const shiftAttendanceOptions: ShiftAttendanceStatus[] = ['PENDING', 'ON_TIME', 'LATE', 'ABSENT', 'COVERED']
+const businessUnitTypeOptions: BusinessUnitType[] = ['CONDOMINIUM', 'NEIGHBORHOOD', 'COMPANY', 'OTHER']
 const incidentTypeOptions: IncidentType[] = ['PANIC', 'SUSPICIOUS_ACTIVITY', 'MEDICAL', 'ESCORT']
 const incidentPriorityOptions: IncidentPriority[] = ['HIGH', 'MEDIUM', 'LOW']
 const incidentStatusOptions: IncidentStatus[] = ['OPEN', 'DISPATCHED', 'ON_SITE', 'CLOSED']
@@ -122,6 +127,31 @@ const initialResidentForm = {
   status: 'ACTIVE' as ResidentStatus,
 }
 
+const initialBusinessUnitForm = {
+  name: '',
+  type: 'CONDOMINIUM' as BusinessUnitType,
+  cnpj: '',
+  notes: '',
+  active: true,
+}
+
+const initialBusinessSectorForm = {
+  name: '',
+  code: '',
+  notes: '',
+  active: true,
+}
+
+const initialEmployeeAssignmentForm = {
+  businessUnitId: '',
+  businessSectorId: '',
+  roleTitle: '',
+  startDate: '',
+  endDate: '',
+  active: true,
+  notes: '',
+}
+
 const initialShiftForm = {
   agentId: '',
   vehicleId: '',
@@ -171,6 +201,7 @@ const dashboardSectionLinks = [
   { id: 'sec-patrulha', label: 'Patrulha', description: 'Mapa, rota e telemetria da viatura' },
   { id: 'sec-dashboard', label: 'Dashboard', description: 'Resumo consolidado da operação' },
   { id: 'sec-rh', label: 'RH', description: 'Cadastros, acessos, turnos e ponto' },
+  { id: 'sec-setorizacao', label: 'Setorização', description: 'Contratos, setores e vínculos' },
   { id: 'sec-frota', label: 'Frota', description: 'Saude e manutencao das viaturas' },
   { id: 'sec-auditoria', label: 'Auditoria', description: 'Acoes criticas e rastreabilidade' },
   { id: 'sec-evidencias', label: 'Evidencias', description: 'Arquivos operacionais e LGPD' },
@@ -341,6 +372,15 @@ function translateHrEmployeeStatus(status: HrEmployeeStatus) {
     LEAVE: 'Afastado',
     TERMINATED: 'Desligado',
   }[status]
+}
+
+function translateBusinessUnitType(type: BusinessUnitType) {
+  return {
+    CONDOMINIUM: 'Condominio',
+    NEIGHBORHOOD: 'Bairro',
+    COMPANY: 'Empresa',
+    OTHER: 'Outro',
+  }[type]
 }
 
 function translateHrAttendanceType(type: HrAttendanceType) {
@@ -646,6 +686,9 @@ function App() {
   const [maintenanceForm, setMaintenanceForm] = useState(initialMaintenanceForm)
   const [shiftForm, setShiftForm] = useState(initialShiftForm)
   const [incidentForm, setIncidentForm] = useState(initialIncidentForm)
+  const [businessUnitForm, setBusinessUnitForm] = useState(initialBusinessUnitForm)
+  const [businessSectorForm, setBusinessSectorForm] = useState(initialBusinessSectorForm)
+  const [employeeAssignmentForm, setEmployeeAssignmentForm] = useState(initialEmployeeAssignmentForm)
   const [passwordResetForm, setPasswordResetForm] = useState({ username: '', resetCode: '', newPassword: '' })
   const [editingAgentId, setEditingAgentId] = useState<number | null>(null)
   const [editingUserId, setEditingUserId] = useState<number | null>(null)
@@ -653,6 +696,12 @@ function App() {
   const [editingVehicleId, setEditingVehicleId] = useState<number | null>(null)
   const [editingShiftId, setEditingShiftId] = useState<number | null>(null)
   const [editingIncidentId, setEditingIncidentId] = useState<number | null>(null)
+  const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([])
+  const [businessSectors, setBusinessSectors] = useState<BusinessSector[]>([])
+  const [allBusinessSectors, setAllBusinessSectors] = useState<BusinessSector[]>([])
+  const [employeeAssignments, setEmployeeAssignments] = useState<HrEmployeeAssignment[]>([])
+  const [selectedBusinessUnitId, setSelectedBusinessUnitId] = useState<string>('')
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('')
   const [fleetReport, setFleetReport] = useState<FleetOperationalReport | null>(null)
   const [incidentEvidences, setIncidentEvidences] = useState<IncidentEvidence[]>([])
   const [privacyRequests, setPrivacyRequests] = useState<PrivacyRequest[]>([])
@@ -677,6 +726,8 @@ function App() {
   const canUpdateOperations = hasAnyRole(currentRoles, ['ROLE_ADMIN', 'ROLE_SUPERVISOR', 'ROLE_RONDA'])
   const canCreateOperations = hasAnyRole(currentRoles, ['ROLE_ADMIN', 'ROLE_SUPERVISOR'])
   const auditRecords = auditReport?.records ?? []
+  const selectedBusinessUnit = businessUnits.find((unit) => String(unit.id) === selectedBusinessUnitId) ?? null
+  const selectedEmployee = summary?.hr.employees.find((employee) => String(employee.id) === selectedEmployeeId) ?? null
   const auditCategoryCounts = {
     GESTAO: auditReport?.recordsByCategory?.GESTAO ?? 0,
     OPERACIONAL: auditReport?.recordsByCategory?.OPERACIONAL ?? 0,
@@ -729,6 +780,7 @@ function App() {
       setCurrentRoles(me.roles)
       setCurrentLinkedAgentId(me.linkedAgentId ?? null)
       const adminCanManageUsers = me.roles.includes('ROLE_ADMIN')
+      const canManageOrganization = me.roles.includes('ROLE_ADMIN') || me.roles.includes('ROLE_SUPERVISOR')
 
       if (me.roles.includes('ROLE_CLIENT')) {
         const [portalResponse, reportResponse] = await Promise.all([
@@ -743,13 +795,14 @@ function App() {
         setUsers([])
         setLastRefreshAt(new Date().toISOString())
       } else {
-        const [summaryResponse, usersResponse, fleetReportResponse, evidenceResponse, privacyRequestsResponse, retentionResponse] = await Promise.all([
+        const [summaryResponse, usersResponse, fleetReportResponse, evidenceResponse, privacyRequestsResponse, retentionResponse, businessUnitsResponse] = await Promise.all([
           apiFetch('/api/dashboard/summary'),
           adminCanManageUsers ? apiFetch('/api/users') : Promise.resolve(null),
           apiFetch('/api/vehicles/report'),
           apiFetch('/api/incidents/evidence'),
           me.roles.includes('ROLE_ADMIN') ? apiFetch('/api/privacy/requests') : Promise.resolve(null),
           me.roles.includes('ROLE_ADMIN') ? apiFetch('/api/privacy/status') : Promise.resolve(null),
+          canManageOrganization ? apiFetch('/api/organization/business-units') : Promise.resolve(null),
         ])
         if (!summaryResponse.ok) throw new Error('Nao foi possivel carregar o painel operacional.')
         if (usersResponse && !usersResponse.ok) throw new Error('Nao foi possivel carregar a gestao de usuarios.')
@@ -759,6 +812,15 @@ function App() {
         if (evidenceResponse.ok) setIncidentEvidences((await evidenceResponse.json()) as IncidentEvidence[])
         if (privacyRequestsResponse?.ok) setPrivacyRequests((await privacyRequestsResponse.json()) as PrivacyRequest[])
         if (retentionResponse?.ok) setRetentionStatus((await retentionResponse.json()) as PrivacyRetentionStatus)
+        if (businessUnitsResponse?.ok) {
+          const loadedBusinessUnits = (await businessUnitsResponse.json()) as BusinessUnit[]
+          setBusinessUnits(loadedBusinessUnits)
+          setSelectedBusinessUnitId((current) => current || (loadedBusinessUnits[0]?.id != null ? String(loadedBusinessUnits[0].id) : ''))
+        } else {
+          setBusinessUnits([])
+          setSelectedBusinessUnitId('')
+          setAllBusinessSectors([])
+        }
         setPortal(null)
         setClientReport(null)
         setLastRefreshAt(new Date().toISOString())
@@ -777,6 +839,55 @@ function App() {
   useEffect(() => {
     void loadData()
   }, [authenticated])
+
+  useEffect(() => {
+    if (!authenticated || !selectedBusinessUnitId) {
+      setBusinessSectors([])
+      return
+    }
+
+    void (async () => {
+      const response = await apiFetch(`/api/organization/business-units/${selectedBusinessUnitId}/sectors`)
+      if (response.ok) {
+        setBusinessSectors((await response.json()) as BusinessSector[])
+        setEmployeeAssignmentForm((current) => ({ ...current, businessUnitId: selectedBusinessUnitId, businessSectorId: '' }))
+      }
+    })()
+  }, [authenticated, selectedBusinessUnitId])
+
+  useEffect(() => {
+    if (!authenticated || !canManageCatalog || businessUnits.length === 0) {
+      setAllBusinessSectors([])
+      return
+    }
+
+    void (async () => {
+      const results = await Promise.all(
+        businessUnits.map(async (unit) => {
+          const response = await apiFetch(`/api/organization/business-units/${unit.id}/sectors`)
+          if (!response.ok) {
+            return [] as BusinessSector[]
+          }
+          return (await response.json()) as BusinessSector[]
+        }),
+      )
+      setAllBusinessSectors(results.flat())
+    })()
+  }, [authenticated, businessUnits, canManageCatalog])
+
+  useEffect(() => {
+    if (!authenticated || !selectedEmployeeId) {
+      setEmployeeAssignments([])
+      return
+    }
+
+    void (async () => {
+      const response = await apiFetch(`/api/organization/employees/${selectedEmployeeId}/assignments`)
+      if (response.ok) {
+        setEmployeeAssignments((await response.json()) as HrEmployeeAssignment[])
+      }
+    })()
+  }, [authenticated, selectedEmployeeId])
 
   useEffect(() => {
     if (!authenticated || activeDashboardSection !== 'sec-auditoria') {
@@ -1066,6 +1177,14 @@ function App() {
       resetMaintenanceForm()
       resetShiftForm()
       resetIncidentForm()
+      setBusinessUnitForm(initialBusinessUnitForm)
+      setBusinessSectorForm(initialBusinessSectorForm)
+      setEmployeeAssignmentForm(initialEmployeeAssignmentForm)
+      setBusinessUnits([])
+      setBusinessSectors([])
+      setEmployeeAssignments([])
+      setSelectedBusinessUnitId('')
+      setSelectedEmployeeId('')
     })().catch(() => {
       window.localStorage.removeItem(STORAGE_KEY)
       setSession(null)
@@ -1279,6 +1398,81 @@ function App() {
     }
     const payload = editingResidentId === null ? basePayload : { ...basePayload, status: residentForm.status }
     await saveEntity(path, method, payload, 'Nao foi possivel salvar o morador.', resetResidentForm)
+  }
+
+  async function handleBusinessUnitSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    await saveEntity(
+      '/api/organization/business-units',
+      'POST',
+      {
+        name: businessUnitForm.name,
+        type: businessUnitForm.type,
+        cnpj: businessUnitForm.cnpj || null,
+        active: businessUnitForm.active,
+        notes: businessUnitForm.notes || null,
+      },
+      'Nao foi possivel salvar o contrato ou negocio.',
+      () => setBusinessUnitForm(initialBusinessUnitForm),
+    )
+  }
+
+  async function handleBusinessSectorSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!selectedBusinessUnitId) {
+      setError('Selecione um contrato ou negocio antes de criar o setor.')
+      return
+    }
+
+    await saveEntity(
+      `/api/organization/business-units/${selectedBusinessUnitId}/sectors`,
+      'POST',
+      {
+        name: businessSectorForm.name,
+        code: businessSectorForm.code || null,
+        active: businessSectorForm.active,
+        notes: businessSectorForm.notes || null,
+      },
+      'Nao foi possivel salvar o setor.',
+      () => setBusinessSectorForm(initialBusinessSectorForm),
+    )
+  }
+
+  async function handleEmployeeAssignmentSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!selectedEmployeeId) {
+      setError('Selecione um funcionario para vincular.')
+      return
+    }
+
+    const businessUnitId = employeeAssignmentForm.businessUnitId || selectedBusinessUnitId
+    if (!businessUnitId) {
+      setError('Selecione um contrato ou negocio para o vinculo.')
+      return
+    }
+
+    await saveEntity(
+      `/api/organization/employees/${selectedEmployeeId}/assignments`,
+      'POST',
+      {
+        businessUnitId: Number(businessUnitId),
+        businessSectorId: employeeAssignmentForm.businessSectorId ? Number(employeeAssignmentForm.businessSectorId) : null,
+        roleTitle: employeeAssignmentForm.roleTitle,
+        startDate: employeeAssignmentForm.startDate || null,
+        endDate: employeeAssignmentForm.endDate || null,
+        active: employeeAssignmentForm.active,
+        notes: employeeAssignmentForm.notes || null,
+      },
+      'Nao foi possivel salvar o vinculo do funcionario.',
+      () => setEmployeeAssignmentForm((current) => ({ ...initialEmployeeAssignmentForm, businessUnitId: current.businessUnitId || businessUnitId })),
+    )
+
+    if (selectedEmployeeId) {
+      const response = await apiFetch(`/api/organization/employees/${selectedEmployeeId}/assignments`)
+      if (response.ok) {
+        setEmployeeAssignments((await response.json()) as HrEmployeeAssignment[])
+      }
+    }
   }
 
   async function handleShiftSubmit(event: FormEvent<HTMLFormElement>) {
@@ -2212,6 +2406,10 @@ function App() {
                   <strong>Alertas</strong>
                   <small>CNH, exames e treinamentos</small>
                 </button>
+                <button className="hub-card" onClick={() => setActiveDashboardSection('sec-setorizacao')} type="button">
+                  <strong>Setorização</strong>
+                  <small>Contratos, setores e vínculos</small>
+                </button>
               </div>
               <div className="subpanel-grid">
                 <article className="telemetry-card">
@@ -2256,6 +2454,7 @@ function App() {
                         <div className="row-actions">
                           <span className={`tag ${hrStatusTagClass(employee.status)}`}>{translateHrEmployeeStatus(employee.status)}</span>
                           <span className={`tag ${employee.pointEnabled ? 'active' : 'blocked'}`}>{employee.pointEnabled ? 'Ponto liberado' : 'Ponto bloqueado'}</span>
+                          <button className="ghost-button" onClick={() => { setSelectedEmployeeId(String(employee.id)); setActiveDashboardSection('sec-rh') }} type="button">Vínculos</button>
                         </div>
                       </article>
                     ))}
@@ -2322,7 +2521,208 @@ function App() {
                   </div>
                 </div>
               </div>
+
+              {selectedEmployee ? (
+                <div className="panel" style={{ marginTop: 16 }}>
+                  <div className="panel-header">
+                    <div>
+                      <p className="eyebrow">Ficha do funcionario</p>
+                      <h3>{selectedEmployee.fullName}</h3>
+                    </div>
+                    <button className="secondary-button" onClick={() => setActiveDashboardSection('sec-setorizacao')} type="button">Ir para Setorizacao</button>
+                  </div>
+                  <p className="panel-note">Aqui ficam os vinculos por contrato e setor sem usar ID manual.</p>
+                  <div className="subpanel-grid" style={{ marginTop: 12 }}>
+                    <article className="telemetry-card">
+                      <span>Vinculos ativos</span>
+                      <strong>{employeeAssignments.filter((assignment) => assignment.active).length}</strong>
+                      <small>{selectedEmployee.employeeCode} | {translateHrEmployeeCategory(selectedEmployee.category)}</small>
+                    </article>
+                    <article className="telemetry-card">
+                      <span>Dados base</span>
+                      <strong>{selectedEmployee.documentNumber ?? 'CPF nao informado'}</strong>
+                      <small>{selectedEmployee.address ?? 'Endereco nao informado'}</small>
+                    </article>
+                  </div>
+                  <div className="subpanel-grid hr-summary-grid" style={{ marginTop: 16 }}>
+                    <div>
+                      <div className="panel-header">
+                        <div>
+                          <p className="eyebrow">Vinculos</p>
+                          <h3>Contratos e setores</h3>
+                        </div>
+                      </div>
+                      <div className="list">
+                        {employeeAssignments.length === 0 ? (
+                          <article className="list-row">
+                            <div>
+                              <strong>Sem vinculos cadastrados</strong>
+                              <small>Use a tela de setorizacao para associar este funcionario a um contrato e setor.</small>
+                            </div>
+                          </article>
+                        ) : (
+                          employeeAssignments.map((assignment) => {
+                            const unit = businessUnits.find((item) => item.id === assignment.businessUnitId)
+                            const sector = allBusinessSectors.find((item) => item.id === assignment.businessSectorId)
+                            return (
+                              <article className="list-row" key={assignment.id}>
+                                <div>
+                                  <strong>{assignment.roleTitle ?? 'Vinculo operacional'}</strong>
+                                  <small>{unit ? `${unit.name} | ${translateBusinessUnitType(unit.type)}` : `Unidade #${assignment.businessUnitId}`}{sector ? ` | setor ${sector.name}` : ''}</small>
+                                  <small>{assignment.startDate ? `Inicio ${formatOptionalDate(assignment.startDate)}` : 'Inicio nao informado'}{assignment.endDate ? ` | fim ${formatOptionalDate(assignment.endDate)}` : ''}</small>
+                                </div>
+                                <span className={`tag ${assignment.active ? 'active' : 'blocked'}`}>{assignment.active ? 'Ativo' : 'Inativo'}</span>
+                              </article>
+                            )
+                          })
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="panel-header">
+                        <div>
+                          <p className="eyebrow">Novo vinculo</p>
+                          <h3>Adicionar contrato / setor</h3>
+                        </div>
+                      </div>
+                      {canManageCatalog ? (
+                        <form className="form-grid" onSubmit={handleEmployeeAssignmentSubmit}>
+                          <select value={employeeAssignmentForm.businessUnitId || selectedBusinessUnitId} onChange={(event) => {
+                            const value = event.target.value
+                            setSelectedBusinessUnitId(value)
+                            setEmployeeAssignmentForm((current) => ({ ...current, businessUnitId: value, businessSectorId: '' }))
+                          }}>
+                            <option value="">Selecione um contrato / negocio</option>
+                            {businessUnits.map((unit) => (
+                              <option key={unit.id} value={unit.id}>{unit.name} - {translateBusinessUnitType(unit.type)}</option>
+                            ))}
+                          </select>
+                          <select value={employeeAssignmentForm.businessSectorId} onChange={(event) => setEmployeeAssignmentForm((current) => ({ ...current, businessSectorId: event.target.value }))}>
+                            <option value="">Setor opcional</option>
+                            {businessSectors.map((sector) => (
+                              <option key={sector.id} value={sector.id}>{sector.name}{sector.code ? ` (${sector.code})` : ''}</option>
+                            ))}
+                          </select>
+                          <select value={selectedEmployeeId} onChange={(event) => setSelectedEmployeeId(event.target.value)}>
+                            <option value="">Selecione um funcionario</option>
+                            {summary.hr.employees.map((employee) => (
+                              <option key={employee.id} value={employee.id}>{employee.fullName} - {employee.employeeCode}</option>
+                            ))}
+                          </select>
+                          <input placeholder="Funcao / titulo" value={employeeAssignmentForm.roleTitle} onChange={(event) => setEmployeeAssignmentForm((current) => ({ ...current, roleTitle: event.target.value }))} />
+                          <input type="date" value={employeeAssignmentForm.startDate} onChange={(event) => setEmployeeAssignmentForm((current) => ({ ...current, startDate: event.target.value }))} />
+                          <input type="date" value={employeeAssignmentForm.endDate} onChange={(event) => setEmployeeAssignmentForm((current) => ({ ...current, endDate: event.target.value }))} />
+                          <input placeholder="Observacoes" value={employeeAssignmentForm.notes} onChange={(event) => setEmployeeAssignmentForm((current) => ({ ...current, notes: event.target.value }))} />
+                          <label className="toggle-row" style={{ justifyContent: 'space-between' }}>
+                            <span>Ativo</span>
+                            <input type="checkbox" checked={employeeAssignmentForm.active} onChange={(event) => setEmployeeAssignmentForm((current) => ({ ...current, active: event.target.checked }))} />
+                          </label>
+                          <div className="button-row">
+                            <button type="submit">Vincular funcionario</button>
+                          </div>
+                        </form>
+                      ) : (
+                        <p className="panel-note">Seu perfil nao tem permissao para criar vinculos.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </section>
+            ) : null}
+
+            {activeDashboardSection === 'sec-setorizacao' ? (
+              <section className="panel dashboard-section-shell" id="sec-setorizacao">
+                <div className="panel-header">
+                  <div>
+                    <p className="eyebrow">Setorização</p>
+                    <h3>Contratos, setores e vínculos sem ID manual</h3>
+                  </div>
+                </div>
+                <p className="panel-note">Aqui você administra os contratos e a divisão interna por setores. Os vínculos de funcionário usam seleção por nome/código, não IDs.</p>
+                <div className="subpanel-grid hr-summary-grid">
+                  <div>
+                    <div className="panel-header">
+                      <div>
+                        <p className="eyebrow">Contrato / negocio</p>
+                        <h3>Novo contrato</h3>
+                      </div>
+                    </div>
+                    {canManageCatalog ? (
+                      <form className="form-grid" onSubmit={handleBusinessUnitSubmit}>
+                        <input required placeholder="Nome do contrato ou negocio" value={businessUnitForm.name} onChange={(event) => setBusinessUnitForm((current) => ({ ...current, name: event.target.value }))} />
+                        <select value={businessUnitForm.type} onChange={(event) => setBusinessUnitForm((current) => ({ ...current, type: event.target.value as BusinessUnitType }))}>
+                          {businessUnitTypeOptions.map((type) => <option key={type} value={type}>{translateBusinessUnitType(type)}</option>)}
+                        </select>
+                        <input placeholder="CNPJ" value={businessUnitForm.cnpj} onChange={(event) => setBusinessUnitForm((current) => ({ ...current, cnpj: event.target.value }))} />
+                        <input placeholder="Observacoes" value={businessUnitForm.notes} onChange={(event) => setBusinessUnitForm((current) => ({ ...current, notes: event.target.value }))} />
+                        <label className="toggle-row" style={{ justifyContent: 'space-between' }}>
+                          <span>Ativo</span>
+                          <input type="checkbox" checked={businessUnitForm.active} onChange={(event) => setBusinessUnitForm((current) => ({ ...current, active: event.target.checked }))} />
+                        </label>
+                        <div className="button-row">
+                          <button type="submit">Salvar contrato</button>
+                        </div>
+                      </form>
+                    ) : null}
+                    <div className="list" style={{ marginTop: 12 }}>
+                      {businessUnits.map((unit) => (
+                        <article className="list-row" key={unit.id}>
+                          <div>
+                            <strong>{unit.name}</strong>
+                            <small>{translateBusinessUnitType(unit.type)}{unit.cnpj ? ` | CNPJ ${unit.cnpj}` : ''}{unit.notes ? ` | ${unit.notes}` : ''}</small>
+                          </div>
+                          <div className="row-actions">
+                            <span className={`tag ${unit.active ? 'active' : 'blocked'}`}>{unit.active ? 'Ativo' : 'Inativo'}</span>
+                            <button className="ghost-button" onClick={() => { setSelectedBusinessUnitId(String(unit.id)); setActiveDashboardSection('sec-setorizacao') }} type="button">Setores</button>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="panel-header">
+                      <div>
+                        <p className="eyebrow">Setores</p>
+                        <h3>{selectedBusinessUnit ? selectedBusinessUnit.name : 'Selecione um contrato'}</h3>
+                      </div>
+                    </div>
+                    {canManageCatalog ? (
+                      <form className="form-grid" onSubmit={handleBusinessSectorSubmit}>
+                        <input required placeholder="Nome do setor" value={businessSectorForm.name} onChange={(event) => setBusinessSectorForm((current) => ({ ...current, name: event.target.value }))} />
+                        <input placeholder="Codigo interno" value={businessSectorForm.code} onChange={(event) => setBusinessSectorForm((current) => ({ ...current, code: event.target.value }))} />
+                        <input placeholder="Observacoes" value={businessSectorForm.notes} onChange={(event) => setBusinessSectorForm((current) => ({ ...current, notes: event.target.value }))} />
+                        <label className="toggle-row" style={{ justifyContent: 'space-between' }}>
+                          <span>Ativo</span>
+                          <input type="checkbox" checked={businessSectorForm.active} onChange={(event) => setBusinessSectorForm((current) => ({ ...current, active: event.target.checked }))} />
+                        </label>
+                        <div className="button-row">
+                          <button type="submit">Salvar setor</button>
+                        </div>
+                      </form>
+                    ) : null}
+                    <div className="list" style={{ marginTop: 12 }}>
+                      {businessSectors.length === 0 ? (
+                        <article className="list-row">
+                          <div>
+                            <strong>Nenhum setor carregado</strong>
+                            <small>Selecione ou crie um contrato para listar os setores.</small>
+                          </div>
+                        </article>
+                      ) : businessSectors.map((sector) => (
+                        <article className="list-row" key={sector.id}>
+                          <div>
+                            <strong>{sector.name}</strong>
+                            <small>{sector.code ? `Codigo ${sector.code}` : 'Sem codigo'}{sector.notes ? ` | ${sector.notes}` : ''}</small>
+                          </div>
+                          <span className={`tag ${sector.active ? 'active' : 'blocked'}`}>{sector.active ? 'Ativo' : 'Inativo'}</span>
+                        </article>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </section>
             ) : null}
 
             {activeDashboardSection === 'sec-frota' && fleetReport ? (
