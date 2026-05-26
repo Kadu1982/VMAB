@@ -209,6 +209,7 @@ Observacao para esta VPS:
 - o VMAB nao deve subir um Caddy proprio se `saude_nginx` ja estiver usando `80/443`;
 - os servicos `backend` e `dashboard-web` devem entrar na rede compartilhada `saude_saude_network`;
 - os aliases esperados sao `vmab-backend` e `vmab-dashboard`.
+- o banco do VMAB deve ser acessado por `vmab-postgres`, nao por `postgres`, para nao colidir com a outra stack.
 
 Fluxo de producao esperado:
 - `painel.axiumsistemas.com` para o frontend;

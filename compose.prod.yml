@@ -16,6 +16,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    networks:
+      default: {}
+      shared_proxy:
+        aliases:
+          - vmab-postgres
 
   backend:
     build:
@@ -23,7 +28,7 @@ services:
     container_name: seguranca-backend
     restart: unless-stopped
     environment:
-      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      DB_URL: jdbc:postgresql://vmab-postgres:5432/${POSTGRES_DB}
       DB_USERNAME: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}

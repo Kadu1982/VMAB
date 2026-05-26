@@ -46,6 +46,8 @@ Para nao quebrar esse ambiente, o VMAB deve subir sem o container Caddy proprio 
 - `vmab-dashboard`
 
 Nesse cenario, o proxy externo continua sendo o `saude_nginx` existente, que encaminha as requisicoes para o VMAB.
+O banco do VMAB tambem deve usar um alias proprio na rede compartilhada:
+- `vmab-postgres`
 
 ## Observabilidade em producao
 O backend expõe endpoints uteis para verificacao operacional e monitoramento:
