@@ -166,7 +166,7 @@ const initialPrivacyForm = {
 const dashboardSectionLinks = [
   { id: 'sec-tempo-real', label: 'Tempo real', description: 'Eventos recentes e trilha operacional' },
   { id: 'sec-patrulha', label: 'Patrulha', description: 'Mapa, rota e telemetria da viatura' },
-  { id: 'sec-indicadores', label: 'Indicadores', description: 'Resumo geral da operação' },
+  { id: 'sec-dashboard', label: 'Dashboard', description: 'Resumo consolidado da operação' },
   { id: 'sec-rh', label: 'RH', description: 'Cadastros, acessos, turnos e ponto' },
   { id: 'sec-frota', label: 'Frota', description: 'Saude e manutencao das viaturas' },
   { id: 'sec-auditoria', label: 'Auditoria', description: 'Acoes criticas e rastreabilidade' },
@@ -2112,17 +2112,95 @@ function App() {
               </section>
             ) : null}
 
-            {activeDashboardSection === 'sec-indicadores' ? (
-            <section className="stats-grid dashboard-section-shell" id="sec-indicadores">
-              <article className="metric-card"><span>Moradores no cadastro</span><strong>{summary.totalResidents}</strong></article>
-              <article className="metric-card"><span>Agentes no cadastro</span><strong>{summary.totalAgents}</strong></article>
-              <article className="metric-card"><span>Agentes ativos</span><strong>{summary.activeAgents}</strong></article>
-              <article className="metric-card"><span>Viaturas disponiveis</span><strong>{summary.availableVehicles}</strong></article>
-              <article className="metric-card"><span>Turnos em operacao</span><strong>{summary.activeShifts}</strong></article>
-              <article className="metric-card"><span>Turnos atrasados</span><strong>{summary.lateShifts}</strong></article>
-              <article className="metric-card"><span>Faltas abertas</span><strong>{summary.absentShifts}</strong></article>
-              <article className="metric-card"><span>Ocorrencias abertas</span><strong>{summary.openIncidents}</strong></article>
-              <article className="metric-card"><span>Alertas de manutencao</span><strong>{summary.maintenanceAlerts}</strong></article>
+            {activeDashboardSection === 'sec-dashboard' ? (
+            <section className="panel dashboard-section-shell" id="sec-dashboard">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Dashboard</p>
+                  <h3>Resumo operacional consolidado</h3>
+                </div>
+              </div>
+              <p className="panel-note">Visão única da operação, com indicadores que ajudam a decidir agora e não só a olhar o histórico.</p>
+              <section className="stats-grid">
+                <article className="metric-card"><span>Agentes no cadastro</span><strong>{summary.totalAgents}</strong></article>
+                <article className="metric-card"><span>Agentes ativos</span><strong>{summary.activeAgents}</strong></article>
+                <article className="metric-card"><span>Viaturas disponiveis</span><strong>{summary.availableVehicles}</strong></article>
+                <article className="metric-card"><span>Turnos em operacao</span><strong>{summary.activeShifts}</strong></article>
+                <article className="metric-card"><span>Turnos atrasados</span><strong>{summary.lateShifts}</strong></article>
+                <article className="metric-card"><span>Faltas abertas</span><strong>{summary.absentShifts}</strong></article>
+                <article className="metric-card"><span>Ocorrencias abertas</span><strong>{summary.openIncidents}</strong></article>
+                <article className="metric-card"><span>Alertas de manutencao</span><strong>{summary.maintenanceAlerts}</strong></article>
+                <article className="metric-card"><span>RH com alerta</span><strong>{summary.hr.expiringSoonAlerts}</strong></article>
+              </section>
+              <div className="report-summary-grid">
+                <article className="report-insight-card">
+                  <span>Ocorrencias em aberto</span>
+                  <strong>{summary.incidents.filter((incident) => incident.status !== 'CLOSED').length}</strong>
+                  <small>Fila operacional que ainda exige resposta.</small>
+                  <div className="list" style={{ marginTop: '14px' }}>
+                    {summary.incidents.slice(0, 4).map((incident) => (
+                      <article className="list-row" key={`dashboard-incident-${incident.id}`}>
+                        <div>
+                          <strong>{translateIncidentType(incident.type)} | {incident.residentName}</strong>
+                          <small>{incident.address} | {incident.assignedAgentName ?? 'Sem agente'} | {incident.vehiclePlate ?? 'Sem viatura'}</small>
+                        </div>
+                        <span className={`tag ${incident.priority.toLowerCase()}`}>{translateIncidentPriority(incident.priority)}</span>
+                      </article>
+                    ))}
+                  </div>
+                </article>
+                <article className="report-insight-card">
+                  <span>RH e ponto</span>
+                  <strong>{summary.hr.activeEmployees} ativos | {summary.hr.checkedInNowEmployees} em ponto</strong>
+                  <small>{summary.hr.blockedEmployees} bloqueados | {summary.hr.expiringSoonAlerts} alertas de vencimento</small>
+                  <div className="list" style={{ marginTop: '14px' }}>
+                    {summary.hr.alerts.slice(0, 4).map((alert, index) => (
+                      <article className="list-row" key={`dashboard-hr-alert-${alert.employeeId}-${index}`}>
+                        <div>
+                          <strong>{alert.employeeName}</strong>
+                          <small>{alert.alertType} | vence em {alert.daysRemaining} dias{alert.message ? ` | ${alert.message}` : ''}</small>
+                        </div>
+                        <span className={`tag ${alert.daysRemaining <= 15 ? 'high' : 'medium'}`}>{alert.daysRemaining}d</span>
+                      </article>
+                    ))}
+                  </div>
+                </article>
+                <article className="report-insight-card">
+                  <span>Patrulha e frota</span>
+                  <strong>{summary.activePatrol ? `${summary.activePatrol.agentName} em rota` : 'Sem patrulha ativa'}</strong>
+                  <small>{summary.activePatrol ? `${summary.activePatrol.vehiclePlate} | ${summary.activePatrol.progressPercent.toFixed(0)}% concluido | ${summary.activePatrol.traveledKmInShift.toFixed(1)} km` : `${summary.openMaintenanceOrders} ordens abertas | ${summary.criticalMaintenanceOrders} criticas`}</small>
+                  {summary.activePatrol ? (
+                    <div className="list" style={{ marginTop: '14px' }}>
+                      <article className="list-row">
+                        <div>
+                          <strong>{summary.activePatrol.vehicleModel}</strong>
+                          <small>{summary.activePatrol.vehiclePlate} | {summary.activePatrol.vehicleCurrentKm.toLocaleString('pt-BR')} km | {translateGenericOperationalText(summary.activePatrol.vehicleStatus)}</small>
+                        </div>
+                        <span className="tag active">{summary.activePatrol.speedKmh.toFixed(0)} km/h</span>
+                      </article>
+                      <article className="list-row">
+                        <div>
+                          <strong>Atualizacao</strong>
+                          <small>{formatDate(summary.activePatrol.updatedAt)} | acuracia {summary.activePatrol.accuracyMeters.toFixed(0)} m</small>
+                        </div>
+                        <span className="tag available">Ao vivo</span>
+                      </article>
+                    </div>
+                  ) : (
+                    <div className="list" style={{ marginTop: '14px' }}>
+                      {summary.maintenanceRecords.slice(0, 3).map((record) => (
+                        <article className="list-row" key={`dashboard-maint-${record.id}`}>
+                          <div>
+                            <strong>{record.vehiclePlate}</strong>
+                            <small>{translateVehicleMaintenanceType(record.type)} | {translateVehicleMaintenanceStatus(record.status)} | {record.description}</small>
+                          </div>
+                          <span className={`tag ${record.priority.toLowerCase()}`}>{translateVehicleMaintenancePriority(record.priority)}</span>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </article>
+              </div>
             </section>
             ) : null}
 
