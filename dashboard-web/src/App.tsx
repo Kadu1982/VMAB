@@ -113,6 +113,9 @@ const initialResidentForm = {
   fullName: '',
   phoneNumber: '',
   address: '',
+  cpf: '',
+  photoUrl: '',
+  businessUnitId: '',
   referenceNote: '',
   accessPin: '',
   coercionPin: '',
@@ -210,6 +213,14 @@ function normalizeUppercaseInput(value: string) {
 function normalizeDigitsInput(value: string, maxLength?: number) {
   const digitsOnly = value.replace(/\D/g, '')
   return typeof maxLength === 'number' ? digitsOnly.slice(0, maxLength) : digitsOnly
+}
+
+function normalizeCpfInput(value: string) {
+  const digits = normalizeDigitsInput(value, 11)
+  if (digits.length <= 3) return digits
+  if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`
+  if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`
+  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`
 }
 
 function formatBrazilPhoneInput(value: string) {
@@ -940,6 +951,9 @@ function App() {
       fullName: resident.fullName,
       phoneNumber: resident.phoneNumber,
       address: resident.address,
+      cpf: resident.cpf ?? '',
+      photoUrl: resident.photoUrl ?? '',
+      businessUnitId: resident.businessUnitId != null ? String(resident.businessUnitId) : '',
       referenceNote: resident.referenceNote ?? '',
       accessPin: '',
       coercionPin: '',
@@ -1256,6 +1270,9 @@ function App() {
       fullName: residentForm.fullName,
       phoneNumber: residentForm.phoneNumber,
       address: residentForm.address,
+      cpf: residentForm.cpf || null,
+      photoUrl: residentForm.photoUrl || null,
+      businessUnitId: residentForm.businessUnitId ? Number(residentForm.businessUnitId) : null,
       referenceNote: residentForm.referenceNote || null,
       accessPin: residentForm.accessPin || null,
       coercionPin: residentForm.coercionPin || null,
@@ -2232,7 +2249,8 @@ function App() {
                       <article className="list-row" key={employee.id}>
                         <div>
                           <strong>{employee.fullName}</strong>
-                          <small>{employee.employeeCode} | {translateHrEmployeeCategory(employee.category)} | CNH {employee.cnhCategory ?? 'nao informada'} {employee.cnhExpiry ? `ate ${formatOptionalDate(employee.cnhExpiry)}` : ''}</small>
+                          <small>{employee.employeeCode} | {translateHrEmployeeCategory(employee.category)} | CPF {employee.documentNumber ?? 'nao informado'}</small>
+                          <small>{employee.address ?? 'Endereco nao informado'} | CNH {employee.cnhCategory ?? 'nao informada'} {employee.cnhExpiry ? `ate ${formatOptionalDate(employee.cnhExpiry)}` : ''}</small>
                           <small>{employee.linkedAgentName ? `Vinculado ao vigilante ${employee.linkedAgentName}` : 'Sem vinculo operacional'}</small>
                         </div>
                         <div className="row-actions">
@@ -2603,6 +2621,9 @@ function App() {
                     <input required placeholder="Nome completo" value={residentForm.fullName} onChange={(event) => setResidentForm((current) => ({ ...current, fullName: event.target.value }))} />
                     <input required inputMode="tel" placeholder="Telefone" value={residentForm.phoneNumber} onChange={(event) => setResidentForm((current) => ({ ...current, phoneNumber: formatBrazilPhoneInput(event.target.value) }))} />
                     <input required placeholder="Endereco" value={residentForm.address} onChange={(event) => setResidentForm((current) => ({ ...current, address: event.target.value }))} />
+                    <input placeholder="CPF" inputMode="numeric" value={residentForm.cpf} onChange={(event) => setResidentForm((current) => ({ ...current, cpf: normalizeCpfInput(event.target.value) }))} />
+                    <input placeholder="URL da foto" value={residentForm.photoUrl} onChange={(event) => setResidentForm((current) => ({ ...current, photoUrl: event.target.value }))} />
+                    <input placeholder="Contrato / unidade (ID)" inputMode="numeric" value={residentForm.businessUnitId} onChange={(event) => setResidentForm((current) => ({ ...current, businessUnitId: normalizeDigitsInput(event.target.value) }))} />
                     <input placeholder="Observacao / referencia" value={residentForm.referenceNote} onChange={(event) => setResidentForm((current) => ({ ...current, referenceNote: event.target.value }))} />
                     <input placeholder="PIN de acesso (4 a 6 digitos)" inputMode="numeric" maxLength={6} value={residentForm.accessPin} onChange={(event) => setResidentForm((current) => ({ ...current, accessPin: normalizeDigitsInput(event.target.value, 6) }))} />
                     <input placeholder="PIN de coacao (4 a 6 digitos)" inputMode="numeric" maxLength={6} value={residentForm.coercionPin} onChange={(event) => setResidentForm((current) => ({ ...current, coercionPin: normalizeDigitsInput(event.target.value, 6) }))} />
@@ -2620,7 +2641,8 @@ function App() {
                       <article className="list-row" key={resident.id}>
                         <div>
                           <strong>{resident.fullName}</strong>
-                          <small>{resident.phoneNumber} | {resident.address} | acesso {resident.accessPinConfigured ? 'configurado' : 'pendente'} | coacao {resident.coercionPinConfigured ? 'configurado' : 'pendente'}</small>
+                          <small>{resident.phoneNumber} | {resident.address} | CPF {resident.cpf ?? 'nao informado'} | contrato {resident.businessUnitId ?? 'nao informado'}</small>
+                          <small>acesso {resident.accessPinConfigured ? 'configurado' : 'pendente'} | coacao {resident.coercionPinConfigured ? 'configurado' : 'pendente'}</small>
                         </div>
                       <div className="row-actions">
                         <span className={`tag ${resident.status.toLowerCase()}`}>{translateResidentStatus(resident.status)}</span>

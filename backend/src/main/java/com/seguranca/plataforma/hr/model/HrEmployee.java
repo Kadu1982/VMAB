@@ -41,6 +41,9 @@ public class HrEmployee {
     @Column(name = "document_number")
     private String documentNumber;
 
+    @Column(name = "address")
+    private String address;
+
     @Column(name = "phone_number")
     private String phoneNumber;
 
@@ -140,11 +143,37 @@ public class HrEmployee {
             Long linkedAppUserId,
             boolean pointEnabled
     ) {
+        this(employeeCode, fullName, category, status, documentNumber, null, phoneNumber, email, photoUrl, cnhCategory, cnhExpiry, medicalExamExpiry, trainingExpiry, trainingNotes, documentNotes, hireDate, terminationDate, linkedAgentId, linkedAppUserId, pointEnabled);
+    }
+
+    public HrEmployee(
+            String employeeCode,
+            String fullName,
+            HrEmployeeCategory category,
+            HrEmployeeStatus status,
+            String documentNumber,
+            String address,
+            String phoneNumber,
+            String email,
+            String photoUrl,
+            String cnhCategory,
+            LocalDate cnhExpiry,
+            LocalDate medicalExamExpiry,
+            LocalDate trainingExpiry,
+            String trainingNotes,
+            String documentNotes,
+            LocalDate hireDate,
+            LocalDate terminationDate,
+            Long linkedAgentId,
+            Long linkedAppUserId,
+            boolean pointEnabled
+    ) {
         this.employeeCode = employeeCode;
         this.fullName = fullName;
         this.category = category;
         this.status = status;
         this.documentNumber = documentNumber;
+        this.address = address;
         this.phoneNumber = phoneNumber;
         this.email = email;
         this.photoUrl = photoUrl;
@@ -179,6 +208,7 @@ public class HrEmployee {
                 agent.getFullName(),
                 HrEmployeeCategory.VIGILANTE,
                 agent.getStatus() == AgentStatus.BLOCKED ? HrEmployeeStatus.BLOCKED : HrEmployeeStatus.ACTIVE,
+                null,
                 null,
                 null,
                 null,
@@ -221,6 +251,10 @@ public class HrEmployee {
 
     public String getDocumentNumber() {
         return documentNumber;
+    }
+
+    public String getAddress() {
+        return address;
     }
 
     public String getPhoneNumber() {
@@ -344,11 +378,37 @@ public class HrEmployee {
             Long linkedAppUserId,
             boolean pointEnabled
     ) {
+        updateProfile(employeeCode, fullName, category, status, documentNumber, null, phoneNumber, email, photoUrl, cnhCategory, cnhExpiry, medicalExamExpiry, trainingExpiry, trainingNotes, documentNotes, hireDate, terminationDate, linkedAgentId, linkedAppUserId, pointEnabled);
+    }
+
+    public void updateProfile(
+            String employeeCode,
+            String fullName,
+            HrEmployeeCategory category,
+            HrEmployeeStatus status,
+            String documentNumber,
+            String address,
+            String phoneNumber,
+            String email,
+            String photoUrl,
+            String cnhCategory,
+            LocalDate cnhExpiry,
+            LocalDate medicalExamExpiry,
+            LocalDate trainingExpiry,
+            String trainingNotes,
+            String documentNotes,
+            LocalDate hireDate,
+            LocalDate terminationDate,
+            Long linkedAgentId,
+            Long linkedAppUserId,
+            boolean pointEnabled
+    ) {
         this.employeeCode = employeeCode;
         this.fullName = fullName;
         this.category = category;
         this.status = status;
         this.documentNumber = documentNumber;
+        this.address = address;
         this.phoneNumber = phoneNumber;
         this.email = email;
         this.photoUrl = photoUrl;

@@ -41,6 +41,9 @@ export interface Resident {
   fullName: string
   phoneNumber: string
   address: string
+  cpf?: string | null
+  photoUrl?: string | null
+  businessUnitId?: number | null
   referenceNote?: string | null
   status: ResidentStatus
   accessPinConfigured?: boolean
@@ -200,6 +203,7 @@ export interface HrEmployee {
   category: HrEmployeeCategory
   status: HrEmployeeStatus
   documentNumber?: string | null
+  address?: string | null
   phoneNumber?: string | null
   email?: string | null
   photoUrl?: string | null
@@ -230,6 +234,87 @@ export interface HrEmployee {
   cnhRenewalDue: boolean
   medicalExamRenewalDue: boolean
   trainingRenewalDue: boolean
+}
+
+export type BusinessUnitType = 'CONDOMINIUM' | 'NEIGHBORHOOD' | 'COMPANY' | 'OTHER'
+export type FamilyRelationshipType = 'SPOUSE' | 'PARTNER' | 'SON' | 'DAUGHTER' | 'PARENT' | 'OTHER'
+export type PersonDocumentOwnerType = 'RESIDENT' | 'EMPLOYEE' | 'RESIDENT_DEPENDENT' | 'EMPLOYEE_DEPENDENT'
+export type PersonDocumentType = 'BACKGROUND_CHECK' | 'IDENTIFICATION' | 'PROOF_OF_ADDRESS' | 'MEDICAL_EXAM' | 'OTHER'
+
+export interface BusinessUnit {
+  id: number
+  name: string
+  type: BusinessUnitType
+  cnpj?: string | null
+  active: boolean
+  notes?: string | null
+}
+
+export interface BusinessSector {
+  id: number
+  businessUnitId: number
+  name: string
+  code?: string | null
+  active: boolean
+  notes?: string | null
+}
+
+export interface ResidentDependent {
+  id: number
+  residentId: number
+  fullName: string
+  cpf?: string | null
+  phoneNumber?: string | null
+  relationship: FamilyRelationshipType
+  accessEnabled: boolean
+  appEnabled: boolean
+  notes?: string | null
+}
+
+export interface ResidentVehicle {
+  id: number
+  residentId: number
+  plate: string
+  model?: string | null
+  color?: string | null
+  active: boolean
+  notes?: string | null
+}
+
+export interface HrEmployeeAssignment {
+  id: number
+  employeeId: number
+  businessUnitId: number
+  businessSectorId?: number | null
+  roleTitle?: string | null
+  startDate?: string | null
+  endDate?: string | null
+  active: boolean
+  notes?: string | null
+}
+
+export interface HrEmployeeDependent {
+  id: number
+  employeeId: number
+  fullName: string
+  cpf?: string | null
+  phoneNumber?: string | null
+  relationship: FamilyRelationshipType
+  notes?: string | null
+}
+
+export interface PersonDocument {
+  id: number
+  ownerType: PersonDocumentOwnerType
+  ownerId: number
+  documentType: PersonDocumentType
+  originalFilename: string
+  storedFilename: string
+  contentType?: string | null
+  fileSizeBytes: number
+  notes?: string | null
+  uploadedBy: string
+  uploadedAt: string
 }
 
 export interface HrEmployeeAlert {

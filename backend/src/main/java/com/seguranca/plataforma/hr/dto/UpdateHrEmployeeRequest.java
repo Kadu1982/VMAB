@@ -12,6 +12,7 @@ public record UpdateHrEmployeeRequest(
         @NotNull HrEmployeeCategory category,
         @NotNull HrEmployeeStatus status,
         String documentNumber,
+        String address,
         String phoneNumber,
         String email,
         String photoUrl,

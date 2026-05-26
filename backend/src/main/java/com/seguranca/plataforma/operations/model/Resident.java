@@ -27,6 +27,15 @@ public class Resident {
     @Column(nullable = false)
     private String address;
 
+    @Column
+    private String cpf;
+
+    @Column(name = "photo_url")
+    private String photoUrl;
+
+    @Column(name = "business_unit_id")
+    private Long businessUnitId;
+
     @Column(name = "reference_note")
     private String referenceNote;
 
@@ -54,9 +63,27 @@ public class Resident {
             String accessPinHash,
             String coercionPinHash
     ) {
+        this(fullName, phoneNumber, address, null, null, null, referenceNote, status, accessPinHash, coercionPinHash);
+    }
+
+    public Resident(
+            String fullName,
+            String phoneNumber,
+            String address,
+            String cpf,
+            String photoUrl,
+            Long businessUnitId,
+            String referenceNote,
+            ResidentStatus status,
+            String accessPinHash,
+            String coercionPinHash
+    ) {
         this.fullName = fullName;
         this.phoneNumber = phoneNumber;
         this.address = address;
+        this.cpf = cpf;
+        this.photoUrl = photoUrl;
+        this.businessUnitId = businessUnitId;
         this.referenceNote = referenceNote;
         this.status = status;
         this.accessPinHash = accessPinHash;
@@ -77,6 +104,18 @@ public class Resident {
 
     public String getAddress() {
         return address;
+    }
+
+    public String getCpf() {
+        return cpf;
+    }
+
+    public String getPhotoUrl() {
+        return photoUrl;
+    }
+
+    public Long getBusinessUnitId() {
+        return businessUnitId;
     }
 
     public String getReferenceNote() {
@@ -114,9 +153,27 @@ public class Resident {
             String accessPinHash,
             String coercionPinHash
     ) {
+        update(fullName, phoneNumber, address, null, null, null, referenceNote, status, accessPinHash, coercionPinHash);
+    }
+
+    public void update(
+            String fullName,
+            String phoneNumber,
+            String address,
+            String cpf,
+            String photoUrl,
+            Long businessUnitId,
+            String referenceNote,
+            ResidentStatus status,
+            String accessPinHash,
+            String coercionPinHash
+    ) {
         this.fullName = fullName;
         this.phoneNumber = phoneNumber;
         this.address = address;
+        this.cpf = cpf;
+        this.photoUrl = photoUrl;
+        this.businessUnitId = businessUnitId;
         this.referenceNote = referenceNote;
         this.status = status;
         this.accessPinHash = accessPinHash;
