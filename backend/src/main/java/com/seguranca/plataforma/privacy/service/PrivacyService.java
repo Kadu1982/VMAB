@@ -436,10 +436,9 @@ public class PrivacyService {
         snapshot.put("badgeCode", agent.getBadgeCode());
         snapshot.put("cnhCategory", agent.getCnhCategory());
         snapshot.put("cnhExpiry", agent.getCnhExpiry());
+        snapshot.put("birthDate", agent.getBirthDate());
         snapshot.put("status", agent.getStatus().name());
         snapshot.put("photoUrl", agent.getPhotoUrl());
-        snapshot.put("medicalExamExpiry", agent.getMedicalExamExpiry());
-        snapshot.put("workExamsExpiry", agent.getWorkExamsExpiry());
         snapshot.put("documentNotes", agent.getDocumentNotes());
         return snapshot;
     }

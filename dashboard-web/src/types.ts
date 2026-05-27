@@ -29,8 +29,7 @@ export interface Agent {
   badgeCode: string
   cnhCategory: string
   cnhExpiry: string
-  medicalExamExpiry?: string | null
-  workExamsExpiry?: string | null
+  birthDate?: string | null
   documentNotes?: string | null
   status: AgentStatus
   photoUrl?: string | null

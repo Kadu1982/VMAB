@@ -129,7 +129,7 @@ class OperationsServiceIncidentWorkflowTests {
                 null
         );
         ReflectionTestUtils.setField(incident, "id", 11L);
-        Agent agent = new Agent("Carlos", "CR-007", "B", LocalDate.now().plusYears(1), AgentStatus.ON_DUTY, null, null, null, null);
+        Agent agent = new Agent("Carlos", "CR-007", "B", LocalDate.now().plusYears(1), null, AgentStatus.ON_DUTY, null, null);
         ReflectionTestUtils.setField(agent, "id", 7L);
         Vehicle vehicle = new Vehicle(
                 "ABC1D23",

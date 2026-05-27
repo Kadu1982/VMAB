@@ -10,10 +10,9 @@ public record UpdateAgentRequest(
         @NotBlank String badgeCode,
         @NotBlank String cnhCategory,
         @NotNull LocalDate cnhExpiry,
+        LocalDate birthDate,
         @NotNull AgentStatus status,
         String photoUrl,
-        LocalDate medicalExamExpiry,
-        LocalDate workExamsExpiry,
         String documentNotes
 ) {
 }

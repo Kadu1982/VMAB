@@ -64,10 +64,9 @@ class HrServiceTests {
                 "ALPHA-01",
                 "AB",
                 LocalDate.now().plusDays(40),
+                null,
                 AgentStatus.ACTIVE,
                 "https://example.com/foto.png",
-                LocalDate.now().plusDays(20),
-                LocalDate.now().plusDays(15),
                 "Observacao inicial"
         );
 

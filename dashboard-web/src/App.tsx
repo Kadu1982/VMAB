@@ -82,9 +82,8 @@ const initialAgentForm = {
   badgeCode: '',
   cnhCategory: '',
   cnhExpiry: '',
+  birthDate: '',
   photoUrl: '',
-  medicalExamExpiry: '',
-  workExamsExpiry: '',
   documentNotes: '',
   status: 'ACTIVE' as AgentStatus,
 }
@@ -93,11 +92,6 @@ const initialVehicleForm = {
   plate: '',
   model: '',
   currentKm: '',
-  nextMaintenanceKm: '',
-  ipvaExpiry: '',
-  licensingExpiry: '',
-  insuranceExpiry: '',
-  lastMaintenanceAt: '',
   maintenanceNotes: '',
   status: 'AVAILABLE' as VehicleStatus,
 }
@@ -123,7 +117,6 @@ const initialResidentForm = {
   businessUnitId: '',
   referenceNote: '',
   accessPin: '',
-  coercionPin: '',
   status: 'ACTIVE' as ResidentStatus,
 }
 
@@ -717,6 +710,7 @@ function App() {
   const [auditPeriodDays, setAuditPeriodDays] = useState(30)
   const [auditIncludeAuth, setAuditIncludeAuth] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const workspaceScrollRef = useRef<HTMLElement | null>(null)
 
   // Deriva os escopos reais do usuario para nao exibir acoes que o backend vai negar.
   const isClient = currentRoles.includes('ROLE_CLIENT')
@@ -950,6 +944,11 @@ function App() {
   }, [authenticated, session])
 
   useEffect(() => {
+    workspaceScrollRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }, [activeDashboardSection])
+
+  useEffect(() => {
     // Usa SSE quando disponivel para reduzir atraso operacional no painel sem depender so de polling.
     if (!authenticated || !session?.accessToken || typeof window === 'undefined' || typeof EventSource === 'undefined') {
       return
@@ -1021,9 +1020,8 @@ function App() {
       badgeCode: agent.badgeCode,
       cnhCategory: agent.cnhCategory,
       cnhExpiry: agent.cnhExpiry,
+      birthDate: agent.birthDate ?? '',
       photoUrl: agent.photoUrl ?? '',
-      medicalExamExpiry: agent.medicalExamExpiry ?? '',
-      workExamsExpiry: agent.workExamsExpiry ?? '',
       documentNotes: agent.documentNotes ?? '',
       status: agent.status,
     })
@@ -1046,11 +1044,6 @@ function App() {
       plate: vehicle.plate,
       model: vehicle.model,
       currentKm: String(vehicle.currentKm),
-      nextMaintenanceKm: String(vehicle.nextMaintenanceKm),
-      ipvaExpiry: vehicle.ipvaExpiry ?? '',
-      licensingExpiry: vehicle.licensingExpiry ?? '',
-      insuranceExpiry: vehicle.insuranceExpiry ?? '',
-      lastMaintenanceAt: vehicle.lastMaintenanceAt ?? '',
       maintenanceNotes: vehicle.maintenanceNotes ?? '',
       status: vehicle.status,
     })
@@ -1067,7 +1060,6 @@ function App() {
       businessUnitId: resident.businessUnitId != null ? String(resident.businessUnitId) : '',
       referenceNote: resident.referenceNote ?? '',
       accessPin: '',
-      coercionPin: '',
       status: resident.status,
     })
   }
@@ -1301,9 +1293,8 @@ function App() {
             badgeCode: agentForm.badgeCode,
             cnhCategory: agentForm.cnhCategory,
             cnhExpiry: agentForm.cnhExpiry,
+            birthDate: agentForm.birthDate || null,
             photoUrl: agentForm.photoUrl || null,
-            medicalExamExpiry: agentForm.medicalExamExpiry || null,
-            workExamsExpiry: agentForm.workExamsExpiry || null,
             documentNotes: agentForm.documentNotes || null,
           }
         : agentForm
@@ -1349,11 +1340,6 @@ function App() {
       plate: vehicleForm.plate,
       model: vehicleForm.model,
       currentKm: Number(vehicleForm.currentKm),
-      nextMaintenanceKm: Number(vehicleForm.nextMaintenanceKm),
-      ipvaExpiry: vehicleForm.ipvaExpiry || null,
-      licensingExpiry: vehicleForm.licensingExpiry || null,
-      insuranceExpiry: vehicleForm.insuranceExpiry || null,
-      lastMaintenanceAt: vehicleForm.lastMaintenanceAt || null,
       maintenanceNotes: vehicleForm.maintenanceNotes || null,
     }
     const payload = editingVehicleId === null ? basePayload : { ...basePayload, status: vehicleForm.status }
@@ -1394,7 +1380,6 @@ function App() {
       businessUnitId: residentForm.businessUnitId ? Number(residentForm.businessUnitId) : null,
       referenceNote: residentForm.referenceNote || null,
       accessPin: residentForm.accessPin || null,
-      coercionPin: residentForm.coercionPin || null,
     }
     const payload = editingResidentId === null ? basePayload : { ...basePayload, status: residentForm.status }
     await saveEntity(path, method, payload, 'Nao foi possivel salvar o morador.', resetResidentForm)
@@ -1956,7 +1941,7 @@ function App() {
           </div>
         </aside>
 
-        <main className="workspace">
+        <main className="workspace" ref={workspaceScrollRef}>
           <header className="hero">
             <div>
               <p className="eyebrow">Portal</p>
@@ -2175,7 +2160,7 @@ function App() {
         </div>
       </aside>
 
-      <main className="workspace">
+      <main className="workspace" ref={workspaceScrollRef}>
         <header className="hero">
           <div>
             <p className="eyebrow">Painel</p>
@@ -2734,6 +2719,82 @@ function App() {
                   </div>
                 </div>
                 <p className="panel-note">Snapshot calculado pelo backend a partir das viaturas, checklists e ordens de servico em aberto.</p>
+                {canManageCatalog ? (
+                  <div className="panel" style={{ marginTop: 16 }}>
+                    <div className="panel-header">
+                      <div>
+                        <p className="eyebrow">Cadastro</p>
+                        <h3>{editingVehicleId === null ? 'Viaturas ativas' : 'Editar viatura'}</h3>
+                      </div>
+                    </div>
+                    <p className="panel-note">Cadastre, edite e acompanhe manutencao da frota.</p>
+                    <form className="form-grid" onSubmit={handleVehicleSubmit}>
+                      <input required placeholder="Placa" value={vehicleForm.plate} onChange={(event) => setVehicleForm((current) => ({ ...current, plate: normalizeUppercaseInput(event.target.value) }))} />
+                      <input required placeholder="Modelo" value={vehicleForm.model} onChange={(event) => setVehicleForm((current) => ({ ...current, model: event.target.value }))} />
+                      <input required min="0" inputMode="numeric" type="number" placeholder="KM atual" value={vehicleForm.currentKm} onChange={(event) => setVehicleForm((current) => ({ ...current, currentKm: event.target.value }))} />
+                      <input placeholder="Observacoes de manutencao / documentos" value={vehicleForm.maintenanceNotes} onChange={(event) => setVehicleForm((current) => ({ ...current, maintenanceNotes: event.target.value }))} />
+                      <select value={vehicleForm.status} onChange={(event) => setVehicleForm((current) => ({ ...current, status: event.target.value as VehicleStatus }))}>
+                        {vehicleStatusOptions.map((status) => <option key={status} value={status}>{translateVehicleStatus(status)}</option>)}
+                      </select>
+                      <div className="button-row">
+                        <button type="submit">{editingVehicleId === null ? 'Cadastrar viatura' : 'Salvar viatura'}</button>
+                        {editingVehicleId !== null ? <button className="secondary-button" onClick={resetVehicleForm} type="button">Cancelar</button> : null}
+                      </div>
+                    </form>
+                    <div className="list">
+                      {summary.vehicles.map((vehicle) => (
+                        <article className="list-row" key={vehicle.id}>
+                          <div>
+                            <strong>{vehicle.model}</strong>
+                            <small>{vehicle.plate} | {vehicle.currentKm.toLocaleString('pt-BR')} km | revisao em {vehicle.nextMaintenanceKm.toLocaleString('pt-BR')} km | IPVA {vehicle.ipvaExpiry ?? 'nao informado'}</small>
+                          </div>
+                          <div className="row-actions">
+                            <span className={`tag ${vehicle.status.toLowerCase()}`}>{translateVehicleStatus(vehicle.status)}</span>
+                            <button className="ghost-button" onClick={() => startVehicleEdit(vehicle)} type="button">Editar</button>
+                            <button className="ghost-button danger-button" onClick={() => void handleDelete(`/api/vehicles/${vehicle.id}`, 'Deseja remover esta viatura?', resetVehicleForm)} type="button">Excluir</button>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                    <div className="list maintenance-list">
+                      {summary.maintenanceRecords.map((record: VehicleMaintenanceRecord) => (
+                        <article className="list-row" key={record.id}>
+                          <div>
+                            <strong>{translateVehicleMaintenanceType(record.type)} | {record.vehiclePlate}</strong>
+                            <small>{record.serviceDate ?? 'sem data'} | {record.kmAtService != null ? `${record.kmAtService.toLocaleString('pt-BR')} km` : 'km nao informado'} | {record.supplierName ?? 'fornecedor nao informado'} | {record.costAmount != null ? `R$ ${record.costAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'sem custo informado'}</small>
+                            <small>{record.description}</small>
+                          </div>
+                          <div className="row-actions">
+                            <span className={`tag ${record.resolved ? 'active' : 'maintenance'}`}>{record.resolved ? 'Concluida' : 'Em aberto'}</span>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                    <form className="form-grid maintenance-form" onSubmit={handleMaintenanceSubmit}>
+                      <select required value={maintenanceForm.vehicleId} onChange={(event) => setMaintenanceForm((current) => ({ ...current, vehicleId: event.target.value }))}>
+                        <option value="">Viatura da manutencao</option>
+                        {summary.vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.plate} - {vehicle.model}</option>)}
+                      </select>
+                      <select value={maintenanceForm.type} onChange={(event) => setMaintenanceForm((current) => ({ ...current, type: event.target.value as VehicleMaintenanceType }))}>
+                        {vehicleMaintenanceTypeOptions.map((type) => <option key={type} value={type}>{translateVehicleMaintenanceType(type)}</option>)}
+                      </select>
+                      <input type="date" value={maintenanceForm.serviceDate} onChange={(event) => setMaintenanceForm((current) => ({ ...current, serviceDate: event.target.value }))} />
+                      <input min="0" inputMode="numeric" type="number" placeholder="KM da manutencao" value={maintenanceForm.kmAtService} onChange={(event) => setMaintenanceForm((current) => ({ ...current, kmAtService: event.target.value }))} />
+                      <input min="0" inputMode="numeric" type="number" placeholder="Proxima revisao (km)" value={maintenanceForm.nextMaintenanceKm} onChange={(event) => setMaintenanceForm((current) => ({ ...current, nextMaintenanceKm: event.target.value }))} />
+                      <input min="0" step="0.01" inputMode="decimal" type="number" placeholder="Custo (R$)" value={maintenanceForm.costAmount} onChange={(event) => setMaintenanceForm((current) => ({ ...current, costAmount: event.target.value }))} />
+                      <input placeholder="Fornecedor / oficina" value={maintenanceForm.supplierName} onChange={(event) => setMaintenanceForm((current) => ({ ...current, supplierName: event.target.value }))} />
+                      <input required placeholder="Descricao do servico" value={maintenanceForm.description} onChange={(event) => setMaintenanceForm((current) => ({ ...current, description: event.target.value }))} />
+                      <label className="checkbox-field">
+                        <input checked={maintenanceForm.resolved} type="checkbox" onChange={(event) => setMaintenanceForm((current) => ({ ...current, resolved: event.target.checked }))} />
+                        <span>Servico concluido e viatura liberada</span>
+                      </label>
+                      <div className="button-row">
+                        <button type="submit">Registrar manutencao</button>
+                        <button className="secondary-button" onClick={resetMaintenanceForm} type="button">Limpar</button>
+                      </div>
+                    </form>
+                  </div>
+                ) : null}
                 <div className="subpanel-grid">
                   <article className="telemetry-card">
                     <span>Operacionais</span>
@@ -2975,9 +3036,14 @@ function App() {
                     <input required placeholder="Nome completo" value={agentForm.fullName} onChange={(event) => setAgentForm((current) => ({ ...current, fullName: event.target.value }))} />
                     <input required placeholder="Codigo / cracha" value={agentForm.badgeCode} onChange={(event) => setAgentForm((current) => ({ ...current, badgeCode: normalizeUppercaseInput(event.target.value) }))} />
                     <input required placeholder="Categoria CNH" value={agentForm.cnhCategory} onChange={(event) => setAgentForm((current) => ({ ...current, cnhCategory: normalizeUppercaseInput(event.target.value) }))} />
-                    <input required type="date" value={agentForm.cnhExpiry} onChange={(event) => setAgentForm((current) => ({ ...current, cnhExpiry: event.target.value }))} />
-                    <input type="date" value={agentForm.medicalExamExpiry} onChange={(event) => setAgentForm((current) => ({ ...current, medicalExamExpiry: event.target.value }))} />
-                    <input type="date" value={agentForm.workExamsExpiry} onChange={(event) => setAgentForm((current) => ({ ...current, workExamsExpiry: event.target.value }))} />
+                    <label className="field-stack">
+                      <span>Vencimento da CNH</span>
+                      <input required type="date" value={agentForm.cnhExpiry} onChange={(event) => setAgentForm((current) => ({ ...current, cnhExpiry: event.target.value }))} />
+                    </label>
+                    <label className="field-stack">
+                      <span>Data de nascimento</span>
+                      <input type="date" value={agentForm.birthDate} onChange={(event) => setAgentForm((current) => ({ ...current, birthDate: event.target.value }))} />
+                    </label>
                     <input placeholder="URL da foto do vigilante" value={agentForm.photoUrl} onChange={(event) => setAgentForm((current) => ({ ...current, photoUrl: event.target.value }))} />
                     <input placeholder="Observacoes documentais" value={agentForm.documentNotes} onChange={(event) => setAgentForm((current) => ({ ...current, documentNotes: event.target.value }))} />
                     <select value={agentForm.status} onChange={(event) => setAgentForm((current) => ({ ...current, status: event.target.value as AgentStatus }))}>
@@ -2991,11 +3057,11 @@ function App() {
                 ) : null}
                 <div className="list">
                   {summary.agents.map((agent) => (
-                    <article className="list-row" key={agent.id}>
-                      <div>
-                        <strong>{agent.fullName}</strong>
-                        <small>Cracha {agent.badgeCode} | CNH {agent.cnhCategory} ate {agent.cnhExpiry} | exame medico {agent.medicalExamExpiry ?? 'nao informado'}</small>
-                      </div>
+                      <article className="list-row" key={agent.id}>
+                        <div>
+                          <strong>{agent.fullName}</strong>
+                          <small>Cracha {agent.badgeCode} | CNH {agent.cnhCategory} ate {agent.cnhExpiry} | nascimento {agent.birthDate ?? 'nao informado'}</small>
+                        </div>
                       <div className="row-actions">
                         <span className={`tag ${agent.status.toLowerCase()}`}>{translateAgentStatus(agent.status)}</span>
                         {canManageCatalog ? <button className="ghost-button" onClick={() => startAgentEdit(agent)} type="button">Editar</button> : null}
@@ -3026,7 +3092,6 @@ function App() {
                     <input placeholder="Contrato / unidade (ID)" inputMode="numeric" value={residentForm.businessUnitId} onChange={(event) => setResidentForm((current) => ({ ...current, businessUnitId: normalizeDigitsInput(event.target.value) }))} />
                     <input placeholder="Observacao / referencia" value={residentForm.referenceNote} onChange={(event) => setResidentForm((current) => ({ ...current, referenceNote: event.target.value }))} />
                     <input placeholder="PIN de acesso (4 a 6 digitos)" inputMode="numeric" maxLength={6} value={residentForm.accessPin} onChange={(event) => setResidentForm((current) => ({ ...current, accessPin: normalizeDigitsInput(event.target.value, 6) }))} />
-                    <input placeholder="PIN de coacao (4 a 6 digitos)" inputMode="numeric" maxLength={6} value={residentForm.coercionPin} onChange={(event) => setResidentForm((current) => ({ ...current, coercionPin: normalizeDigitsInput(event.target.value, 6) }))} />
                     <select value={residentForm.status} onChange={(event) => setResidentForm((current) => ({ ...current, status: event.target.value as ResidentStatus }))}>
                       {residentStatusOptions.map((status) => <option key={status} value={status}>{translateResidentStatus(status)}</option>)}
                     </select>
@@ -3042,100 +3107,12 @@ function App() {
                         <div>
                           <strong>{resident.fullName}</strong>
                           <small>{resident.phoneNumber} | {resident.address} | CPF {resident.cpf ?? 'nao informado'} | contrato {resident.businessUnitId ?? 'nao informado'}</small>
-                          <small>acesso {resident.accessPinConfigured ? 'configurado' : 'pendente'} | coacao {resident.coercionPinConfigured ? 'configurado' : 'pendente'}</small>
+                          <small>acesso {resident.accessPinConfigured ? 'configurado' : 'pendente'}</small>
                         </div>
                       <div className="row-actions">
                         <span className={`tag ${resident.status.toLowerCase()}`}>{translateResidentStatus(resident.status)}</span>
                         {canManageCatalog ? <button className="ghost-button" onClick={() => startResidentEdit(resident)} type="button">Editar</button> : null}
                         {canManageCatalog ? <button className="ghost-button danger-button" onClick={() => void handleDelete(`/api/residents/${resident.id}`, 'Deseja remover este morador?', resetResidentForm)} type="button">Excluir</button> : null}
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </section>
-              ) : null}
-
-              {activeDashboardSection === 'sec-cadastro' ? (
-              <section className="panel">
-                <div className="panel-header">
-                  <div>
-                    <p className="eyebrow">Frota</p>
-                    <h3>{editingVehicleId === null ? 'Viaturas ativas' : 'Editar viatura'}</h3>
-                  </div>
-                </div>
-                <p className="panel-note">{canManageCatalog ? 'Cadastre, edite e acompanhe manutencao da frota.' : 'Seu perfil acompanha a frota em leitura.'}</p>
-                {canManageCatalog ? (
-                  <form className="form-grid" onSubmit={handleVehicleSubmit}>
-                    <input required placeholder="Placa" value={vehicleForm.plate} onChange={(event) => setVehicleForm((current) => ({ ...current, plate: normalizeUppercaseInput(event.target.value) }))} />
-                    <input required placeholder="Modelo" value={vehicleForm.model} onChange={(event) => setVehicleForm((current) => ({ ...current, model: event.target.value }))} />
-                    <input required min="0" inputMode="numeric" type="number" placeholder="KM atual" value={vehicleForm.currentKm} onChange={(event) => setVehicleForm((current) => ({ ...current, currentKm: event.target.value }))} />
-                    <input required min="1" inputMode="numeric" type="number" placeholder="Proxima manutencao" value={vehicleForm.nextMaintenanceKm} onChange={(event) => setVehicleForm((current) => ({ ...current, nextMaintenanceKm: event.target.value }))} />
-                    <input type="date" value={vehicleForm.lastMaintenanceAt} onChange={(event) => setVehicleForm((current) => ({ ...current, lastMaintenanceAt: event.target.value }))} />
-                    <input type="date" value={vehicleForm.ipvaExpiry} onChange={(event) => setVehicleForm((current) => ({ ...current, ipvaExpiry: event.target.value }))} />
-                    <input type="date" value={vehicleForm.licensingExpiry} onChange={(event) => setVehicleForm((current) => ({ ...current, licensingExpiry: event.target.value }))} />
-                    <input type="date" value={vehicleForm.insuranceExpiry} onChange={(event) => setVehicleForm((current) => ({ ...current, insuranceExpiry: event.target.value }))} />
-                    <input placeholder="Observacoes de manutencao / documentos" value={vehicleForm.maintenanceNotes} onChange={(event) => setVehicleForm((current) => ({ ...current, maintenanceNotes: event.target.value }))} />
-                    <select value={vehicleForm.status} onChange={(event) => setVehicleForm((current) => ({ ...current, status: event.target.value as VehicleStatus }))}>
-                      {vehicleStatusOptions.map((status) => <option key={status} value={status}>{translateVehicleStatus(status)}</option>)}
-                    </select>
-                    <div className="button-row">
-                      <button type="submit">{editingVehicleId === null ? 'Cadastrar viatura' : 'Salvar viatura'}</button>
-                      {editingVehicleId !== null ? <button className="secondary-button" onClick={resetVehicleForm} type="button">Cancelar</button> : null}
-                    </div>
-                  </form>
-                ) : null}
-                {/* OS de manutencao para vincular custo, KM e liberacao da viatura ao cadastro da frota. */}
-                {canManageCatalog ? (
-                  <form className="form-grid maintenance-form" onSubmit={handleMaintenanceSubmit}>
-                    <select required value={maintenanceForm.vehicleId} onChange={(event) => setMaintenanceForm((current) => ({ ...current, vehicleId: event.target.value }))}>
-                      <option value="">Viatura da manutencao</option>
-                      {summary.vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.plate} - {vehicle.model}</option>)}
-                    </select>
-                    <select value={maintenanceForm.type} onChange={(event) => setMaintenanceForm((current) => ({ ...current, type: event.target.value as VehicleMaintenanceType }))}>
-                      {vehicleMaintenanceTypeOptions.map((type) => <option key={type} value={type}>{translateVehicleMaintenanceType(type)}</option>)}
-                    </select>
-                    <input type="date" value={maintenanceForm.serviceDate} onChange={(event) => setMaintenanceForm((current) => ({ ...current, serviceDate: event.target.value }))} />
-                    <input min="0" inputMode="numeric" type="number" placeholder="KM da manutencao" value={maintenanceForm.kmAtService} onChange={(event) => setMaintenanceForm((current) => ({ ...current, kmAtService: event.target.value }))} />
-                    <input min="0" inputMode="numeric" type="number" placeholder="Proxima revisao (km)" value={maintenanceForm.nextMaintenanceKm} onChange={(event) => setMaintenanceForm((current) => ({ ...current, nextMaintenanceKm: event.target.value }))} />
-                    <input min="0" step="0.01" inputMode="decimal" type="number" placeholder="Custo (R$)" value={maintenanceForm.costAmount} onChange={(event) => setMaintenanceForm((current) => ({ ...current, costAmount: event.target.value }))} />
-                    <input placeholder="Fornecedor / oficina" value={maintenanceForm.supplierName} onChange={(event) => setMaintenanceForm((current) => ({ ...current, supplierName: event.target.value }))} />
-                    <input required placeholder="Descricao do servico" value={maintenanceForm.description} onChange={(event) => setMaintenanceForm((current) => ({ ...current, description: event.target.value }))} />
-                    <label className="checkbox-field">
-                      <input checked={maintenanceForm.resolved} type="checkbox" onChange={(event) => setMaintenanceForm((current) => ({ ...current, resolved: event.target.checked }))} />
-                      <span>Servico concluido e viatura liberada</span>
-                    </label>
-                    <div className="button-row">
-                      <button type="submit">Registrar manutencao</button>
-                      <button className="secondary-button" onClick={resetMaintenanceForm} type="button">Limpar</button>
-                    </div>
-                  </form>
-                ) : null}
-                <div className="list">
-                  {summary.vehicles.map((vehicle) => (
-                    <article className="list-row" key={vehicle.id}>
-                      <div>
-                        <strong>{vehicle.model}</strong>
-                        <small>{vehicle.plate} | {vehicle.currentKm.toLocaleString('pt-BR')} km | revisao em {vehicle.nextMaintenanceKm.toLocaleString('pt-BR')} km | IPVA {vehicle.ipvaExpiry ?? 'nao informado'}</small>
-                      </div>
-                      <div className="row-actions">
-                        <span className={`tag ${vehicle.status.toLowerCase()}`}>{translateVehicleStatus(vehicle.status)}</span>
-                        {canManageCatalog ? <button className="ghost-button" onClick={() => startVehicleEdit(vehicle)} type="button">Editar</button> : null}
-                        {canManageCatalog ? <button className="ghost-button danger-button" onClick={() => void handleDelete(`/api/vehicles/${vehicle.id}`, 'Deseja remover esta viatura?', resetVehicleForm)} type="button">Excluir</button> : null}
-                      </div>
-                    </article>
-                  ))}
-                </div>
-                {/* Historico resumido da manutencao para consulta rapida da equipe operacional. */}
-                <div className="list maintenance-list">
-                  {summary.maintenanceRecords.map((record: VehicleMaintenanceRecord) => (
-                    <article className="list-row" key={record.id}>
-                      <div>
-                        <strong>{translateVehicleMaintenanceType(record.type)} | {record.vehiclePlate}</strong>
-                        <small>{record.serviceDate ?? 'sem data'} | {record.kmAtService != null ? `${record.kmAtService.toLocaleString('pt-BR')} km` : 'km nao informado'} | {record.supplierName ?? 'fornecedor nao informado'} | {record.costAmount != null ? `R$ ${record.costAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'sem custo informado'}</small>
-                        <small>{record.description}</small>
-                      </div>
-                      <div className="row-actions">
-                        <span className={`tag ${record.resolved ? 'active' : 'maintenance'}`}>{record.resolved ? 'Concluida' : 'Em aberto'}</span>
                       </div>
                     </article>
                   ))}

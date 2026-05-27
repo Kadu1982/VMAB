@@ -215,7 +215,7 @@ public class HrEmployee {
                 agent.getPhotoUrl(),
                 agent.getCnhCategory(),
                 agent.getCnhExpiry(),
-                agent.getMedicalExamExpiry(),
+                null,
                 null,
                 null,
                 agent.getDocumentNotes(),
@@ -430,8 +430,8 @@ public class HrEmployee {
         this.photoUrl = agent.getPhotoUrl();
         this.cnhCategory = agent.getCnhCategory();
         this.cnhExpiry = agent.getCnhExpiry();
-        this.medicalExamExpiry = agent.getMedicalExamExpiry();
-        this.trainingExpiry = agent.getWorkExamsExpiry();
+        this.medicalExamExpiry = null;
+        this.trainingExpiry = null;
         this.documentNotes = agent.getDocumentNotes();
         if (agent.getId() != null) {
             this.linkedAgentId = agent.getId();

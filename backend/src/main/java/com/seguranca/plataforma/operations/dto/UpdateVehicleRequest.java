@@ -10,7 +10,7 @@ public record UpdateVehicleRequest(
         @NotBlank String plate,
         @NotBlank String model,
         @Min(0) long currentKm,
-        @Min(1) long nextMaintenanceKm,
+        @Min(0) Long nextMaintenanceKm,
         @NotNull VehicleStatus status,
         LocalDate ipvaExpiry,
         LocalDate licensingExpiry,

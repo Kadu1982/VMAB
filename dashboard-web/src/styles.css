@@ -54,8 +54,10 @@ button {
 
 .app-shell {
   min-height: 100vh;
+  height: 100vh;
   display: grid;
   grid-template-columns: 284px minmax(0, 1fr);
+  overflow: hidden;
 }
 
 .login-shell {
@@ -122,6 +124,7 @@ button {
   top: 0;
   align-self: start;
   min-height: 100vh;
+  height: 100vh;
   padding: 22px 18px;
   border-right: 1px solid rgba(255, 255, 255, 0.08);
   background:
@@ -129,6 +132,9 @@ button {
     radial-gradient(circle at top, rgba(77, 125, 142, 0.12), transparent 32%);
   backdrop-filter: blur(10px);
   box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.02);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .sidebar h1,
@@ -245,6 +251,10 @@ button {
 .workspace {
   position: relative;
   padding: 26px 28px 40px;
+  height: 100vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .dashboard-layout {
@@ -1205,15 +1215,21 @@ button {
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 56px;
-  padding: 14px 16px;
-  border-radius: 18px;
+  min-height: 48px;
+  padding: 12px 14px;
+  border-radius: 16px;
   border: 1.5px solid rgba(200, 154, 69, 0.32);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 248, 252, 0.96));
   color: var(--muted);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.88),
     0 8px 22px rgba(32, 43, 58, 0.04);
+}
+
+.toggle-row input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--gold-strong);
 }
 
 .form-grid button,
@@ -1242,6 +1258,20 @@ button {
   width: 18px;
   height: 18px;
   accent-color: var(--gold-strong);
+}
+
+.field-stack {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+
+.field-stack span {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold-strong);
 }
 
 .login-form {
@@ -1529,13 +1559,22 @@ button {
 @media (max-width: 960px) {
   .app-shell {
     grid-template-columns: 1fr;
+    height: auto;
+    overflow: visible;
   }
 
   .sidebar {
     position: relative;
     min-height: auto;
+    height: auto;
     border-right: none;
     border-bottom: 1px solid var(--border);
+    overflow: visible;
+  }
+
+  .workspace {
+    height: auto;
+    overflow: visible;
   }
 
   .dashboard-content-centered {

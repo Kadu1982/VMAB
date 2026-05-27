@@ -162,9 +162,9 @@ public class OperationsService {
             return;
         }
 
-        Agent carlos = agentRepository.save(new Agent("Carlos Nunes", "ALPHA-01", "AB", LocalDate.now().plusYears(2), AgentStatus.ON_DUTY, "https://i.pravatar.cc/160?img=12", LocalDate.now().plusMonths(8), LocalDate.now().plusMonths(6), "Exames ocupacionais em dia"));
-        Agent marina = agentRepository.save(new Agent("Marina Luz", "BETA-02", "AB", LocalDate.now().plusYears(3), AgentStatus.ACTIVE, "https://i.pravatar.cc/160?img=32", LocalDate.now().plusMonths(10), LocalDate.now().plusMonths(7), "Apta para cobertura noturna"));
-        agentRepository.save(new Agent("Joao Prado", "SUP-01", "B", LocalDate.now().plusYears(1), AgentStatus.OFF_DUTY, null, LocalDate.now().plusMonths(4), LocalDate.now().plusMonths(5), "Necessita reciclagem semestral"));
+        Agent carlos = agentRepository.save(new Agent("Carlos Nunes", "ALPHA-01", "AB", LocalDate.now().plusYears(2), null, AgentStatus.ON_DUTY, "https://i.pravatar.cc/160?img=12", "Exames ocupacionais em dia"));
+        Agent marina = agentRepository.save(new Agent("Marina Luz", "BETA-02", "AB", LocalDate.now().plusYears(3), null, AgentStatus.ACTIVE, "https://i.pravatar.cc/160?img=32", "Apta para cobertura noturna"));
+        agentRepository.save(new Agent("Joao Prado", "SUP-01", "B", LocalDate.now().plusYears(1), null, AgentStatus.OFF_DUTY, null, "Necessita reciclagem semestral"));
         hrService.synchronizeAllAgentsSilently();
         Resident ana = residentRepository.save(new Resident(
                 "Ana Souza",
@@ -300,10 +300,9 @@ public class OperationsService {
                 request.badgeCode(),
                 request.cnhCategory(),
                 request.cnhExpiry(),
+                request.birthDate(),
                 AgentStatus.ACTIVE,
                 request.photoUrl(),
-                request.medicalExamExpiry(),
-                request.workExamsExpiry(),
                 request.documentNotes()
         );
         Agent savedAgent = agentRepository.save(agent);
@@ -320,10 +319,9 @@ public class OperationsService {
                 request.badgeCode(),
                 request.cnhCategory(),
                 request.cnhExpiry(),
+                request.birthDate(),
                 request.status(),
                 request.photoUrl(),
-                request.medicalExamExpiry(),
-                request.workExamsExpiry(),
                 request.documentNotes()
         );
         Agent savedAgent = agentRepository.save(agent);
@@ -404,6 +402,7 @@ public class OperationsService {
     @Transactional
     public Resident updateResident(Long id, UpdateResidentRequest request) {
         Resident resident = getResident(id);
+        String currentCoercionPinHash = resident.getCoercionPinHash();
         resident.update(
                 request.fullName(),
                 request.phoneNumber(),
@@ -414,7 +413,9 @@ public class OperationsService {
                 request.referenceNote(),
                 request.status(),
                 encodeResidentPin(request.accessPin(), request.phoneNumber(), false),
-                encodeResidentPin(request.coercionPin(), request.phoneNumber(), true)
+                request.coercionPin() != null
+                        ? encodeResidentPin(request.coercionPin(), request.phoneNumber(), true)
+                        : currentCoercionPinHash
         );
         Resident savedResident = residentRepository.save(resident);
         recordAudit(AuditActionType.UPDATE, "Resident", savedResident.getId(), "Atualizacao do morador " + savedResident.getFullName());
@@ -430,11 +431,12 @@ public class OperationsService {
 
     @Transactional
     public Vehicle addVehicle(CreateVehicleRequest request) {
+        long nextMaintenanceKm = request.nextMaintenanceKm() != null ? request.nextMaintenanceKm() : request.currentKm() + 10000L;
         Vehicle vehicle = new Vehicle(
                 request.plate().toUpperCase(),
                 request.model(),
                 request.currentKm(),
-                request.nextMaintenanceKm(),
+                nextMaintenanceKm,
                 VehicleStatus.AVAILABLE,
                 request.ipvaExpiry(),
                 request.licensingExpiry(),
@@ -450,11 +452,12 @@ public class OperationsService {
     @Transactional
     public Vehicle updateVehicle(Long id, UpdateVehicleRequest request) {
         Vehicle vehicle = getVehicle(id);
+        long nextMaintenanceKm = request.nextMaintenanceKm() != null ? request.nextMaintenanceKm() : vehicle.getNextMaintenanceKm();
         vehicle.update(
                 request.plate().toUpperCase(),
                 request.model(),
                 request.currentKm(),
-                request.nextMaintenanceKm(),
+                nextMaintenanceKm,
                 request.status(),
                 request.ipvaExpiry(),
                 request.licensingExpiry(),

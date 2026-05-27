@@ -30,18 +30,15 @@ public class Agent {
     @Column(name = "cnh_expiry", nullable = false)
     private LocalDate cnhExpiry;
 
+    @Column(name = "birth_date")
+    private LocalDate birthDate;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private AgentStatus status;
 
     @Column(name = "photo_url")
     private String photoUrl;
-
-    @Column(name = "medical_exam_expiry")
-    private LocalDate medicalExamExpiry;
-
-    @Column(name = "work_exams_expiry")
-    private LocalDate workExamsExpiry;
 
     @Column(name = "document_notes", length = 500)
     private String documentNotes;
@@ -54,20 +51,18 @@ public class Agent {
             String badgeCode,
             String cnhCategory,
             LocalDate cnhExpiry,
+            LocalDate birthDate,
             AgentStatus status,
             String photoUrl,
-            LocalDate medicalExamExpiry,
-            LocalDate workExamsExpiry,
             String documentNotes
     ) {
         this.fullName = fullName;
         this.badgeCode = badgeCode;
         this.cnhCategory = cnhCategory;
         this.cnhExpiry = cnhExpiry;
+        this.birthDate = birthDate;
         this.status = status;
         this.photoUrl = photoUrl;
-        this.medicalExamExpiry = medicalExamExpiry;
-        this.workExamsExpiry = workExamsExpiry;
         this.documentNotes = documentNotes;
     }
 
@@ -91,20 +86,16 @@ public class Agent {
         return cnhExpiry;
     }
 
+    public LocalDate getBirthDate() {
+        return birthDate;
+    }
+
     public AgentStatus getStatus() {
         return status;
     }
 
     public String getPhotoUrl() {
         return photoUrl;
-    }
-
-    public LocalDate getMedicalExamExpiry() {
-        return medicalExamExpiry;
-    }
-
-    public LocalDate getWorkExamsExpiry() {
-        return workExamsExpiry;
     }
 
     public String getDocumentNotes() {
@@ -116,29 +107,26 @@ public class Agent {
             String badgeCode,
             String cnhCategory,
             LocalDate cnhExpiry,
+            LocalDate birthDate,
             AgentStatus status,
             String photoUrl,
-            LocalDate medicalExamExpiry,
-            LocalDate workExamsExpiry,
             String documentNotes
     ) {
         this.fullName = fullName;
         this.badgeCode = badgeCode;
         this.cnhCategory = cnhCategory;
         this.cnhExpiry = cnhExpiry;
+        this.birthDate = birthDate;
         this.status = status;
         this.photoUrl = photoUrl;
-        this.medicalExamExpiry = medicalExamExpiry;
-        this.workExamsExpiry = workExamsExpiry;
         this.documentNotes = documentNotes;
     }
 
     public void anonymizePersonalData() {
-        // A anonimização preserva o registro operacional, mas retira os dados pessoais diretos do vigilante.
+        // A anonimizacao preserva o registro operacional, mas retira os dados pessoais diretos do vigilante.
         this.fullName = "Agente removido #" + id;
         this.photoUrl = null;
-        this.medicalExamExpiry = null;
-        this.workExamsExpiry = null;
+        this.birthDate = null;
         this.documentNotes = null;
         this.status = AgentStatus.BLOCKED;
     }
