@@ -113,15 +113,15 @@ Responsabilidades:
 
 ## Estrutura do repositorio
 
-- [backend](C:\Users\G15\Documents\SeguranÃ§a\backend): API Spring Boot com segurança, regras operacionais e persistencia
-- [dashboard-web](C:\Users\G15\Documents\SeguranÃ§a\dashboard-web): painel React/Vite para operação e supervisao
-- [ronda-mobile](C:\Users\G15\Documents\SeguranÃ§a\ronda-mobile): app Expo/React Native oficial com perfis de morador e colaborador
-- [resident-mobile](C:\Users\G15\Documents\SeguranÃ§a\resident-mobile): app legado congelado, mantido apenas como referencia tecnica do fluxo antigo do morador
-- [mvp-estatico](C:\Users\G15\Documents\SeguranÃ§a\mvp-estatico): prototipo visual de referencia
-- [compose.yml](C:\Users\G15\Documents\SeguranÃ§a\compose.yml): stack local
-- [compose.prod.yml](C:\Users\G15\Documents\SeguranÃ§a\compose.prod.yml): stack de producao
-- [DEPLOY_VPS.md](C:\Users\G15\Documents\SeguranÃ§a\DEPLOY_VPS.md): instrucoes de deploy em VPS
-- [PRD_Segurança_Comunitaria_v3.md](C:\Users\G15\Documents\SeguranÃ§a\PRD_Segurança_Comunitaria_v3.md): escopo consolidado do produto
+- [backend](C:\Users\G15\Documents\Segurança\backend): API Spring Boot com segurança, regras operacionais e persistencia
+- [dashboard-web](C:\Users\G15\Documents\Segurança\dashboard-web): painel React/Vite para operação e supervisao
+- [ronda-mobile](C:\Users\G15\Documents\Segurança\ronda-mobile): app Expo/React Native oficial com perfis de morador e colaborador
+- [resident-mobile](C:\Users\G15\Documents\Segurança\resident-mobile): app legado congelado, mantido apenas como referencia tecnica do fluxo antigo do morador
+- [mvp-estatico](C:\Users\G15\Documents\Segurança\mvp-estatico): prototipo visual de referencia
+- [compose.yml](C:\Users\G15\Documents\Segurança\compose.yml): stack local
+- [compose.prod.yml](C:\Users\G15\Documents\Segurança\compose.prod.yml): stack de producao
+- [DEPLOY_VPS.md](C:\Users\G15\Documents\Segurança\DEPLOY_VPS.md): instrucoes de deploy em VPS
+- [PRD_Segurança_Comunitaria_v3.md](C:\Users\G15\Documents\Segurança\PRD_Segurança_Comunitaria_v3.md): escopo consolidado do produto
 
 ## Credenciais de teste
 
@@ -201,9 +201,9 @@ Observacoes objetivas:
 O projeto ja esta preparado para deploy com dominio real.
 
 Arquivos principais:
-- [compose.prod.yml](C:\Users\G15\Documents\SeguranÃ§a\compose.prod.yml)
-- [.env.production.example](C:\Users\G15\Documents\SeguranÃ§a\.env.production.example)
-- [Caddyfile](C:\Users\G15\Documents\SeguranÃ§a\infra\caddy\Caddyfile)
+- [compose.prod.yml](C:\Users\G15\Documents\Segurança\compose.prod.yml)
+- [.env.production.example](C:\Users\G15\Documents\Segurança\.env.production.example)
+- [Caddyfile](C:\Users\G15\Documents\Segurança\infra\caddy\Caddyfile)
 
 Observacao para esta VPS:
 - o VMAB não deve subir um Caddy proprio se `saude_nginx` ja estiver usando `80/443`;
@@ -270,24 +270,24 @@ O que ainda falta para fechamento forte de producao:
 - endurecimento de segurança e políticas de dados.
 ## Validacoes feitas
 
-- `npm run build` em [dashboard-web](C:\Users\G15\Documents\SeguranÃ§a\dashboard-web)
-- `.\gradlew.bat compileJava bootJar -x test` em [backend](C:\Users\G15\Documents\SeguranÃ§a\backend)
-- `npx tsc --noEmit` em [ronda-mobile](C:\Users\G15\Documents\SeguranÃ§a\ronda-mobile)
+- `npm run build` em [dashboard-web](C:\Users\G15\Documents\Segurança\dashboard-web)
+- `.\gradlew.bat compileJava bootJar -x test` em [backend](C:\Users\G15\Documents\Segurança\backend)
+- `npx tsc --noEmit` em [ronda-mobile](C:\Users\G15\Documents\Segurança\ronda-mobile)
 - `docker compose config` nas stacks locais e de producao
 
 ## Observabilidade e monitoramento
 
-O backend agora expÃµe sinais Ãºteis para operaÃ§Ã£o e produÃ§Ã£o:
-- `GET /actuator/health` para verificaÃ§Ã£o simples de disponibilidade;
+O backend agora expõe sinais úteis para operação e produção:
+- `GET /actuator/health` para verificação simples de disponibilidade;
 - `GET /actuator/health/readiness` e `GET /actuator/health/liveness` para probes de container;
-- `GET /actuator/info` para metadados bÃ¡sicos da aplicaÃ§Ã£o;
-- `GET /actuator/metrics` e `GET /actuator/prometheus` para integraÃ§Ã£o com monitoramento externo;
-- `GET /actuator/loggers` para ajuste administrativo de nÃ­veis de log.
+- `GET /actuator/info` para metadados básicos da aplicação;
+- `GET /actuator/metrics` e `GET /actuator/prometheus` para integração com monitoramento externo;
+- `GET /actuator/loggers` para ajuste administrativo de níveis de log.
 
 Os logs do backend carregam:
 - `X-Correlation-Id` na resposta;
-- mÃ©todo, rota, usuÃ¡rio autenticado, IP de origem, status e duraÃ§Ã£o no contexto de log;
-- persistÃªncia em arquivo no container em `/app/logs/vmab.log`, alÃ©m da saÃ­da no console.
+- método, rota, usuário autenticado, IP de origem, status e duração no contexto de log;
+- persistência em arquivo no container em `/app/logs/vmab.log`, além da saída no console.
 
 ## Proximos passos recomendados
 
@@ -301,5 +301,4 @@ Os logs do backend carregam:
 ## Licenciamento e uso
 
 Este repositorio representa a base do produto VMAB. O valor dele não esta apenas no software, mas na capacidade de estruturar uma operação de segurança local com mais controle, prova, padronizacao e escalabilidade.
-
 

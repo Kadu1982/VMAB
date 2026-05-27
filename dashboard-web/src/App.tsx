@@ -585,7 +585,7 @@ function PatrolLiveMap({ patrol }: { patrol: NonNullable<DashboardSummary['activ
     }
 
     markerRef.current.bindPopup(
-      `<strong>${patrol.agentName}</strong><br/>${patrol.vehiclePlate} â€¢ ${patrol.vehicleModel}<br/>${patrol.speedKmh.toFixed(0)} km/h â€¢ precisao ${patrol.accuracyMeters.toFixed(0)} m`,
+      `<strong>${patrol.agentName}</strong><br/>${patrol.vehiclePlate} • ${patrol.vehicleModel}<br/>${patrol.speedKmh.toFixed(0)} km/h • precisao ${patrol.accuracyMeters.toFixed(0)} m`,
     )
 
     if (!accuracyCircleRef.current) {
@@ -1945,8 +1945,8 @@ function App() {
                         </small>
                         <small>
                           Aberta {formatDate(incident.openedAt)}
-                          {incident.dispatchedAt ? ` â€¢ despacho ${formatDate(incident.dispatchedAt)}` : ''}
-                          {incident.closedAt ? ` â€¢ encerrada ${formatDate(incident.closedAt)}` : ''}
+                          {incident.dispatchedAt ? ` • despacho ${formatDate(incident.dispatchedAt)}` : ''}
+                          {incident.closedAt ? ` • encerrada ${formatDate(incident.closedAt)}` : ''}
                         </small>
                       </div>
                       <span className={`tag ${incident.priority.toLowerCase()}`}>{translateIncidentPriority(incident.priority)}</span>
@@ -2025,7 +2025,7 @@ function App() {
             <p className="eyebrow">Painel</p>
             <h2>Core administrativo integrado</h2>
             <p className="hero-copy">Esta interface concentra cadastros, jornada, ocorrências e a base operacional do produto em um unico fluxo.</p>
-            {lastRefreshAt ? <small className="hero-refresh">Atualizacao automatica ativa â€¢ ultimo sync {formatDate(lastRefreshAt)}</small> : null}
+            {lastRefreshAt ? <small className="hero-refresh">Atualizacao automatica ativa • ultimo sync {formatDate(lastRefreshAt)}</small> : null}
           </div>
           <div className="hero-actions">
             <button className="refresh-button" onClick={() => void loadData()} type="button">Atualizar</button>
@@ -2085,9 +2085,9 @@ function App() {
                     )}
                     <div>
                       <strong className="patrol-name">{summary.activePatrol.agentName}</strong>
-                      <p className="patrol-meta">Vigilante em ronda â€¢ cracha {summary.activePatrol.agentBadgeCode}</p>
-                      <p className="patrol-meta">Viatura {summary.activePatrol.vehiclePlate} â€¢ {summary.activePatrol.vehicleModel}</p>
-                      <p className="patrol-meta">KM atual {summary.activePatrol.vehicleCurrentKm.toLocaleString('pt-BR')} â€¢ status {translateGenericOperationalText(summary.activePatrol.vehicleStatus)}</p>
+                      <p className="patrol-meta">Vigilante em ronda • cracha {summary.activePatrol.agentBadgeCode}</p>
+                      <p className="patrol-meta">Viatura {summary.activePatrol.vehiclePlate} • {summary.activePatrol.vehicleModel}</p>
+                      <p className="patrol-meta">KM atual {summary.activePatrol.vehicleCurrentKm.toLocaleString('pt-BR')} • status {translateGenericOperationalText(summary.activePatrol.vehicleStatus)}</p>
                     </div>
                   </div>
 
@@ -2663,12 +2663,12 @@ function App() {
                   <article className="telemetry-card">
                     <span>Manutencao / Bloqueadas</span>
                     <strong>{fleetReport.maintenanceVehicles + fleetReport.blockedVehicles}</strong>
-                    <small>{fleetReport.maintenanceDueSoonVehicles} proximas â€¢ {fleetReport.maintenanceOverdueVehicles} vencidas</small>
+                    <small>{fleetReport.maintenanceDueSoonVehicles} proximas • {fleetReport.maintenanceOverdueVehicles} vencidas</small>
                   </article>
                   <article className="telemetry-card">
                     <span>OS abertas</span>
                     <strong>{fleetReport.maintenanceOrdersOpen}</strong>
-                    <small>Preventiva {fleetReport.preventiveOrdersOpen} â€¢ Corretiva {fleetReport.correctiveOrdersOpen} â€¢ Inspeção {fleetReport.inspectionOrdersOpen}</small>
+                    <small>Preventiva {fleetReport.preventiveOrdersOpen} • Corretiva {fleetReport.correctiveOrdersOpen} • Inspeção {fleetReport.inspectionOrdersOpen}</small>
                   </article>
                   <article className="telemetry-card">
                     <span>Custo 30 dias</span>
@@ -2684,8 +2684,8 @@ function App() {
                         <article className="list-row" key={order.id}>
                           <div>
                             <strong>{order.workOrderCode} | {order.vehiclePlate} - {order.vehicleModel}</strong>
-                            <small>{translateVehicleMaintenanceType(order.type)} â€¢ {translateVehicleMaintenancePriority(order.priority)} â€¢ {translateVehicleMaintenanceStatus(order.status)} â€¢ {order.description}</small>
-                            <small>{order.lifecycleLabel}{order.daysUntilDue != null ? ` â€¢ vence em ${order.daysUntilDue}d` : ''}{order.blockingVehicle ? ' â€¢ BLOQUEIA VIATURA' : ''}</small>
+                            <small>{translateVehicleMaintenanceType(order.type)} • {translateVehicleMaintenancePriority(order.priority)} • {translateVehicleMaintenanceStatus(order.status)} • {order.description}</small>
+                            <small>{order.lifecycleLabel}{order.daysUntilDue != null ? ` • vence em ${order.daysUntilDue}d` : ''}{order.blockingVehicle ? ' • BLOQUEIA VIATURA' : ''}</small>
                           </div>
                           <span className={`tag ${order.priority.toLowerCase()}`}>{translateVehicleMaintenancePriority(order.priority)}</span>
                         </article>
@@ -3196,7 +3196,6 @@ function App() {
 }
 
 export default App
-
 
 
 

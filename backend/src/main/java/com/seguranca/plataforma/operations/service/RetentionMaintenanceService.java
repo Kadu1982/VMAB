@@ -68,7 +68,7 @@ public class RetentionMaintenanceService {
         try {
             Files.createDirectories(storageRoot.resolve("incidents"));
         } catch (IOException exception) {
-            throw new IllegalStateException("Não foi possivel preparar o diretorio de retenÃ§Ã£o.", exception);
+            throw new IllegalStateException("Não foi possível preparar o diretório de retenção.", exception);
         }
     }
 
@@ -216,7 +216,7 @@ public class RetentionMaintenanceService {
     }
 
     private void recordAudit(String description) {
-        // Registra a limpeza para que a retenÃ§Ã£o tambem fique auditavel.
+        // Registra a limpeza para que a retenção tambem fique auditavel.
         AuditRecord record = new AuditRecord(
                 AuditActionType.DELETE,
                 "RetentionCleanup",
@@ -228,5 +228,4 @@ public class RetentionMaintenanceService {
         auditRecordRepository.save(record);
     }
 }
-
 
