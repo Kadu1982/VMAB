@@ -34,3 +34,5 @@ public record DashboardSummaryResponse(
         List<Incident> incidents
 ) {
 }
+
+

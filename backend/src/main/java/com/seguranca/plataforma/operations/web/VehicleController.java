@@ -62,13 +62,13 @@ public class VehicleController {
 
     @PostMapping("/{id}/maintenance")
     public VehicleMaintenanceRecord createMaintenance(@PathVariable Long id, @Valid @RequestBody CreateVehicleMaintenanceRequest request) {
-        // Registra uma OS de manutencao vinculada a viatura.
+        // Registra uma OS de manutenção vinculada a viatura.
         return operationsService.addVehicleMaintenance(id, request);
     }
 
     @PutMapping("/maintenance/{maintenanceId}")
     public VehicleMaintenanceRecord updateMaintenance(@PathVariable Long maintenanceId, @Valid @RequestBody UpdateVehicleMaintenanceRequest request) {
-        // Atualiza o desfecho da manutencao sem apagar o historico anterior.
+        // Atualiza o desfecho da manutenção sem apagar o historico anterior.
         return operationsService.updateVehicleMaintenance(maintenanceId, request);
     }
 
@@ -78,3 +78,5 @@ public class VehicleController {
         operationsService.deleteVehicle(id);
     }
 }
+
+

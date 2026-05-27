@@ -31,7 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class RetentionMaintenanceService {
-    // Remove artefatos temporarios e evidencia expirada sem depender de operacao manual.
+    // Remove artefatos temporarios e evidência expirada sem depender de operação manual.
 
     private final VmabRetentionProperties retentionProperties;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
@@ -68,7 +68,7 @@ public class RetentionMaintenanceService {
         try {
             Files.createDirectories(storageRoot.resolve("incidents"));
         } catch (IOException exception) {
-            throw new IllegalStateException("Nao foi possivel preparar o diretorio de retenção.", exception);
+            throw new IllegalStateException("Não foi possivel preparar o diretorio de retenÃ§Ã£o.", exception);
         }
     }
 
@@ -82,7 +82,7 @@ public class RetentionMaintenanceService {
     @Scheduled(cron = "${vmab.retention.cleanup-cron}")
     @Transactional
     public void cleanOnSchedule() {
-        // Mantem a base enxuta com uma varredura periodica de retencao.
+        // Mantem a base enxuta com uma varredura periodica de retenção.
         cleanupExpiredArtifacts("schedule");
     }
 
@@ -128,10 +128,10 @@ public class RetentionMaintenanceService {
                 || removedEvidenceFiles > 0
                 || removedOrphanEvidenceFiles > 0) {
             recordAudit(
-                    "Limpeza de retencao executada via " + trigger
+                    "Limpeza de retenção executada via " + trigger
                             + ": resetTokens=" + removedPasswordResetTokens
                             + ", residentSessions=" + removedResidentSessions
-                            + ", evidencias=" + expiredEvidence.size()
+                            + ", evidências=" + expiredEvidence.size()
                             + ", manutencoes=" + removedMaintenanceRecords
                             + ", pontos=" + removedAttendanceRecords
                             + ", arquivosRemovidos=" + removedEvidenceFiles
@@ -179,7 +179,7 @@ public class RetentionMaintenanceService {
                 }
             }
         } catch (IOException exception) {
-            throw new IllegalStateException("Nao foi possivel varrer os arquivos de evidencia para retencao.", exception);
+            throw new IllegalStateException("Não foi possivel varrer os arquivos de evidência para retenção.", exception);
         }
 
         return deletedFiles;
@@ -216,7 +216,7 @@ public class RetentionMaintenanceService {
     }
 
     private void recordAudit(String description) {
-        // Registra a limpeza para que a retenção tambem fique auditavel.
+        // Registra a limpeza para que a retenÃ§Ã£o tambem fique auditavel.
         AuditRecord record = new AuditRecord(
                 AuditActionType.DELETE,
                 "RetentionCleanup",
@@ -228,3 +228,5 @@ public class RetentionMaintenanceService {
         auditRecordRepository.save(record);
     }
 }
+
+

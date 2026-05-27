@@ -25,3 +25,5 @@ public record FleetOperationalReportResponse(
         List<VehicleMaintenanceOrderResponse> latestOrders
 ) {
 }
+
+

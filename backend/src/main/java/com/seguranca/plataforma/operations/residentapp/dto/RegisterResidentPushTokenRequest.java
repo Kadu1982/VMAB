@@ -8,3 +8,5 @@ public record RegisterResidentPushTokenRequest(
         @Size(max = 120) String deviceLabel
 ) {
 }
+
+

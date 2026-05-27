@@ -19,7 +19,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @Configuration
 @EnableConfigurationProperties({JwtProperties.class, VmabRetentionProperties.class})
 public class SecurityConfig {
-    // Centraliza autenticacao por token e regras de acesso por perfil da operacao.
+    // Centraliza autenticacao por token e regras de acesso por perfil da operação.
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtAuthenticationFilter) throws Exception {
@@ -37,7 +37,6 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/events/stream").permitAll()
                         .requestMatchers("/api/auth/**").authenticated()
                         .requestMatchers("/api/users/**").hasRole("ADMIN")
-                        .requestMatchers("/api/privacy/**").hasRole("ADMIN")
                         .requestMatchers("/api/hr/**").hasAnyRole("SUPERVISOR", "ADMIN")
                         .requestMatchers("/api/organization/**").hasAnyRole("SUPERVISOR", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/client/portal", "/api/client/report", "/api/client/report/export.csv").hasAnyRole("CLIENT", "SUPERVISOR", "ADMIN")
@@ -77,3 +76,5 @@ public class SecurityConfig {
         return PasswordEncoderFactories.createDelegatingPasswordEncoder();
     }
 }
+
+

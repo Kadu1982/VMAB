@@ -23,10 +23,10 @@ class AuditReportServiceTests {
         AuditRecordRepository repository = Mockito.mock(AuditRecordRepository.class);
         AuditReportService service = new AuditReportService(repository);
 
-        AuditRecord managementRecord = buildRecord(1L, AuditActionType.UPDATE, "AppUser", "admin", 2, "Atualizacao de usuario");
+        AuditRecord managementRecord = buildRecord(1L, AuditActionType.UPDATE, "AppUser", "admin", 2, "Atualizacao de usuário");
         AuditRecord fleetRecord = buildRecord(2L, AuditActionType.MAINTENANCE, "VehicleMaintenanceRecord", "oficina", 3, "Manutencao concluida");
         AuditRecord hrRecord = buildRecord(3L, AuditActionType.UPDATE, "Agent", "rh", 4, "Atualizacao de agente");
-        AuditRecord operationalRecord = buildRecord(4L, AuditActionType.INCIDENT_WORKFLOW, "Incident", "ronda", 5, "Fluxo de ocorrencia");
+        AuditRecord operationalRecord = buildRecord(4L, AuditActionType.INCIDENT_WORKFLOW, "Incident", "ronda", 5, "Fluxo de ocorrência");
         AuditRecord securityRecord = buildRecord(5L, AuditActionType.RESIDENT_ALERT, "ResidentAlert", "ronda", 6, "Alerta do morador");
         AuditRecord authRecord = buildRecord(6L, AuditActionType.AUTH, "AuthSession", "admin", 1, "Login bem-sucedido");
 
@@ -47,7 +47,7 @@ class AuditReportServiceTests {
     }
 
     @Test
-    void devePermitirRelatorioDeSegurancaComAutenticacoesQuandoSolicitado() {
+    void devePermitirRelatorioDeSegurançaComAutenticacoesQuandoSolicitado() {
         AuditRecordRepository repository = Mockito.mock(AuditRecordRepository.class);
         AuditReportService service = new AuditReportService(repository);
 
@@ -81,3 +81,5 @@ class AuditReportServiceTests {
         return record;
     }
 }
+
+

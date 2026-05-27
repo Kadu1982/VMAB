@@ -11,7 +11,7 @@ import java.time.OffsetDateTime;
 @Entity
 @Table(name = "resident_sessions")
 public class ResidentSession {
-    // Token separado do login administrativo para nao misturar os dois fluxos.
+    // Token separado do login administrativo para não misturar os dois fluxos.
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -86,3 +86,5 @@ public class ResidentSession {
         this.revokedAt = revokedAt;
     }
 }
+
+

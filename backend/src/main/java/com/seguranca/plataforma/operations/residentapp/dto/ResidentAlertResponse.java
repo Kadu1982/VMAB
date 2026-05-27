@@ -35,3 +35,5 @@ public record ResidentAlertResponse(
         String cancellationReason
 ) {
 }
+
+

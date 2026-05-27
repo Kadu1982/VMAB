@@ -16,3 +16,5 @@ public record CreateVehicleRequest(
         String maintenanceNotes
 ) {
 }
+
+

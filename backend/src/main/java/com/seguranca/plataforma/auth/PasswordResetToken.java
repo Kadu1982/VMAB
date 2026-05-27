@@ -84,3 +84,5 @@ public class PasswordResetToken {
         this.consumedAt = consumedAt;
     }
 }
+
+

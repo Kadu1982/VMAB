@@ -49,3 +49,5 @@ public class ResidentAlertController {
         return residentAlertService.resolve(id, request);
     }
 }
+
+

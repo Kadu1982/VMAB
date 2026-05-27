@@ -127,7 +127,7 @@ class HrServiceTests {
                         "celular-ronda",
                         -23.55052,
                         -46.63331,
-                        "Início do turno",
+                        "InÃ­cio do turno",
                         false,
                         null
                 )
@@ -178,3 +178,5 @@ class HrServiceTests {
         assertTrue(summary.attendance().isEmpty());
     }
 }
+
+

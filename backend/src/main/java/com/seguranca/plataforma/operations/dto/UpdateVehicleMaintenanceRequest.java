@@ -24,3 +24,5 @@ public record UpdateVehicleMaintenanceRequest(
         boolean resolved
 ) {
 }
+
+

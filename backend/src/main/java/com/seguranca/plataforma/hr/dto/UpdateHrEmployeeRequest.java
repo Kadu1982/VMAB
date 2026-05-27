@@ -29,3 +29,5 @@ public record UpdateHrEmployeeRequest(
         boolean pointEnabled
 ) {
 }
+
+

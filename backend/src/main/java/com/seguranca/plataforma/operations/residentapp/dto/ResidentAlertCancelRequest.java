@@ -6,3 +6,5 @@ public record ResidentAlertCancelRequest(
         @Size(max = 500) String cancellationReason
 ) {
 }
+
+

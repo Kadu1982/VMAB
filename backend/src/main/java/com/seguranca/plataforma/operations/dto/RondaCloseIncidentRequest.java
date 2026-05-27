@@ -6,3 +6,5 @@ public record RondaCloseIncidentRequest(
         @NotBlank String closureNotes
 ) {
 }
+
+

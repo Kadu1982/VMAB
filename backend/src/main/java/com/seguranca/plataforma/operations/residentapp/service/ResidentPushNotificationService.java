@@ -16,7 +16,7 @@ import org.springframework.web.client.RestClient;
 
 @Service
 public class ResidentPushNotificationService {
-    // Centraliza o envio de push do morador para que a regra de alerta nao espalhe detalhes da Expo.
+    // Centraliza o envio de push do morador para que a regra de alerta não espalhe detalhes da Expo.
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ResidentPushNotificationService.class);
 
@@ -89,7 +89,7 @@ public class ResidentPushNotificationService {
             case ACKNOWLEDGED -> new PushMessage("Alerta recebido", "A central recebeu seu alerta e iniciou o atendimento.");
             case DISPATCHED -> new PushMessage("Equipe em deslocamento", "A equipe foi despachada para o seu atendimento.");
             case ON_SITE -> new PushMessage("Equipe no local", "A equipe ja chegou ao local informado.");
-            case RESOLVED -> new PushMessage("Atendimento encerrado", "Seu alerta foi finalizado pela operacao.");
+            case RESOLVED -> new PushMessage("Atendimento encerrado", "Seu alerta foi finalizado pela operação.");
             case CANCELLED -> new PushMessage("Alerta cancelado", "Seu alerta foi cancelado.");
             default -> new PushMessage("Atualizacao de alerta", "Seu alerta recebeu uma atualizacao operacional.");
         };
@@ -98,3 +98,5 @@ public class ResidentPushNotificationService {
     record PushMessage(String title, String body) {
     }
 }
+
+

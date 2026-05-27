@@ -6,3 +6,5 @@ public enum IncidentStatus {
     ON_SITE,
     CLOSED
 }
+
+

@@ -11,7 +11,7 @@ import java.time.OffsetDateTime;
 @Entity
 @Table(name = "app_user_push_devices")
 public class AppUserPushDevice {
-    // Guarda os dispositivos Expo dos usuarios internos para push operacional remoto.
+    // Guarda os dispositivos Expo dos usuários internos para push operacional remoto.
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -86,3 +86,5 @@ public class AppUserPushDevice {
         this.updatedAt = revokedAt;
     }
 }
+
+

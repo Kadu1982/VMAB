@@ -156,7 +156,7 @@ class ResidentAlertServiceTests {
     }
 
     @Test
-    void naoDeveAbrirNovoAlertaQuandoJaExisteUmAtivo() {
+    void nãoDeveAbrirNovoAlertaQuandoJaExisteUmAtivo() {
         when(residentSessionRepository.findByTokenHash(anyString())).thenReturn(Optional.of(residentSession));
         when(residentRepository.findById(1L)).thenReturn(Optional.of(resident));
         when(residentAlertRepository.findFirstByResidentIdAndStatusInOrderByOpenedAtDesc(
@@ -301,3 +301,5 @@ class ResidentAlertServiceTests {
         }
     }
 }
+
+

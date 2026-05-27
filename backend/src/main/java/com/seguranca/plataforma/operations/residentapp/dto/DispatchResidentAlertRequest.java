@@ -9,3 +9,5 @@ public record DispatchResidentAlertRequest(
         @Size(max = 500) String dispatchNotes
 ) {
 }
+
+

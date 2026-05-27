@@ -127,7 +127,7 @@ public class SectorizationService {
     @Transactional(readOnly = true)
     public List<BusinessSector> listBusinessSectors(Long businessUnitId) {
         if (!businessUnitRepository.existsById(businessUnitId)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unidade de negocio nao encontrada.");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unidade de negocio não encontrada.");
         }
         return businessSectorRepository.findAllByBusinessUnitIdOrderByIdAsc(businessUnitId);
     }
@@ -154,7 +154,7 @@ public class SectorizationService {
         if (request.businessSectorId() != null) {
             sector = getBusinessSector(request.businessSectorId());
             if (!sector.getBusinessUnitId().equals(businessUnit.getId())) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O setor nao pertence a unidade de negocio informada.");
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O setor não pertence a unidade de negocio informada.");
             }
         }
         HrEmployeeAssignment assignment = hrEmployeeAssignmentRepository.save(new HrEmployeeAssignment(
@@ -167,7 +167,7 @@ public class SectorizationService {
                 request.active(),
                 normalizeOptionalText(request.notes(), 1000)
         ));
-        recordAudit(AuditActionType.CREATE, "HrEmployeeAssignment", assignment.getId(), "Vinculo do funcionario " + employee.getFullName() + " a unidade " + businessUnit.getName());
+        recordAudit(AuditActionType.CREATE, "HrEmployeeAssignment", assignment.getId(), "Vinculo do funcionário " + employee.getFullName() + " a unidade " + businessUnit.getName());
         return assignment;
     }
 
@@ -232,7 +232,7 @@ public class SectorizationService {
                 request.relationship(),
                 normalizeOptionalText(request.notes(), 1000)
         ));
-        recordAudit(AuditActionType.CREATE, "HrEmployeeDependent", dependent.getId(), "Dependente cadastrado para o funcionario " + employee.getFullName());
+        recordAudit(AuditActionType.CREATE, "HrEmployeeDependent", dependent.getId(), "Dependente cadastrado para o funcionário " + employee.getFullName());
         return dependent;
     }
 
@@ -257,7 +257,7 @@ public class SectorizationService {
                 Files.copy(inputStream, destination, StandardCopyOption.REPLACE_EXISTING);
             }
         } catch (IOException exception) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Nao foi possivel armazenar o documento.");
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Não foi possivel armazenar o documento.");
         }
 
         PersonDocument document = personDocumentRepository.save(new PersonDocument(
@@ -285,12 +285,12 @@ public class SectorizationService {
     @Transactional(readOnly = true)
     public DocumentDownload downloadDocument(PersonDocumentOwnerType ownerType, Long ownerId, Long documentId) {
         PersonDocument document = personDocumentRepository.findByIdAndOwnerTypeAndOwnerId(documentId, ownerType, ownerId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Documento nao encontrado."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Documento não encontrado."));
 
         Path resourcePath = ownerDirectory(ownerType, ownerId).resolve(document.getStoredFilename());
         Resource resource = new FileSystemResource(resourcePath);
         if (!resource.exists()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Arquivo do documento nao encontrado.");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Arquivo do documento não encontrado.");
         }
 
         return new DocumentDownload(resource, document.getOriginalFilename(), StringUtils.hasText(document.getContentType()) ? document.getContentType() : "application/octet-stream");
@@ -298,33 +298,33 @@ public class SectorizationService {
 
     private BusinessUnit getBusinessUnit(Long id) {
         return businessUnitRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Unidade de negocio nao encontrada."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Unidade de negocio não encontrada."));
     }
 
     private BusinessSector getBusinessSector(Long id) {
         return businessSectorRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Setor nao encontrado."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Setor não encontrado."));
     }
 
     private Resident getResident(Long id) {
         return residentRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Morador nao encontrado."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Morador não encontrado."));
     }
 
     private HrEmployee getEmployee(Long id) {
         return hrEmployeeRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Funcionario nao encontrado."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Funcionario não encontrado."));
     }
 
     private void ensureResidentExists(Long residentId) {
         if (!residentRepository.existsById(residentId)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Morador nao encontrado.");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Morador não encontrado.");
         }
     }
 
     private void ensureEmployeeExists(Long employeeId) {
         if (!hrEmployeeRepository.existsById(employeeId)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Funcionario nao encontrado.");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Funcionario não encontrado.");
         }
     }
 
@@ -332,7 +332,7 @@ public class SectorizationService {
         switch (ownerType) {
             case RESIDENT -> ensureResidentExists(ownerId);
             case EMPLOYEE -> ensureEmployeeExists(ownerId);
-            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O tipo de proprietario ainda nao esta disponivel para documentos.");
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O tipo de proprietario ainda não esta disponível para documentos.");
         }
     }
 
@@ -393,3 +393,5 @@ public class SectorizationService {
     public record DocumentDownload(Resource resource, String originalFilename, String contentType) {
     }
 }
+
+

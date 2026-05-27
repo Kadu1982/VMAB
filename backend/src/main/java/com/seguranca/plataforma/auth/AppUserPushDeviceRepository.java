@@ -13,3 +13,5 @@ public interface AppUserPushDeviceRepository extends JpaRepository<AppUserPushDe
 
     Optional<AppUserPushDevice> findByExpoPushToken(String expoPushToken);
 }
+
+

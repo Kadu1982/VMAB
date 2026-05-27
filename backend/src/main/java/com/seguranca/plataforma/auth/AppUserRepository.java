@@ -11,3 +11,5 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
 
     List<AppUser> findByLinkedAgentIdAndRoleAndEnabledTrue(Long linkedAgentId, AppUserRole role);
 }
+
+

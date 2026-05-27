@@ -12,3 +12,5 @@ public record CreateAppUserRequest(
         Long linkedAgentId
 ) {
 }
+
+

@@ -20,7 +20,7 @@ import org.springframework.web.client.RestClient;
 
 @Service
 public class AppUserPushNotificationService {
-    // Centraliza o push Expo dos perfis internos para nao espalhar integracao externa pelo dominio operacional.
+    // Centraliza o push Expo dos perfis internos para não espalhar integracao externa pelo dominio operacional.
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AppUserPushNotificationService.class);
 
@@ -117,7 +117,7 @@ public class AppUserPushNotificationService {
                         .retrieve()
                         .toBodilessEntity();
             } catch (Exception exception) {
-                LOGGER.warn("Falha ao enviar push operacional da ocorrencia {} para o token {}", incident.getId(), device.getExpoPushToken(), exception);
+                LOGGER.warn("Falha ao enviar push operacional da ocorrência {} para o token {}", incident.getId(), device.getExpoPushToken(), exception);
             }
         }
     }
@@ -177,7 +177,7 @@ public class AppUserPushNotificationService {
     PushMessage buildIncidentMessage(Incident incident) {
         // Fica acessivel ao teste para validar o texto operacional sem depender do cliente HTTP.
         return switch (incident.getStatus()) {
-            case OPEN -> new PushMessage("Nova ocorrencia operacional", "Uma nova ocorrencia entrou na fila: " + incident.getResidentName() + ".");
+            case OPEN -> new PushMessage("Nova ocorrência operacional", "Uma nova ocorrência entrou na fila: " + incident.getResidentName() + ".");
             case DISPATCHED -> new PushMessage("Ocorrencia despachada", "Equipe em deslocamento para " + incident.getAddress() + ".");
             case ON_SITE -> new PushMessage("Equipe no local", "A equipe confirmou chegada em " + incident.getResidentName() + ".");
             case CLOSED -> new PushMessage("Ocorrencia encerrada", "Atendimento finalizado em " + incident.getResidentName() + ".");
@@ -198,3 +198,5 @@ public class AppUserPushNotificationService {
     record PushMessage(String title, String body) {
     }
 }
+
+

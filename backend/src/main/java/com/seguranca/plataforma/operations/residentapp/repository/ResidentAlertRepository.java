@@ -15,3 +15,5 @@ public interface ResidentAlertRepository extends JpaRepository<ResidentAlert, Lo
 
     long countByStatus(ResidentAlertStatus status);
 }
+
+

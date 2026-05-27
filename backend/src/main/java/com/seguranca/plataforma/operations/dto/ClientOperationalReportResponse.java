@@ -20,3 +20,5 @@ public record ClientOperationalReportResponse(
         List<VehicleMaintenanceOrderResponse> maintenanceOrders
 ) {
 }
+
+

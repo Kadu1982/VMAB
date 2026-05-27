@@ -1,4 +1,4 @@
-# Deploy VPS - axiumsistemas.com
+﻿# Deploy VPS - axiumsistemas.com
 
 ## Subdominios recomendados
 - `painel.axiumsistemas.com`
@@ -35,13 +35,13 @@ TTL: 300
 Se quiser manter o site atual da Hostinger no dominio raiz, deixe `@` e `www` como estao e use apenas os subdominios `painel` e `api`.
 
 ## Arquivos ja prontos no projeto
-- [compose.prod.yml](C:\Users\G15\Documents\Segurança\compose.prod.yml)
-- [.env.production.example](C:\Users\G15\Documents\Segurança\.env.production.example)
-- [Caddyfile](C:\Users\G15\Documents\Segurança\infra\caddy\Caddyfile)
+- [compose.prod.yml](C:\Users\G15\Documents\SeguranÃ§a\compose.prod.yml)
+- [.env.production.example](C:\Users\G15\Documents\SeguranÃ§a\.env.production.example)
+- [Caddyfile](C:\Users\G15\Documents\SeguranÃ§a\infra\caddy\Caddyfile)
 
 ## Observacao importante para esta VPS
 Existe outra aplicacao ja usando `80/443` com `saude_nginx`.
-Para nao quebrar esse ambiente, o VMAB deve subir sem o container Caddy proprio e deve entrar na rede Docker compartilhada `saude_saude_network` com os aliases:
+Para não quebrar esse ambiente, o VMAB deve subir sem o container Caddy proprio e deve entrar na rede Docker compartilhada `saude_saude_network` com os aliases:
 - `vmab-backend`
 - `vmab-dashboard`
 
@@ -50,7 +50,7 @@ O banco do VMAB tambem deve usar um alias proprio na rede compartilhada:
 - `vmab-postgres`
 
 ## Observabilidade em producao
-O backend expõe endpoints uteis para verificacao operacional e monitoramento:
+O backend expÃµe endpoints uteis para verificacao operacional e monitoramento:
 - `GET /actuator/health`
 - `GET /actuator/health/readiness`
 - `GET /actuator/health/liveness`
@@ -100,3 +100,4 @@ https://api.axiumsistemas.com
 O HTTPS so vai fechar automaticamente depois que:
 1. o DNS dos subdominios propagar
 2. a VPS estiver acessivel externamente nas portas 80 e 443
+

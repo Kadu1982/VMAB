@@ -9,3 +9,5 @@ public interface ShiftTelemetryRepository extends JpaRepository<ShiftTelemetry, 
     Optional<ShiftTelemetry> findTopByShiftIdOrderByRecordedAtDesc(Long shiftId);
     List<ShiftTelemetry> findByShiftIdOrderByRecordedAtAsc(Long shiftId);
 }
+
+

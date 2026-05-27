@@ -9,3 +9,5 @@ public record CreateBusinessSectorRequest(
         String notes
 ) {
 }
+
+

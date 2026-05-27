@@ -35,7 +35,7 @@ public class UserManagementService {
                 .toList();
         Map<Long, String> agentNames = loadAgentNames(users.stream().map(AppUser::getLinkedAgentId).toList());
         return users.stream()
-                // Usuario sem agente vinculado e valido; o mapa imutavel do Java nao aceita get(null).
+                // Usuario sem agente vinculado e valido; o mapa imutavel do Java não aceita get(null).
                 .map(user -> AppUserResponse.fromEntity(
                         user,
                         user.getLinkedAgentId() != null ? agentNames.get(user.getLinkedAgentId()) : null
@@ -48,7 +48,7 @@ public class UserManagementService {
         String username = request.username().trim();
         appUserRepository.findByUsername(username)
                 .ifPresent(user -> {
-                    throw new ResponseStatusException(HttpStatus.CONFLICT, "Ja existe um usuario com esse login.");
+                    throw new ResponseStatusException(HttpStatus.CONFLICT, "Ja existe um usuário com esse login.");
                 });
 
         AppUser user = new AppUser(
@@ -72,7 +72,7 @@ public class UserManagementService {
         appUserRepository.findByUsername(request.username().trim())
                 .filter(existing -> !existing.getId().equals(id))
                 .ifPresent(existing -> {
-                    throw new ResponseStatusException(HttpStatus.CONFLICT, "Ja existe um usuario com esse login.");
+                    throw new ResponseStatusException(HttpStatus.CONFLICT, "Ja existe um usuário com esse login.");
                 });
 
         user.update(
@@ -87,7 +87,7 @@ public class UserManagementService {
         }
 
         if (enabledChanged && request.enabled()) {
-            // Reabilitar um usuario tambem limpa bloqueios temporarios anteriores.
+            // Reabilitar um usuário tambem limpa bloqueios temporarios anteriores.
             user.resetSecurityState();
         }
 
@@ -102,7 +102,7 @@ public class UserManagementService {
     public void deleteUser(Long id) {
         AppUser user = getUser(id);
         if ("admin".equalsIgnoreCase(user.getUsername())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O usuario admin padrao nao pode ser removido.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O usuário admin padrao não pode ser removido.");
         }
 
         appUserRepository.delete(user);
@@ -110,21 +110,21 @@ public class UserManagementService {
 
     private AppUser getUser(Long id) {
         return appUserRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario nao encontrado."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario não encontrado."));
     }
 
     private Long resolveLinkedAgentId(AppUserRole role, Long linkedAgentId) {
-        // O vinculo opcional com agente permite amarrar a identidade da ronda a um vigilante real.
+        // O vínculo opcional com agente permite amarrar a identidade da ronda a um vigilante real.
         if (linkedAgentId == null) {
             return null;
         }
 
         if (role != AppUserRole.RONDA && role != AppUserRole.SUPERVISOR && role != AppUserRole.ADMIN) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Somente usuarios operacionais podem ser vinculados a um vigilante.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Somente usuários operacionais podem ser vinculados a um vigilante.");
         }
 
         agentRepository.findById(linkedAgentId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Agente vinculado nao encontrado."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Agente vinculado não encontrado."));
         return linkedAgentId;
     }
 
@@ -150,3 +150,5 @@ public class UserManagementService {
                 .orElse(null);
     }
 }
+
+

@@ -11,3 +11,5 @@ public record TelemetryTrailPointResponse(
         OffsetDateTime recordedAt
 ) {
 }
+
+

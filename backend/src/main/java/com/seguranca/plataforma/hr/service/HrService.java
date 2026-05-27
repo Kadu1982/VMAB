@@ -151,7 +151,7 @@ public class HrService {
         );
 
         HrEmployee saved = hrEmployeeRepository.save(employee);
-        recordAudit(AuditActionType.CREATE, "HrEmployee", saved.getId(), "Cadastro RH do funcionario " + saved.getFullName());
+        recordAudit(AuditActionType.CREATE, "HrEmployee", saved.getId(), "Cadastro RH do funcionário " + saved.getFullName());
         return toEmployeeResponse(saved);
     }
 
@@ -186,7 +186,7 @@ public class HrService {
         );
 
         HrEmployee saved = hrEmployeeRepository.save(employee);
-        recordAudit(AuditActionType.UPDATE, "HrEmployee", saved.getId(), "Atualizacao RH do funcionario " + saved.getFullName());
+        recordAudit(AuditActionType.UPDATE, "HrEmployee", saved.getId(), "Atualizacao RH do funcionário " + saved.getFullName());
         return toEmployeeResponse(saved);
     }
 
@@ -195,7 +195,7 @@ public class HrService {
         HrEmployee employee = getEmployee(id);
         employee.terminate();
         hrEmployeeRepository.save(employee);
-        recordAudit(AuditActionType.DELETE, "HrEmployee", employee.getId(), "Encerramento RH do funcionario " + employee.getFullName());
+        recordAudit(AuditActionType.DELETE, "HrEmployee", employee.getId(), "Encerramento RH do funcionário " + employee.getFullName());
     }
 
     @Transactional
@@ -267,7 +267,7 @@ public class HrService {
 
     private HrEmployee getEmployee(Long id) {
         return hrEmployeeRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Funcionario nao encontrado."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Funcionario não encontrado."));
     }
 
     private HrEmployeeResponse toEmployeeResponse(HrEmployee employee) {
@@ -395,7 +395,7 @@ public class HrService {
         hrEmployeeRepository.findByEmployeeCodeIgnoreCase(normalizeEmployeeCode(employeeCode))
                 .filter(employee -> currentId == null || !employee.getId().equals(currentId))
                 .ifPresent(employee -> {
-                    throw new ResponseStatusException(HttpStatus.CONFLICT, "Ja existe um funcionario com esse codigo.");
+                    throw new ResponseStatusException(HttpStatus.CONFLICT, "Ja existe um funcionário com esse codigo.");
                 });
     }
 
@@ -404,11 +404,11 @@ public class HrService {
             return;
         }
         agentRepository.findById(linkedAgentId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Agente vinculado nao encontrado."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Agente vinculado não encontrado."));
         hrEmployeeRepository.findByLinkedAgentId(linkedAgentId)
                 .filter(employee -> currentId == null || !employee.getId().equals(currentId))
                 .ifPresent(employee -> {
-                    throw new ResponseStatusException(HttpStatus.CONFLICT, "Esse vigilante ja esta vinculado a outro funcionario RH.");
+                    throw new ResponseStatusException(HttpStatus.CONFLICT, "Esse vigilante ja esta vinculado a outro funcionário RH.");
                 });
     }
 
@@ -417,13 +417,13 @@ public class HrService {
             return;
         }
         appUserRepository.findById(linkedAppUserId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario vinculado nao encontrado."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario vinculado não encontrado."));
         hrEmployeeRepository.findAll().stream()
                 .filter(employee -> linkedAppUserId.equals(employee.getLinkedAppUserId()))
                 .filter(employee -> currentId == null || !employee.getId().equals(currentId))
                 .findFirst()
                 .ifPresent(employee -> {
-                    throw new ResponseStatusException(HttpStatus.CONFLICT, "Esse usuario ja esta vinculado a outro funcionario RH.");
+                    throw new ResponseStatusException(HttpStatus.CONFLICT, "Esse usuário ja esta vinculado a outro funcionário RH.");
                 });
     }
 
@@ -437,7 +437,7 @@ public class HrService {
 
     private void ensurePointEnabled(HrEmployee employee) {
         if (employee.getStatus() != HrEmployeeStatus.ACTIVE || !employee.isPointEnabled()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O ponto operacional esta indisponivel para este funcionario.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O ponto operacional esta indisponível para este funcionário.");
         }
     }
 
@@ -464,3 +464,5 @@ public class HrService {
         return authentication.getName();
     }
 }
+
+

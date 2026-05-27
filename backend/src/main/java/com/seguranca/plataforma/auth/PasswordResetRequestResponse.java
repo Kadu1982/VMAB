@@ -9,3 +9,5 @@ public record PasswordResetRequestResponse(
 ) {
     // Resposta usada por suporte ou automacao para ler o codigo gerado no backend.
 }
+
+

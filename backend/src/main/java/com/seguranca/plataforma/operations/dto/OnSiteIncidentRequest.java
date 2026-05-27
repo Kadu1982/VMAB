@@ -4,3 +4,5 @@ public record OnSiteIncidentRequest(
         String arrivalNotes
 ) {
 }
+
+

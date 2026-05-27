@@ -7,3 +7,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface HrEmployeeDependentRepository extends JpaRepository<HrEmployeeDependent, Long> {
     List<HrEmployeeDependent> findAllByEmployeeIdOrderByIdAsc(Long employeeId);
 }
+
+

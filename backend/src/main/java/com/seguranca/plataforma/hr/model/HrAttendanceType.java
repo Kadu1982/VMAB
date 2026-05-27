@@ -4,3 +4,5 @@ public enum HrAttendanceType {
     CHECK_IN,
     CHECK_OUT
 }
+
+

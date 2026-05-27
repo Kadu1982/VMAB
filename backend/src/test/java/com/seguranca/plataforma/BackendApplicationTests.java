@@ -12,3 +12,5 @@ class BackendApplicationTests {
         assertDoesNotThrow(() -> Class.forName("com.seguranca.plataforma.BackendApplication"));
     }
 }
+
+

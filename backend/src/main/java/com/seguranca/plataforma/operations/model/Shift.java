@@ -419,3 +419,5 @@ public class Shift {
         this.attendanceNotes = attendanceNotes;
     }
 }
+
+

@@ -36,7 +36,7 @@ public class AuthController {
 
     @PostMapping("/logout")
     public SessionActionResponse logout(Authentication authentication) {
-        // Derruba o ciclo de sessao do usuario atual ao invalidar a versao dos tokens.
+        // Derruba o ciclo de sessao do usuário atual ao invalidar a versao dos tokens.
         return authService.logout(authentication.getName());
     }
 
@@ -48,14 +48,14 @@ public class AuthController {
 
     @PostMapping("/push-device/revoke")
     public SessionActionResponse revokePushDevice(Authentication authentication, @Valid @RequestBody RevokeAppPushTokenRequest request) {
-        // Remove um token especifico quando o aparelho sai de uso ou quando o usuario faz logout.
+        // Remove um token especifico quando o aparelho sai de uso ou quando o usuário faz logout.
         return authService.revokePushDevice(authentication.getName(), request);
     }
 
     @PostMapping("/password-reset/request")
     @ResponseStatus(HttpStatus.OK)
     public PasswordResetRequestResponse requestPasswordReset(@Valid @RequestBody PasswordResetRequest request) {
-        // Gera um codigo temporario de recuperacao para o usuario informado.
+        // Gera um codigo temporario de recuperacao para o usuário informado.
         return authService.requestPasswordReset(request.username());
     }
 
@@ -74,3 +74,5 @@ public class AuthController {
         return authService.getAuthenticatedUser(authentication.getName(), roles);
     }
 }
+
+

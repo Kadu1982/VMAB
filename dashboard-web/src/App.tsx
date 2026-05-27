@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useTransition } from 'react'
+﻿import { useEffect, useRef, useState, useTransition } from 'react'
 import type { FormEvent } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -24,11 +24,6 @@ import type {
   IncidentStatus,
   IncidentType,
   OperationsStreamEvent,
-  PrivacyRequest,
-  PrivacyRequestStatus,
-  PrivacyRequestType,
-  PrivacyRetentionStatus,
-  PrivacySubjectType,
   Resident,
   ResidentStatus,
   AuditActionType,
@@ -51,15 +46,13 @@ import type {
 } from './types'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
-const STORAGE_KEY = 'seguranca-auth'
+const STORAGE_KEY = 'segurança-auth'
 
 const agentStatusOptions: AgentStatus[] = ['ACTIVE', 'ON_DUTY', 'OFF_DUTY', 'BLOCKED']
 const residentStatusOptions: ResidentStatus[] = ['ACTIVE', 'INACTIVE']
 const vehicleStatusOptions: VehicleStatus[] = ['AVAILABLE', 'IN_OPERATION', 'MAINTENANCE', 'BLOCKED']
 const vehicleMaintenanceTypeOptions: VehicleMaintenanceType[] = ['PREVENTIVE', 'CORRECTIVE', 'INSPECTION', 'DOCUMENTATION']
 const shiftStatusOptions: ShiftStatus[] = ['PLANNED', 'ACTIVE', 'HANDOFF_PENDING', 'HANDOFF', 'CLOSED']
-const privacyRequestTypeOptions: PrivacyRequestType[] = ['EXPORT', 'DELETE']
-const privacySubjectTypeOptions: PrivacySubjectType[] = ['RESIDENT', 'APP_USER', 'AGENT']
 const shiftAttendanceOptions: ShiftAttendanceStatus[] = ['PENDING', 'ON_TIME', 'LATE', 'ABSENT', 'COVERED']
 const businessUnitTypeOptions: BusinessUnitType[] = ['CONDOMINIUM', 'NEIGHBORHOOD', 'COMPANY', 'OTHER']
 const incidentTypeOptions: IncidentType[] = ['PANIC', 'SUSPICIOUS_ACTIVITY', 'MEDICAL', 'ESCORT']
@@ -178,26 +171,15 @@ const initialIncidentForm = {
   closureNotes: '',
 }
 
-const initialPrivacyForm = {
-  requestType: 'EXPORT' as PrivacyRequestType,
-  subjectType: 'RESIDENT' as PrivacySubjectType,
-  subjectId: '',
-  notes: '',
-  status: 'IN_PROGRESS' as PrivacyRequestStatus,
-  notifySubject: false,
-  notificationChannel: '',
-  notificationNotes: '',
-}
-
 const dashboardSectionLinks = [
   { id: 'sec-tempo-real', label: 'Tempo real', description: 'Eventos recentes e trilha operacional' },
   { id: 'sec-patrulha', label: 'Patrulha', description: 'Mapa, rota e telemetria da viatura' },
   { id: 'sec-dashboard', label: 'Dashboard', description: 'Resumo consolidado da operação' },
   { id: 'sec-rh', label: 'RH', description: 'Cadastros, acessos, turnos e ponto' },
   { id: 'sec-setorizacao', label: 'Setorização', description: 'Contratos, setores e vínculos' },
-  { id: 'sec-frota', label: 'Frota', description: 'Saude e manutencao das viaturas' },
-  { id: 'sec-auditoria', label: 'Auditoria', description: 'Acoes criticas e rastreabilidade' },
-  { id: 'sec-evidencias', label: 'Evidencias', description: 'Arquivos operacionais e LGPD' },
+  { id: 'sec-frota', label: 'Frota', description: 'Saúde e manutenção das viaturas' },
+  { id: 'sec-auditoria', label: 'Auditoria', description: 'Ações críticas e rastreabilidade' },
+  { id: 'sec-evidências', label: 'Evidências', description: 'Arquivos operacionais' },
 ] as const
 
 type DashboardSectionId = (typeof dashboardSectionLinks)[number]['id'] | 'sec-acesso' | 'sec-cadastro' | 'sec-operacao'
@@ -207,7 +189,7 @@ function formatDate(value: string) {
 }
 
 function formatOptionalDate(value?: string | null) {
-  return value ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(new Date(value)) : 'Nao informado'
+  return value ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(new Date(value)) : 'Não informado'
 }
 
 function formatCurrency(value?: number | null) {
@@ -291,9 +273,9 @@ function translateResidentStatus(status: ResidentStatus) {
 
 function translateVehicleStatus(status: VehicleStatus) {
   return {
-    AVAILABLE: 'Disponivel',
-    IN_OPERATION: 'Em operacao',
-    MAINTENANCE: 'Em manutencao',
+    AVAILABLE: 'Disponível',
+    IN_OPERATION: 'Em operação',
+    MAINTENANCE: 'Em manutenção',
     BLOCKED: 'Bloqueada',
   }[status]
 }
@@ -308,20 +290,8 @@ function translateShiftStatus(status: ShiftStatus) {
   } as Record<string, string>)[status] ?? status
 }
 
-function translatePrivacyRequestType(type: PrivacyRequestType) {
-  return { EXPORT: 'Exportacao', DELETE: 'Exclusao' }[type]
-}
-
-function translatePrivacySubjectType(type: PrivacySubjectType) {
-  return { RESIDENT: 'Morador', APP_USER: 'Usuario', AGENT: 'Agente' }[type]
-}
-
-function translatePrivacyRequestStatus(status: PrivacyRequestStatus) {
-  return { OPEN: 'Aberto', IN_PROGRESS: 'Em andamento', COMPLETED: 'Concluido', REJECTED: 'Rejeitado' }[status]
-}
-
 function translateVehicleMaintenancePriority(priority: VehicleMaintenancePriority) {
-  return { LOW: 'Baixa', MEDIUM: 'Media', HIGH: 'Alta', CRITICAL: 'Critica' }[priority]
+  return { LOW: 'Baixa', MEDIUM: 'Média', HIGH: 'Alta', CRITICAL: 'Crítica' }[priority]
 }
 
 function translateVehicleMaintenanceStatus(status: VehicleMaintenanceStatus) {
@@ -342,8 +312,8 @@ function translateVehicleMaintenanceType(type: VehicleMaintenanceType) {
   return {
     PREVENTIVE: 'Preventiva',
     CORRECTIVE: 'Corretiva',
-    INSPECTION: 'Inspecao',
-    DOCUMENTATION: 'Documentacao',
+    INSPECTION: 'Inspeção',
+    DOCUMENTATION: 'Documentação',
   }[type]
 }
 
@@ -393,11 +363,11 @@ function translateAuditActionType(actionType: AuditActionType) {
   return {
     CREATE: 'Criacao',
     UPDATE: 'Atualizacao',
-    DELETE: 'Exclusao',
+    DELETE: 'Exclusão',
     HANDOFF: 'Troca',
     MAINTENANCE: 'Manutencao',
     TELEMETRY: 'Telemetria',
-    INCIDENT_WORKFLOW: 'Fluxo da ocorrencia',
+    INCIDENT_WORKFLOW: 'Fluxo da ocorrência',
     AUTH: 'Autenticacao',
     RESIDENT_ALERT: 'Alerta do morador',
   }[actionType]
@@ -448,7 +418,7 @@ function translateIncidentType(type: IncidentType) {
 function translateIncidentPriority(priority: IncidentPriority) {
   return {
     HIGH: 'Alta',
-    MEDIUM: 'Media',
+    MEDIUM: 'Média',
     LOW: 'Baixa',
   }[priority]
 }
@@ -480,11 +450,11 @@ function translateRealtimeEventType(type: string) {
     CONNECTED: 'Canal conectado',
     CREATE: 'Criacao',
     UPDATE: 'Atualizacao',
-    DELETE: 'Exclusao',
+    DELETE: 'Exclusão',
     HANDOFF: 'Troca de turno',
     MAINTENANCE: 'Manutencao',
     TELEMETRY: 'Telemetria',
-    INCIDENT_WORKFLOW: 'Workflow de ocorrencia',
+    INCIDENT_WORKFLOW: 'Workflow de ocorrência',
     AUTH: 'Autenticacao',
     RESIDENT_ALERT: 'Alerta do morador',
   }[type] ?? type
@@ -499,9 +469,9 @@ function translateGenericOperationalText(value: string) {
     PLANNED: 'Planejado',
     ACTIVE: 'Ativo',
     HANDOFF: 'Troca de turno',
-    AVAILABLE: 'Disponivel',
-    IN_OPERATION: 'Em operacao',
-    MAINTENANCE: 'Em manutencao',
+    AVAILABLE: 'Disponível',
+    IN_OPERATION: 'Em operação',
+    MAINTENANCE: 'Em manutenção',
     BLOCKED: 'Bloqueado',
   }
 
@@ -615,7 +585,7 @@ function PatrolLiveMap({ patrol }: { patrol: NonNullable<DashboardSummary['activ
     }
 
     markerRef.current.bindPopup(
-      `<strong>${patrol.agentName}</strong><br/>${patrol.vehiclePlate} • ${patrol.vehicleModel}<br/>${patrol.speedKmh.toFixed(0)} km/h • precisao ${patrol.accuracyMeters.toFixed(0)} m`,
+      `<strong>${patrol.agentName}</strong><br/>${patrol.vehiclePlate} â€¢ ${patrol.vehicleModel}<br/>${patrol.speedKmh.toFixed(0)} km/h â€¢ precisao ${patrol.accuracyMeters.toFixed(0)} m`,
     )
 
     if (!accuracyCircleRef.current) {
@@ -655,7 +625,7 @@ function PatrolLiveMap({ patrol }: { patrol: NonNullable<DashboardSummary['activ
 }
 
 function App() {
-  // Estado da sessao, dados operacionais e formularios de manutencao do painel.
+  // Estado da sessao, dados operacionais e formularios de manutenção do painel.
   const [summary, setSummary] = useState<DashboardSummary | null>(null)
   const [portal, setPortal] = useState<ClientPortal | null>(null)
   const [clientReport, setClientReport] = useState<ClientOperationalReport | null>(null)
@@ -697,10 +667,6 @@ function App() {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('')
   const [fleetReport, setFleetReport] = useState<FleetOperationalReport | null>(null)
   const [incidentEvidences, setIncidentEvidences] = useState<IncidentEvidence[]>([])
-  const [privacyRequests, setPrivacyRequests] = useState<PrivacyRequest[]>([])
-  const [retentionStatus, setRetentionStatus] = useState<PrivacyRetentionStatus | null>(null)
-  const [privacyForm, setPrivacyForm] = useState(initialPrivacyForm)
-  const [editingPrivacyRequestId, setEditingPrivacyRequestId] = useState<number | null>(null)
   const [realtimeEvents, setRealtimeEvents] = useState<OperationsStreamEvent[]>([])
   const [activeDashboardSection, setActiveDashboardSection] = useState<DashboardSectionId>('sec-tempo-real')
   const [auditReport, setAuditReport] = useState<AuditReportResponse | null>(null)
@@ -712,10 +678,9 @@ function App() {
   const [isPending, startTransition] = useTransition()
   const workspaceScrollRef = useRef<HTMLElement | null>(null)
 
-  // Deriva os escopos reais do usuario para nao exibir acoes que o backend vai negar.
+  // Deriva os escopos reais do usuário para não exibir acoes que o backend vai negar.
   const isClient = currentRoles.includes('ROLE_CLIENT')
   const canManageUsers = currentRoles.includes('ROLE_ADMIN')
-  const canManagePrivacy = currentRoles.includes('ROLE_ADMIN')
   const canManageCatalog = hasAnyRole(currentRoles, ['ROLE_ADMIN', 'ROLE_SUPERVISOR'])
   const canUpdateOperations = hasAnyRole(currentRoles, ['ROLE_ADMIN', 'ROLE_SUPERVISOR', 'ROLE_RONDA'])
   const canCreateOperations = hasAnyRole(currentRoles, ['ROLE_ADMIN', 'ROLE_SUPERVISOR'])
@@ -767,7 +732,7 @@ function App() {
 
     try {
       const meResponse = await apiFetch('/api/auth/me')
-      if (!meResponse.ok) throw new Error('Nao foi possivel validar a sessao.')
+      if (!meResponse.ok) throw new Error('Não foi possível validar a sessao.')
 
       const me = (await meResponse.json()) as AuthenticatedUser
       setCurrentUsername(me.username)
@@ -781,31 +746,27 @@ function App() {
           apiFetch('/api/client/portal'),
           apiFetch('/api/client/report'),
         ])
-        if (!portalResponse.ok) throw new Error('Nao foi possivel carregar o portal do cliente.')
-        if (!reportResponse.ok) throw new Error('Nao foi possivel carregar o relatorio do cliente.')
+        if (!portalResponse.ok) throw new Error('Não foi possível carregar o portal do cliente.')
+        if (!reportResponse.ok) throw new Error('Não foi possível carregar o relatorio do cliente.')
         setPortal((await portalResponse.json()) as ClientPortal)
         setClientReport((await reportResponse.json()) as ClientOperationalReport)
         setSummary(null)
         setUsers([])
         setLastRefreshAt(new Date().toISOString())
       } else {
-        const [summaryResponse, usersResponse, fleetReportResponse, evidenceResponse, privacyRequestsResponse, retentionResponse, businessUnitsResponse] = await Promise.all([
+        const [summaryResponse, usersResponse, fleetReportResponse, evidenceResponse, businessUnitsResponse] = await Promise.all([
           apiFetch('/api/dashboard/summary'),
           adminCanManageUsers ? apiFetch('/api/users') : Promise.resolve(null),
           apiFetch('/api/vehicles/report'),
           apiFetch('/api/incidents/evidence'),
-          me.roles.includes('ROLE_ADMIN') ? apiFetch('/api/privacy/requests') : Promise.resolve(null),
-          me.roles.includes('ROLE_ADMIN') ? apiFetch('/api/privacy/status') : Promise.resolve(null),
           canManageOrganization ? apiFetch('/api/organization/business-units') : Promise.resolve(null),
         ])
-        if (!summaryResponse.ok) throw new Error('Nao foi possivel carregar o painel operacional.')
-        if (usersResponse && !usersResponse.ok) throw new Error('Nao foi possivel carregar a gestao de usuarios.')
+        if (!summaryResponse.ok) throw new Error('Não foi possível carregar o painel operacional.')
+        if (usersResponse && !usersResponse.ok) throw new Error('Não foi possível carregar a gestão de usuários.')
         setSummary((await summaryResponse.json()) as DashboardSummary)
         setUsers(usersResponse ? ((await usersResponse.json()) as AppUser[]) : [])
         if (fleetReportResponse.ok) setFleetReport((await fleetReportResponse.json()) as FleetOperationalReport)
         if (evidenceResponse.ok) setIncidentEvidences((await evidenceResponse.json()) as IncidentEvidence[])
-        if (privacyRequestsResponse?.ok) setPrivacyRequests((await privacyRequestsResponse.json()) as PrivacyRequest[])
-        if (retentionResponse?.ok) setRetentionStatus((await retentionResponse.json()) as PrivacyRetentionStatus)
         if (businessUnitsResponse?.ok) {
           const loadedBusinessUnits = (await businessUnitsResponse.json()) as BusinessUnit[]
           setBusinessUnits(loadedBusinessUnits)
@@ -898,7 +859,7 @@ function App() {
       try {
         const response = await apiFetch(`/api/audit/report?days=${auditPeriodDays}&category=${auditFilter}&includeAuth=${auditIncludeAuth}`)
         if (!response.ok) {
-          throw new Error('Nao foi possivel carregar o relatorio de auditoria.')
+          throw new Error('Não foi possível carregar o relatorio de auditoria.')
         }
 
         const report = (await response.json()) as AuditReportResponse
@@ -949,7 +910,7 @@ function App() {
   }, [activeDashboardSection])
 
   useEffect(() => {
-    // Usa SSE quando disponivel para reduzir atraso operacional no painel sem depender so de polling.
+    // Usa SSE quando disponível para reduzir atraso operacional no painel sem depender so de polling.
     if (!authenticated || !session?.accessToken || typeof window === 'undefined' || typeof EventSource === 'undefined') {
       return
     }
@@ -1132,7 +1093,7 @@ function App() {
       })
 
       if (!response.ok) {
-        throw new Error('Login invalido. Verifique usuario e senha.')
+        throw new Error('Login invalido. Verifique usuário e senha.')
       }
 
       const loginSession = (await response.json()) as AuthSession
@@ -1203,7 +1164,7 @@ function App() {
     })
 
     if (!response.ok) {
-      setError('Nao foi possivel solicitar o reset de senha.')
+      setError('Não foi possível solicitar o reset de senha.')
       return
     }
 
@@ -1228,7 +1189,7 @@ function App() {
     })
 
     if (!response.ok) {
-      setError('Nao foi possivel concluir o reset de senha.')
+      setError('Não foi possível concluir o reset de senha.')
       return
     }
 
@@ -1245,7 +1206,7 @@ function App() {
     })
 
     if (response.status === 403) {
-      setError('Seu perfil nao tem permissao para esta acao.')
+      setError('Seu perfil não tem permissao para esta acao.')
       return
     }
 
@@ -1267,12 +1228,12 @@ function App() {
     const response = await apiFetch(path, { method: 'DELETE' })
 
     if (response.status === 403) {
-      setError('Seu perfil nao tem permissao para excluir este registro.')
+      setError('Seu perfil não tem permissao para excluir este registro.')
       return
     }
 
     if (!response.ok) {
-      setError('Nao foi possivel concluir a exclusao.')
+      setError('Não foi possível concluir a exclusao.')
       return
     }
 
@@ -1299,7 +1260,7 @@ function App() {
           }
         : agentForm
 
-    await saveEntity(path, method, payload, 'Nao foi possivel salvar o agente.', resetAgentForm)
+    await saveEntity(path, method, payload, 'Não foi possível salvar o agente.', resetAgentForm)
   }
 
   async function handleUserSubmit(event: FormEvent<HTMLFormElement>) {
@@ -1319,7 +1280,7 @@ function App() {
           linkedAgentId: userForm.linkedAgentId ? Number(userForm.linkedAgentId) : null,
         }
 
-    await saveEntity(path, method, payload, 'Nao foi possivel salvar o usuario.', resetUserForm)
+    await saveEntity(path, method, payload, 'Não foi possível salvar o usuário.', resetUserForm)
   }
 
   function canRequestHandoffForShiftAgent(agentId: number) {
@@ -1343,7 +1304,7 @@ function App() {
       maintenanceNotes: vehicleForm.maintenanceNotes || null,
     }
     const payload = editingVehicleId === null ? basePayload : { ...basePayload, status: vehicleForm.status }
-    await saveEntity(path, method, payload, 'Nao foi possivel salvar a viatura.', resetVehicleForm)
+    await saveEntity(path, method, payload, 'Não foi possível salvar a viatura.', resetVehicleForm)
   }
 
   async function handleMaintenanceSubmit(event: FormEvent<HTMLFormElement>) {
@@ -1362,7 +1323,7 @@ function App() {
         description: maintenanceForm.description,
         resolved: maintenanceForm.resolved,
       },
-      'Nao foi possivel registrar a manutencao.',
+      'Não foi possível registrar a manutenção.',
       resetMaintenanceForm,
     )
   }
@@ -1382,7 +1343,7 @@ function App() {
       accessPin: residentForm.accessPin || null,
     }
     const payload = editingResidentId === null ? basePayload : { ...basePayload, status: residentForm.status }
-    await saveEntity(path, method, payload, 'Nao foi possivel salvar o morador.', resetResidentForm)
+    await saveEntity(path, method, payload, 'Não foi possível salvar o morador.', resetResidentForm)
   }
 
   async function handleBusinessUnitSubmit(event: FormEvent<HTMLFormElement>) {
@@ -1397,7 +1358,7 @@ function App() {
         active: businessUnitForm.active,
         notes: businessUnitForm.notes || null,
       },
-      'Nao foi possivel salvar o contrato ou negocio.',
+      'Não foi possível salvar o contrato ou negocio.',
       () => setBusinessUnitForm(initialBusinessUnitForm),
     )
   }
@@ -1418,7 +1379,7 @@ function App() {
         active: businessSectorForm.active,
         notes: businessSectorForm.notes || null,
       },
-      'Nao foi possivel salvar o setor.',
+      'Não foi possível salvar o setor.',
       () => setBusinessSectorForm(initialBusinessSectorForm),
     )
   }
@@ -1426,13 +1387,13 @@ function App() {
   async function handleEmployeeAssignmentSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!selectedEmployeeId) {
-      setError('Selecione um funcionario para vincular.')
+      setError('Selecione um funcionário para vincular.')
       return
     }
 
     const businessUnitId = employeeAssignmentForm.businessUnitId || selectedBusinessUnitId
     if (!businessUnitId) {
-      setError('Selecione um contrato ou negocio para o vinculo.')
+      setError('Selecione um contrato ou negocio para o vínculo.')
       return
     }
 
@@ -1448,7 +1409,7 @@ function App() {
         active: employeeAssignmentForm.active,
         notes: employeeAssignmentForm.notes || null,
       },
-      'Nao foi possivel salvar o vinculo do funcionario.',
+      'Não foi possível salvar o vínculo do funcionário.',
       () => setEmployeeAssignmentForm((current) => ({ ...initialEmployeeAssignmentForm, businessUnitId: current.businessUnitId || businessUnitId })),
     )
 
@@ -1480,7 +1441,7 @@ function App() {
       checklistNotes: shiftForm.checklistNotes || null,
     }
     const payload = editingShiftId === null ? basePayload : { ...basePayload, status: shiftForm.status }
-    await saveEntity(path, method, payload, 'Nao foi possivel salvar o turno.', resetShiftForm)
+    await saveEntity(path, method, payload, 'Não foi possível salvar o turno.', resetShiftForm)
   }
 
   async function handleShiftHandoff(shiftId: number) {
@@ -1497,7 +1458,7 @@ function App() {
         toAgentId: Number(shiftForm.handoffToAgentId),
         notes: shiftForm.handoffNotes || null,
       },
-      'Nao foi possivel solicitar a troca de turno.',
+      'Não foi possível solicitar a troca de turno.',
       resetShiftForm,
     )
   }
@@ -1508,7 +1469,7 @@ function App() {
       `/api/shifts/${shiftId}/handoff-accept`,
       'POST',
       {},
-      'Nao foi possivel aceitar a troca de turno.',
+      'Não foi possível aceitar a troca de turno.',
       resetShiftForm,
     )
   }
@@ -1519,7 +1480,7 @@ function App() {
       `/api/shifts/${shiftId}/handoff-reject`,
       'POST',
       { rejectionReason: reason || 'Sem motivo informado.' },
-      'Nao foi possivel rejeitar a troca de turno.',
+      'Não foi possível rejeitar a troca de turno.',
       resetShiftForm,
     )
   }
@@ -1588,122 +1549,20 @@ function App() {
       }
     }
 
-    await saveEntity(
+  await saveEntity(
       `/api/shifts/${shiftId}/supervision`,
       'POST',
       payload,
-      'Nao foi possivel registrar a supervisao do turno.',
+      'Não foi possível registrar a supervisao do turno.',
       resetShiftForm,
     )
-  }
-
-  function resetPrivacyForm() {
-    setPrivacyForm(initialPrivacyForm)
-    setEditingPrivacyRequestId(null)
-  }
-
-  function startPrivacyRequestEdit(request: PrivacyRequest) {
-    // Reabre o pedido no formulario para o administrador registrar andamento, notificacao e conclusao.
-    setEditingPrivacyRequestId(request.id)
-    setPrivacyForm({
-      requestType: request.requestType,
-      subjectType: request.subjectType,
-      subjectId: String(request.subjectId),
-      notes: request.notes ?? '',
-      status: request.status === 'OPEN' ? 'IN_PROGRESS' : request.status,
-      notifySubject: Boolean(request.subjectNotifiedAt),
-      notificationChannel: request.subjectNotificationChannel ?? '',
-      notificationNotes: request.subjectNotificationNotes ?? '',
-    })
-  }
-
-  async function handlePrivacyRequestSubmit(event: FormEvent<HTMLFormElement>) {
-    // Registra pedido LGPD (exportacao ou exclusao) sem misturar com a operacao normal.
-    event.preventDefault()
-    if (!privacyForm.subjectId) {
-      setError('Informe o ID do titular dos dados.')
-      return
-    }
-
-    const path = editingPrivacyRequestId === null ? '/api/privacy/requests' : `/api/privacy/requests/${editingPrivacyRequestId}`
-    const method = editingPrivacyRequestId === null ? 'POST' : 'PUT'
-    const payload = editingPrivacyRequestId === null
-      ? {
-          requestType: privacyForm.requestType,
-          subjectType: privacyForm.subjectType,
-          subjectId: Number(privacyForm.subjectId),
-          notes: privacyForm.notes || null,
-        }
-      : {
-          status: privacyForm.status,
-          notes: privacyForm.notes || null,
-          notifySubject: privacyForm.notifySubject,
-          notificationChannel: privacyForm.notifySubject ? privacyForm.notificationChannel || null : null,
-          notificationNotes: privacyForm.notifySubject ? privacyForm.notificationNotes || null : null,
-        }
-    await saveEntity(path, method, payload, 'Nao foi possivel registrar o pedido LGPD.', resetPrivacyForm)
-  }
-
-  async function handlePrivacyRequestComplete(requestId: number) {
-    await saveEntity(
-      `/api/privacy/requests/${requestId}`,
-      'PUT',
-      {
-        status: 'COMPLETED' as PrivacyRequestStatus,
-        notifySubject: privacyForm.notifySubject,
-        notificationChannel: privacyForm.notifySubject ? privacyForm.notificationChannel || null : null,
-        notificationNotes: privacyForm.notifySubject ? privacyForm.notificationNotes || null : null,
-      },
-      'Nao foi possivel concluir o pedido LGPD.',
-      resetPrivacyForm,
-    )
-  }
-
-  async function handlePrivacyExportDownload(subjectType: PrivacySubjectType, subjectId: number) {
-    // Gera o pacote de exportacao do titular sem depender de processo manual fora do painel.
-    try {
-      const response = await apiFetch(`/api/privacy/exports/${subjectType}/${subjectId}/download`)
-      if (!response.ok) {
-        throw new Error('Nao foi possivel gerar o arquivo de exportacao.')
-      }
-
-      const blob = await response.blob()
-      const downloadUrl = window.URL.createObjectURL(blob)
-      const anchor = window.document.createElement('a')
-      anchor.href = downloadUrl
-      anchor.download = `vmab-lgpd-${subjectType.toLowerCase()}-${subjectId}.json`
-      anchor.click()
-      window.URL.revokeObjectURL(downloadUrl)
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Falha inesperada ao gerar a exportacao LGPD.')
-    }
-  }
-
-  async function handlePrivacyNotificationDraftDownload(requestId: number) {
-    // Baixa um rascunho formal da comunicacao ao titular para registro e envio externo controlado.
-    try {
-      const response = await apiFetch(`/api/privacy/requests/${requestId}/notification-draft`)
-      if (!response.ok) {
-        throw new Error('Nao foi possivel gerar o rascunho de notificacao do titular.')
-      }
-
-      const blob = await response.blob()
-      const downloadUrl = window.URL.createObjectURL(blob)
-      const anchor = window.document.createElement('a')
-      anchor.href = downloadUrl
-      anchor.download = `vmab-lgpd-notificacao-${requestId}.txt`
-      anchor.click()
-      window.URL.revokeObjectURL(downloadUrl)
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Falha inesperada ao gerar o rascunho de notificacao.')
-    }
   }
 
   async function handleClientReportCsvExport() {
     try {
       const response = await apiFetch('/api/client/report/export.csv')
       if (!response.ok) {
-        throw new Error('Nao foi possivel exportar o relatorio CSV do cliente.')
+        throw new Error('Não foi possível exportar o relatorio CSV do cliente.')
       }
 
       const blob = await response.blob()
@@ -1720,13 +1579,13 @@ function App() {
 
   function handleClientReportPrint() {
     if (!clientReport) {
-      setError('O relatorio do cliente ainda nao foi carregado.')
+      setError('O relatorio do cliente ainda não foi carregado.')
       return
     }
 
     const printWindow = window.open('', '_blank', 'width=1080,height=820')
     if (!printWindow) {
-      setError('Nao foi possivel abrir a janela de impressao.')
+      setError('Não foi possível abrir a janela de impressao.')
       return
     }
 
@@ -1753,7 +1612,7 @@ function App() {
             <div class="card"><span>Turnos ativos</span><strong>${clientReport.activeShifts}</strong></div>
             <div class="card"><span>Ocorrencias abertas</span><strong>${clientReport.openIncidents}</strong></div>
             <div class="card"><span>Viaturas disponiveis</span><strong>${clientReport.availableVehicles}</strong></div>
-            <div class="card"><span>Alertas de manutencao</span><strong>${clientReport.maintenanceAlerts}</strong></div>
+            <div class="card"><span>Alertas de manutenção</span><strong>${clientReport.maintenanceAlerts}</strong></div>
             <div class="card"><span>Tempo medio de despacho</span><strong>${clientReport.averageDispatchMinutes.toFixed(1)} min</strong></div>
             <div class="card"><span>Tempo medio de resolucao</span><strong>${clientReport.averageResolutionMinutes.toFixed(1)} min</strong></div>
           </div>
@@ -1819,12 +1678,12 @@ function App() {
       vehicleId: incidentForm.vehicleId ? Number(incidentForm.vehicleId) : null,
     }
     const payload = editingIncidentId === null ? basePayload : { ...basePayload, status: incidentForm.status }
-    await saveEntity(path, method, payload, 'Nao foi possivel salvar a ocorrencia.', resetIncidentForm)
+    await saveEntity(path, method, payload, 'Não foi possível salvar a ocorrência.', resetIncidentForm)
   }
 
   async function handleIncidentDispatch(incidentId: number) {
     if (!incidentForm.assignedAgentId || !incidentForm.vehicleId) {
-      setError('Selecione agente e viatura para despachar a ocorrencia.')
+      setError('Selecione agente e viatura para despachar a ocorrência.')
       return
     }
 
@@ -1836,7 +1695,7 @@ function App() {
         vehicleId: Number(incidentForm.vehicleId),
         dispatchNotes: incidentForm.dispatchNotes || null,
       },
-      'Nao foi possivel despachar a ocorrencia.',
+      'Não foi possível despachar a ocorrência.',
       resetIncidentForm,
     )
   }
@@ -1848,7 +1707,7 @@ function App() {
       {
         arrivalNotes: incidentForm.arrivalNotes || null,
       },
-      'Nao foi possivel registrar chegada no local.',
+      'Não foi possível registrar chegada no local.',
       resetIncidentForm,
     )
   }
@@ -1860,7 +1719,7 @@ function App() {
       {
         closureNotes: incidentForm.closureNotes || null,
       },
-      'Nao foi possivel encerrar a ocorrencia.',
+      'Não foi possível encerrar a ocorrência.',
       resetIncidentForm,
     )
   }
@@ -1877,13 +1736,13 @@ function App() {
           {error ? <div className="alert error">{error}</div> : null}
           {authMessage ? <div className="alert success">{authMessage}</div> : null}
           <form className="login-form" onSubmit={handleLogin}>
-            <input required placeholder="Usuario" value={credentials.username} onChange={(event) => setCredentials((current) => ({ ...current, username: event.target.value }))} />
+            <input required placeholder="Usuário" value={credentials.username} onChange={(event) => setCredentials((current) => ({ ...current, username: event.target.value }))} />
             <input required type="password" placeholder="Senha" value={credentials.password} onChange={(event) => setCredentials((current) => ({ ...current, password: event.target.value }))} />
             <button type="submit">Entrar</button>
           </form>
           <form className="login-form" onSubmit={handlePasswordResetRequest}>
             <strong>Solicitar reset de senha</strong>
-            <input required placeholder="Usuario para reset" value={passwordResetForm.username} onChange={(event) => setPasswordResetForm((current) => ({ ...current, username: event.target.value }))} />
+            <input required placeholder="Usuário para reset" value={passwordResetForm.username} onChange={(event) => setPasswordResetForm((current) => ({ ...current, username: event.target.value }))} />
             <button className="secondary-button" type="submit">Gerar codigo</button>
           </form>
           <form className="login-form" onSubmit={handlePasswordResetConfirm}>
@@ -1963,7 +1822,7 @@ function App() {
             <article className="metric-card"><span>Turnos ativos</span><strong>{portal.activeShifts}</strong></article>
             <article className="metric-card"><span>Ocorrencias abertas</span><strong>{portal.openIncidents}</strong></article>
             <article className="metric-card"><span>Viaturas disponiveis</span><strong>{portal.availableVehicles}</strong></article>
-            <article className="metric-card"><span>Alertas de manutencao</span><strong>{portal.maintenanceAlerts}</strong></article>
+            <article className="metric-card"><span>Alertas de manutenção</span><strong>{portal.maintenanceAlerts}</strong></article>
           </section>
 
           {clientReport ? (
@@ -1984,7 +1843,7 @@ function App() {
                 <article className="telemetry-card">
                   <span>Tempo medio de resolucao</span>
                   <strong>{clientReport.averageResolutionMinutes.toFixed(1)} min</strong>
-                  <small>Baseado em ocorrencias encerradas</small>
+                  <small>Baseado em ocorrências encerradas</small>
                 </article>
                 <article className="telemetry-card">
                   <span>Turnos atrasados</span>
@@ -2004,7 +1863,7 @@ function App() {
                   <small>Ordens de servico ainda sem encerramento formal.</small>
                 </article>
                 <article className="report-insight-card">
-                  <span>Ordens criticas</span>
+                  <span>Ordens críticas</span>
                   <strong>{clientReport.criticalMaintenanceOrders}</strong>
                   <small>Viaturas com risco alto de indisponibilidade.</small>
                 </article>
@@ -2045,11 +1904,11 @@ function App() {
             <div className="panel-header">
               <div>
                 <p className="eyebrow">Incidentes recentes</p>
-                <h3>Ultimas ocorrencias</h3>
+                <h3>Ultimas ocorrências</h3>
               </div>
             </div>
             {portal.recentIncidents.length === 0 ? (
-              <p className="panel-note">Nenhuma ocorrencia recente para este cliente.</p>
+              <p className="panel-note">Nenhuma ocorrência recente para este cliente.</p>
             ) : (
               <div className="list">
                 {portal.recentIncidents.map((incident) => (
@@ -2074,7 +1933,7 @@ function App() {
                 </div>
               </div>
               {clientReport.incidents.length === 0 ? (
-                <p className="panel-note">Nao houve ocorrencias recentes incluidas no recorte formal do cliente.</p>
+                <p className="panel-note">Não houve ocorrências recentes incluídas no recorte formal do cliente.</p>
               ) : (
                 <div className="list">
                   {clientReport.incidents.map((incident) => (
@@ -2082,12 +1941,12 @@ function App() {
                       <div>
                         <strong>#{incident.id} | {translateIncidentType(incident.type)} | {incident.residentName}</strong>
                         <small>
-                          {translateIncidentStatus(incident.status)} | {incident.address} | agente {incident.assignedAgentName ?? 'nao vinculado'} | viatura {incident.vehiclePlate ?? 'nao vinculada'}
+                          {translateIncidentStatus(incident.status)} | {incident.address} | agente {incident.assignedAgentName ?? 'não vinculado'} | viatura {incident.vehiclePlate ?? 'não vinculada'}
                         </small>
                         <small>
                           Aberta {formatDate(incident.openedAt)}
-                          {incident.dispatchedAt ? ` • despacho ${formatDate(incident.dispatchedAt)}` : ''}
-                          {incident.closedAt ? ` • encerrada ${formatDate(incident.closedAt)}` : ''}
+                          {incident.dispatchedAt ? ` â€¢ despacho ${formatDate(incident.dispatchedAt)}` : ''}
+                          {incident.closedAt ? ` â€¢ encerrada ${formatDate(incident.closedAt)}` : ''}
                         </small>
                       </div>
                       <span className={`tag ${incident.priority.toLowerCase()}`}>{translateIncidentPriority(incident.priority)}</span>
@@ -2135,10 +1994,10 @@ function App() {
       <aside className="sidebar">
         <img alt="Logo VMAB" className="brand-logo sidebar-logo" src={logoVmab} />
         <p className="eyebrow">Painel Operacional</p>
-        <h1>Operacao Comunitaria</h1>
+        <h1>Operação Comunitaria</h1>
         <p className="sidebar-copy">Sessao autenticada como {currentUsername}. O conteudo abaixo respeita o perfil logado e as permissoes do backend.</p>
         <div className="sidebar-block">
-          <span className="sidebar-label">Seções</span>
+          <span className="sidebar-label">SeÃ§Ãµes</span>
           <div className="sidebar-section-list">
             {dashboardSectionLinks.map((section) => (
               <button
@@ -2165,8 +2024,8 @@ function App() {
           <div>
             <p className="eyebrow">Painel</p>
             <h2>Core administrativo integrado</h2>
-            <p className="hero-copy">Esta interface concentra cadastros, jornada, ocorrencias e a base operacional do produto em um unico fluxo.</p>
-            {lastRefreshAt ? <small className="hero-refresh">Atualizacao automatica ativa • ultimo sync {formatDate(lastRefreshAt)}</small> : null}
+            <p className="hero-copy">Esta interface concentra cadastros, jornada, ocorrências e a base operacional do produto em um unico fluxo.</p>
+            {lastRefreshAt ? <small className="hero-refresh">Atualizacao automatica ativa â€¢ ultimo sync {formatDate(lastRefreshAt)}</small> : null}
           </div>
           <div className="hero-actions">
             <button className="refresh-button" onClick={() => void loadData()} type="button">Atualizar</button>
@@ -2226,9 +2085,9 @@ function App() {
                     )}
                     <div>
                       <strong className="patrol-name">{summary.activePatrol.agentName}</strong>
-                      <p className="patrol-meta">Vigilante em ronda • cracha {summary.activePatrol.agentBadgeCode}</p>
-                      <p className="patrol-meta">Viatura {summary.activePatrol.vehiclePlate} • {summary.activePatrol.vehicleModel}</p>
-                      <p className="patrol-meta">KM atual {summary.activePatrol.vehicleCurrentKm.toLocaleString('pt-BR')} • status {translateGenericOperationalText(summary.activePatrol.vehicleStatus)}</p>
+                      <p className="patrol-meta">Vigilante em ronda â€¢ cracha {summary.activePatrol.agentBadgeCode}</p>
+                      <p className="patrol-meta">Viatura {summary.activePatrol.vehiclePlate} â€¢ {summary.activePatrol.vehicleModel}</p>
+                      <p className="patrol-meta">KM atual {summary.activePatrol.vehicleCurrentKm.toLocaleString('pt-BR')} â€¢ status {translateGenericOperationalText(summary.activePatrol.vehicleStatus)}</p>
                     </div>
                   </div>
 
@@ -2246,12 +2105,12 @@ function App() {
 
                       <div className="map-overlay overlay-top">
                         <strong>{summary.activePatrol.agentName}</strong>
-                        <small>{summary.activePatrol.vehiclePlate} â€¢ {summary.activePatrol.vehicleModel}</small>
+                        <small>{summary.activePatrol.vehiclePlate} Ã¢â‚¬Â¢ {summary.activePatrol.vehicleModel}</small>
                       </div>
 
                       <div className="map-overlay overlay-bottom">
                         <strong>{summary.activePatrol.speedKmh.toFixed(0)} km/h</strong>
-                        <small>Precisao {summary.activePatrol.accuracyMeters.toFixed(0)} m â€¢ turno {summary.activePatrol.shiftId}</small>
+                        <small>Precisao {summary.activePatrol.accuracyMeters.toFixed(0)} m Ã¢â‚¬Â¢ turno {summary.activePatrol.shiftId}</small>
                       </div>
                     </div>
                   </div>
@@ -2292,7 +2151,7 @@ function App() {
                   <h3>Resumo operacional consolidado</h3>
                 </div>
               </div>
-              <p className="panel-note">Visão única da operação, com indicadores que ajudam a decidir agora e não só a olhar o histórico.</p>
+              <p className="panel-note">VisÃ£o Ãºnica da operaÃ§Ã£o, com indicadores que ajudam a decidir agora e nÃ£o sÃ³ a olhar o histÃ³rico.</p>
               <div className="report-summary-grid">
                 <article className="report-insight-card">
                   <span>Ocorrencias em aberto</span>
@@ -2329,7 +2188,7 @@ function App() {
                 <article className="report-insight-card">
                   <span>Patrulha e frota</span>
                   <strong>{summary.activePatrol ? `${summary.activePatrol.agentName} em rota` : 'Sem patrulha ativa'}</strong>
-                  <small>{summary.activePatrol ? `${summary.activePatrol.vehiclePlate} | ${summary.activePatrol.progressPercent.toFixed(0)}% concluido | ${summary.activePatrol.traveledKmInShift.toFixed(1)} km` : `${summary.openMaintenanceOrders} ordens abertas | ${summary.criticalMaintenanceOrders} criticas`}</small>
+                  <small>{summary.activePatrol ? `${summary.activePatrol.vehiclePlate} | ${summary.activePatrol.progressPercent.toFixed(0)}% concluído | ${summary.activePatrol.traveledKmInShift.toFixed(1)} km` : `${summary.openMaintenanceOrders} ordens abertas | ${summary.criticalMaintenanceOrders} críticas`}</small>
                   {summary.activePatrol ? (
                     <div className="list" style={{ marginTop: '14px' }}>
                       <article className="list-row">
@@ -2373,32 +2232,32 @@ function App() {
                   <h3>Cadastro mestre e ponto operacional</h3>
                 </div>
               </div>
-              <p className="panel-note">O RH centraliza vigilantes e demais funcionarios, com cadastro, acessos, turnos, ponto operacional e alertas de validade.</p>
+              <p className="panel-note">O RH centraliza vigilantes e demais funcionários, com cadastro, acessos, turnos, ponto operacional e alertas de validade.</p>
               <div className="dashboard-hub-grid">
                 <button className="hub-card" onClick={() => setActiveDashboardSection('sec-cadastro')} type="button">
                   <strong>Funcionarios / Vigilantes</strong>
-                  <small>Cadastro mestre, documentos e vinculos</small>
+                  <small>Cadastro mestre, documentos e vínculos</small>
                 </button>
                 <button className="hub-card" onClick={() => setActiveDashboardSection('sec-acesso')} type="button">
                   <strong>Acessos</strong>
-                  <small>Usuarios, perfis e permissões</small>
+                  <small>Usuários, perfis e permissÃµes</small>
                 </button>
                 <button className="hub-card" onClick={() => setActiveDashboardSection('sec-operacao')} type="button">
                   <strong>Turnos e ponto</strong>
-                  <small>Jornada, cobertura e ocorrências</small>
+                  <small>Jornada, cobertura e ocorrÃªncias</small>
                 </button>
                 <button className="hub-card" onClick={() => setActiveDashboardSection('sec-rh')} type="button">
                   <strong>Alertas</strong>
                   <small>CNH, exames e treinamentos</small>
                 </button>
                 <button className="hub-card" onClick={() => setActiveDashboardSection('sec-setorizacao')} type="button">
-                  <strong>Setorização</strong>
-                  <small>Contratos, setores e vínculos</small>
+                  <strong>SetorizaÃ§Ã£o</strong>
+                  <small>Contratos, setores e vÃ­nculos</small>
                 </button>
               </div>
               <div className="subpanel-grid">
                 <article className="telemetry-card">
-                  <span>Total de funcionarios</span>
+                  <span>Total de funcionários</span>
                   <strong>{summary.hr.totalEmployees}</strong>
                   <small>{summary.hr.activeEmployees} ativos | {summary.hr.blockedEmployees} bloqueados/desligados</small>
                 </article>
@@ -2432,14 +2291,14 @@ function App() {
                       <article className="list-row" key={employee.id}>
                         <div>
                           <strong>{employee.fullName}</strong>
-                          <small>{employee.employeeCode} | {translateHrEmployeeCategory(employee.category)} | CPF {employee.documentNumber ?? 'nao informado'}</small>
-                          <small>{employee.address ?? 'Endereco nao informado'} | CNH {employee.cnhCategory ?? 'nao informada'} {employee.cnhExpiry ? `ate ${formatOptionalDate(employee.cnhExpiry)}` : ''}</small>
-                          <small>{employee.linkedAgentName ? `Vinculado ao vigilante ${employee.linkedAgentName}` : 'Sem vinculo operacional'}</small>
+                          <small>{employee.employeeCode} | {translateHrEmployeeCategory(employee.category)} | CPF {employee.documentNumber ?? 'não informado'}</small>
+                          <small>{employee.address ?? 'Endereco não informado'} | CNH {employee.cnhCategory ?? 'não informada'} {employee.cnhExpiry ? `ate ${formatOptionalDate(employee.cnhExpiry)}` : ''}</small>
+                          <small>{employee.linkedAgentName ? `Vinculado ao vigilante ${employee.linkedAgentName}` : 'Sem vínculo operacional'}</small>
                         </div>
                         <div className="row-actions">
                           <span className={`tag ${hrStatusTagClass(employee.status)}`}>{translateHrEmployeeStatus(employee.status)}</span>
                           <span className={`tag ${employee.pointEnabled ? 'active' : 'blocked'}`}>{employee.pointEnabled ? 'Ponto liberado' : 'Ponto bloqueado'}</span>
-                          <button className="ghost-button" onClick={() => { setSelectedEmployeeId(String(employee.id)); setActiveDashboardSection('sec-rh') }} type="button">Vínculos</button>
+                          <button className="ghost-button" onClick={() => { setSelectedEmployeeId(String(employee.id)); setActiveDashboardSection('sec-rh') }} type="button">VÃ­nculos</button>
                         </div>
                       </article>
                     ))}
@@ -2488,7 +2347,7 @@ function App() {
                       <article className="list-row">
                         <div>
                           <strong>Sem registros de ponto</strong>
-                          <small>O modulo de ponto operacional ainda nao recebeu eventos nesta sessao.</small>
+                          <small>O modulo de ponto operacional ainda não recebeu eventos nesta sessao.</small>
                         </div>
                       </article>
                     ) : (
@@ -2496,7 +2355,7 @@ function App() {
                         <article className="list-row" key={attendance.id}>
                           <div>
                             <strong>{attendance.employeeName ?? `Funcionario #${attendance.employeeId}`}</strong>
-                            <small>{translateHrAttendanceType(attendance.eventType)} | {attendance.deviceLabel ?? 'dispositivo nao informado'} | {formatDate(attendance.occurredAt)}</small>
+                            <small>{translateHrAttendanceType(attendance.eventType)} | {attendance.deviceLabel ?? 'dispositivo não informado'} | {formatDate(attendance.occurredAt)}</small>
                             <small>{attendance.anomalyFlag ? `Anomalia: ${attendance.anomalyReason ?? 'sem detalhamento'}` : 'Sem anomalia registrada'}</small>
                           </div>
                           <span className={`tag ${attendance.anomalyFlag ? 'blocked' : 'active'}`}>{attendance.anomalyFlag ? 'Revisar' : 'Normal'}</span>
@@ -2511,12 +2370,12 @@ function App() {
                 <div className="panel" style={{ marginTop: 16 }}>
                   <div className="panel-header">
                     <div>
-                      <p className="eyebrow">Ficha do funcionario</p>
+                      <p className="eyebrow">Ficha do funcionário</p>
                       <h3>{selectedEmployee.fullName}</h3>
                     </div>
-                    <button className="secondary-button" onClick={() => setActiveDashboardSection('sec-setorizacao')} type="button">Ir para Setorizacao</button>
+                    <button className="secondary-button" onClick={() => setActiveDashboardSection('sec-setorizacao')} type="button">Ir para Setorização</button>
                   </div>
-                  <p className="panel-note">Aqui ficam os vinculos por contrato e setor sem usar ID manual.</p>
+                  <p className="panel-note">Aqui ficam os vínculos por contrato e setor sem usar ID manual.</p>
                   <div className="subpanel-grid" style={{ marginTop: 12 }}>
                     <article className="telemetry-card">
                       <span>Vinculos ativos</span>
@@ -2525,8 +2384,8 @@ function App() {
                     </article>
                     <article className="telemetry-card">
                       <span>Dados base</span>
-                      <strong>{selectedEmployee.documentNumber ?? 'CPF nao informado'}</strong>
-                      <small>{selectedEmployee.address ?? 'Endereco nao informado'}</small>
+                      <strong>{selectedEmployee.documentNumber ?? 'CPF não informado'}</strong>
+                      <small>{selectedEmployee.address ?? 'Endereco não informado'}</small>
                     </article>
                   </div>
                   <div className="subpanel-grid hr-summary-grid" style={{ marginTop: 16 }}>
@@ -2541,8 +2400,8 @@ function App() {
                         {employeeAssignments.length === 0 ? (
                           <article className="list-row">
                             <div>
-                              <strong>Sem vinculos cadastrados</strong>
-                              <small>Use a tela de setorizacao para associar este funcionario a um contrato e setor.</small>
+                              <strong>Sem vínculos cadastrados</strong>
+                              <small>Use a tela de setorizacao para associar este funcionário a um contrato e setor.</small>
                             </div>
                           </article>
                         ) : (
@@ -2554,7 +2413,7 @@ function App() {
                                 <div>
                                   <strong>{assignment.roleTitle ?? 'Vinculo operacional'}</strong>
                                   <small>{unit ? `${unit.name} | ${translateBusinessUnitType(unit.type)}` : `Unidade #${assignment.businessUnitId}`}{sector ? ` | setor ${sector.name}` : ''}</small>
-                                  <small>{assignment.startDate ? `Inicio ${formatOptionalDate(assignment.startDate)}` : 'Inicio nao informado'}{assignment.endDate ? ` | fim ${formatOptionalDate(assignment.endDate)}` : ''}</small>
+                                  <small>{assignment.startDate ? `Inicio ${formatOptionalDate(assignment.startDate)}` : 'Inicio não informado'}{assignment.endDate ? ` | fim ${formatOptionalDate(assignment.endDate)}` : ''}</small>
                                 </div>
                                 <span className={`tag ${assignment.active ? 'active' : 'blocked'}`}>{assignment.active ? 'Ativo' : 'Inativo'}</span>
                               </article>
@@ -2566,7 +2425,7 @@ function App() {
                     <div>
                       <div className="panel-header">
                         <div>
-                          <p className="eyebrow">Novo vinculo</p>
+                          <p className="eyebrow">Novo vínculo</p>
                           <h3>Adicionar contrato / setor</h3>
                         </div>
                       </div>
@@ -2589,7 +2448,7 @@ function App() {
                             ))}
                           </select>
                           <select value={selectedEmployeeId} onChange={(event) => setSelectedEmployeeId(event.target.value)}>
-                            <option value="">Selecione um funcionario</option>
+                            <option value="">Selecione um funcionário</option>
                             {summary.hr.employees.map((employee) => (
                               <option key={employee.id} value={employee.id}>{employee.fullName} - {employee.employeeCode}</option>
                             ))}
@@ -2597,17 +2456,17 @@ function App() {
                           <input placeholder="Funcao / titulo" value={employeeAssignmentForm.roleTitle} onChange={(event) => setEmployeeAssignmentForm((current) => ({ ...current, roleTitle: event.target.value }))} />
                           <input type="date" value={employeeAssignmentForm.startDate} onChange={(event) => setEmployeeAssignmentForm((current) => ({ ...current, startDate: event.target.value }))} />
                           <input type="date" value={employeeAssignmentForm.endDate} onChange={(event) => setEmployeeAssignmentForm((current) => ({ ...current, endDate: event.target.value }))} />
-                          <input placeholder="Observacoes" value={employeeAssignmentForm.notes} onChange={(event) => setEmployeeAssignmentForm((current) => ({ ...current, notes: event.target.value }))} />
+                          <input placeholder="Observações" value={employeeAssignmentForm.notes} onChange={(event) => setEmployeeAssignmentForm((current) => ({ ...current, notes: event.target.value }))} />
                           <label className="toggle-row" style={{ justifyContent: 'space-between' }}>
                             <span>Ativo</span>
                             <input type="checkbox" checked={employeeAssignmentForm.active} onChange={(event) => setEmployeeAssignmentForm((current) => ({ ...current, active: event.target.checked }))} />
                           </label>
                           <div className="button-row">
-                            <button type="submit">Vincular funcionario</button>
+                            <button type="submit">Vincular funcionário</button>
                           </div>
                         </form>
                       ) : (
-                        <p className="panel-note">Seu perfil nao tem permissao para criar vinculos.</p>
+                        <p className="panel-note">Seu perfil não tem permissao para criar vínculos.</p>
                       )}
                     </div>
                   </div>
@@ -2620,11 +2479,11 @@ function App() {
               <section className="panel dashboard-section-shell" id="sec-setorizacao">
                 <div className="panel-header">
                   <div>
-                    <p className="eyebrow">Setorização</p>
-                    <h3>Contratos, setores e vínculos sem ID manual</h3>
+                    <p className="eyebrow">SetorizaÃ§Ã£o</p>
+                    <h3>Contratos, setores e vÃ­nculos sem ID manual</h3>
                   </div>
                 </div>
-                <p className="panel-note">Aqui você administra os contratos e a divisão interna por setores. Os vínculos de funcionário usam seleção por nome/código, não IDs.</p>
+                <p className="panel-note">Aqui vocÃª administra os contratos e a divisÃ£o interna por setores. Os vÃ­nculos de funcionÃ¡rio usam seleÃ§Ã£o por nome/cÃ³digo, nÃ£o IDs.</p>
                 <div className="subpanel-grid hr-summary-grid">
                   <div>
                     <div className="panel-header">
@@ -2640,7 +2499,7 @@ function App() {
                           {businessUnitTypeOptions.map((type) => <option key={type} value={type}>{translateBusinessUnitType(type)}</option>)}
                         </select>
                         <input placeholder="CNPJ" value={businessUnitForm.cnpj} onChange={(event) => setBusinessUnitForm((current) => ({ ...current, cnpj: event.target.value }))} />
-                        <input placeholder="Observacoes" value={businessUnitForm.notes} onChange={(event) => setBusinessUnitForm((current) => ({ ...current, notes: event.target.value }))} />
+                        <input placeholder="Observações" value={businessUnitForm.notes} onChange={(event) => setBusinessUnitForm((current) => ({ ...current, notes: event.target.value }))} />
                         <label className="toggle-row" style={{ justifyContent: 'space-between' }}>
                           <span>Ativo</span>
                           <input type="checkbox" checked={businessUnitForm.active} onChange={(event) => setBusinessUnitForm((current) => ({ ...current, active: event.target.checked }))} />
@@ -2677,7 +2536,7 @@ function App() {
                       <form className="form-grid" onSubmit={handleBusinessSectorSubmit}>
                         <input required placeholder="Nome do setor" value={businessSectorForm.name} onChange={(event) => setBusinessSectorForm((current) => ({ ...current, name: event.target.value }))} />
                         <input placeholder="Codigo interno" value={businessSectorForm.code} onChange={(event) => setBusinessSectorForm((current) => ({ ...current, code: event.target.value }))} />
-                        <input placeholder="Observacoes" value={businessSectorForm.notes} onChange={(event) => setBusinessSectorForm((current) => ({ ...current, notes: event.target.value }))} />
+                        <input placeholder="Observações" value={businessSectorForm.notes} onChange={(event) => setBusinessSectorForm((current) => ({ ...current, notes: event.target.value }))} />
                         <label className="toggle-row" style={{ justifyContent: 'space-between' }}>
                           <span>Ativo</span>
                           <input type="checkbox" checked={businessSectorForm.active} onChange={(event) => setBusinessSectorForm((current) => ({ ...current, active: event.target.checked }))} />
@@ -2715,7 +2574,7 @@ function App() {
                 <div className="panel-header">
                   <div>
                     <p className="eyebrow">Frota</p>
-                    <h3>Saude operacional da frota</h3>
+                    <h3>Saúde operacional da frota</h3>
                   </div>
                 </div>
                 <p className="panel-note">Snapshot calculado pelo backend a partir das viaturas, checklists e ordens de servico em aberto.</p>
@@ -2727,12 +2586,12 @@ function App() {
                         <h3>{editingVehicleId === null ? 'Viaturas ativas' : 'Editar viatura'}</h3>
                       </div>
                     </div>
-                    <p className="panel-note">Cadastre, edite e acompanhe manutencao da frota.</p>
+                    <p className="panel-note">Cadastre, edite e acompanhe manutenção da frota.</p>
                     <form className="form-grid" onSubmit={handleVehicleSubmit}>
                       <input required placeholder="Placa" value={vehicleForm.plate} onChange={(event) => setVehicleForm((current) => ({ ...current, plate: normalizeUppercaseInput(event.target.value) }))} />
                       <input required placeholder="Modelo" value={vehicleForm.model} onChange={(event) => setVehicleForm((current) => ({ ...current, model: event.target.value }))} />
                       <input required min="0" inputMode="numeric" type="number" placeholder="KM atual" value={vehicleForm.currentKm} onChange={(event) => setVehicleForm((current) => ({ ...current, currentKm: event.target.value }))} />
-                      <input placeholder="Observacoes de manutencao / documentos" value={vehicleForm.maintenanceNotes} onChange={(event) => setVehicleForm((current) => ({ ...current, maintenanceNotes: event.target.value }))} />
+                      <input placeholder="Observações de manutenção / documentos" value={vehicleForm.maintenanceNotes} onChange={(event) => setVehicleForm((current) => ({ ...current, maintenanceNotes: event.target.value }))} />
                       <select value={vehicleForm.status} onChange={(event) => setVehicleForm((current) => ({ ...current, status: event.target.value as VehicleStatus }))}>
                         {vehicleStatusOptions.map((status) => <option key={status} value={status}>{translateVehicleStatus(status)}</option>)}
                       </select>
@@ -2746,7 +2605,7 @@ function App() {
                         <article className="list-row" key={vehicle.id}>
                           <div>
                             <strong>{vehicle.model}</strong>
-                            <small>{vehicle.plate} | {vehicle.currentKm.toLocaleString('pt-BR')} km | revisao em {vehicle.nextMaintenanceKm.toLocaleString('pt-BR')} km | IPVA {vehicle.ipvaExpiry ?? 'nao informado'}</small>
+                            <small>{vehicle.plate} | {vehicle.currentKm.toLocaleString('pt-BR')} km | revisao em {vehicle.nextMaintenanceKm.toLocaleString('pt-BR')} km | IPVA {vehicle.ipvaExpiry ?? 'não informado'}</small>
                           </div>
                           <div className="row-actions">
                             <span className={`tag ${vehicle.status.toLowerCase()}`}>{translateVehicleStatus(vehicle.status)}</span>
@@ -2761,7 +2620,7 @@ function App() {
                         <article className="list-row" key={record.id}>
                           <div>
                             <strong>{translateVehicleMaintenanceType(record.type)} | {record.vehiclePlate}</strong>
-                            <small>{record.serviceDate ?? 'sem data'} | {record.kmAtService != null ? `${record.kmAtService.toLocaleString('pt-BR')} km` : 'km nao informado'} | {record.supplierName ?? 'fornecedor nao informado'} | {record.costAmount != null ? `R$ ${record.costAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'sem custo informado'}</small>
+                            <small>{record.serviceDate ?? 'sem data'} | {record.kmAtService != null ? `${record.kmAtService.toLocaleString('pt-BR')} km` : 'km não informado'} | {record.supplierName ?? 'fornecedor não informado'} | {record.costAmount != null ? `R$ ${record.costAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'sem custo informado'}</small>
                             <small>{record.description}</small>
                           </div>
                           <div className="row-actions">
@@ -2772,24 +2631,24 @@ function App() {
                     </div>
                     <form className="form-grid maintenance-form" onSubmit={handleMaintenanceSubmit}>
                       <select required value={maintenanceForm.vehicleId} onChange={(event) => setMaintenanceForm((current) => ({ ...current, vehicleId: event.target.value }))}>
-                        <option value="">Viatura da manutencao</option>
+                        <option value="">Viatura da manutenção</option>
                         {summary.vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.plate} - {vehicle.model}</option>)}
                       </select>
                       <select value={maintenanceForm.type} onChange={(event) => setMaintenanceForm((current) => ({ ...current, type: event.target.value as VehicleMaintenanceType }))}>
                         {vehicleMaintenanceTypeOptions.map((type) => <option key={type} value={type}>{translateVehicleMaintenanceType(type)}</option>)}
                       </select>
                       <input type="date" value={maintenanceForm.serviceDate} onChange={(event) => setMaintenanceForm((current) => ({ ...current, serviceDate: event.target.value }))} />
-                      <input min="0" inputMode="numeric" type="number" placeholder="KM da manutencao" value={maintenanceForm.kmAtService} onChange={(event) => setMaintenanceForm((current) => ({ ...current, kmAtService: event.target.value }))} />
+                      <input min="0" inputMode="numeric" type="number" placeholder="KM da manutenção" value={maintenanceForm.kmAtService} onChange={(event) => setMaintenanceForm((current) => ({ ...current, kmAtService: event.target.value }))} />
                       <input min="0" inputMode="numeric" type="number" placeholder="Proxima revisao (km)" value={maintenanceForm.nextMaintenanceKm} onChange={(event) => setMaintenanceForm((current) => ({ ...current, nextMaintenanceKm: event.target.value }))} />
                       <input min="0" step="0.01" inputMode="decimal" type="number" placeholder="Custo (R$)" value={maintenanceForm.costAmount} onChange={(event) => setMaintenanceForm((current) => ({ ...current, costAmount: event.target.value }))} />
                       <input placeholder="Fornecedor / oficina" value={maintenanceForm.supplierName} onChange={(event) => setMaintenanceForm((current) => ({ ...current, supplierName: event.target.value }))} />
                       <input required placeholder="Descricao do servico" value={maintenanceForm.description} onChange={(event) => setMaintenanceForm((current) => ({ ...current, description: event.target.value }))} />
                       <label className="checkbox-field">
                         <input checked={maintenanceForm.resolved} type="checkbox" onChange={(event) => setMaintenanceForm((current) => ({ ...current, resolved: event.target.checked }))} />
-                        <span>Servico concluido e viatura liberada</span>
+                        <span>Servico concluído e viatura liberada</span>
                       </label>
                       <div className="button-row">
-                        <button type="submit">Registrar manutencao</button>
+                        <button type="submit">Registrar manutenção</button>
                         <button className="secondary-button" onClick={resetMaintenanceForm} type="button">Limpar</button>
                       </div>
                     </form>
@@ -2799,17 +2658,17 @@ function App() {
                   <article className="telemetry-card">
                     <span>Operacionais</span>
                     <strong>{fleetReport.operationalVehicles}/{fleetReport.totalVehicles}</strong>
-                    <small>{fleetReport.availableVehicles} disponíveis • {fleetReport.inOperationVehicles} em rota</small>
+                    <small>{fleetReport.availableVehicles} disponÃ­veis â€¢ {fleetReport.inOperationVehicles} em rota</small>
                   </article>
                   <article className="telemetry-card">
                     <span>Manutencao / Bloqueadas</span>
                     <strong>{fleetReport.maintenanceVehicles + fleetReport.blockedVehicles}</strong>
-                    <small>{fleetReport.maintenanceDueSoonVehicles} proximas • {fleetReport.maintenanceOverdueVehicles} vencidas</small>
+                    <small>{fleetReport.maintenanceDueSoonVehicles} proximas â€¢ {fleetReport.maintenanceOverdueVehicles} vencidas</small>
                   </article>
                   <article className="telemetry-card">
                     <span>OS abertas</span>
                     <strong>{fleetReport.maintenanceOrdersOpen}</strong>
-                    <small>Preventiva {fleetReport.preventiveOrdersOpen} • Corretiva {fleetReport.correctiveOrdersOpen} • Inspecao {fleetReport.inspectionOrdersOpen}</small>
+                    <small>Preventiva {fleetReport.preventiveOrdersOpen} â€¢ Corretiva {fleetReport.correctiveOrdersOpen} â€¢ Inspeção {fleetReport.inspectionOrdersOpen}</small>
                   </article>
                   <article className="telemetry-card">
                     <span>Custo 30 dias</span>
@@ -2825,8 +2684,8 @@ function App() {
                         <article className="list-row" key={order.id}>
                           <div>
                             <strong>{order.workOrderCode} | {order.vehiclePlate} - {order.vehicleModel}</strong>
-                            <small>{translateVehicleMaintenanceType(order.type)} • {translateVehicleMaintenancePriority(order.priority)} • {translateVehicleMaintenanceStatus(order.status)} • {order.description}</small>
-                            <small>{order.lifecycleLabel}{order.daysUntilDue != null ? ` • vence em ${order.daysUntilDue}d` : ''}{order.blockingVehicle ? ' • BLOQUEIA VIATURA' : ''}</small>
+                            <small>{translateVehicleMaintenanceType(order.type)} â€¢ {translateVehicleMaintenancePriority(order.priority)} â€¢ {translateVehicleMaintenanceStatus(order.status)} â€¢ {order.description}</small>
+                            <small>{order.lifecycleLabel}{order.daysUntilDue != null ? ` â€¢ vence em ${order.daysUntilDue}d` : ''}{order.blockingVehicle ? ' â€¢ BLOQUEIA VIATURA' : ''}</small>
                           </div>
                           <span className={`tag ${order.priority.toLowerCase()}`}>{translateVehicleMaintenancePriority(order.priority)}</span>
                         </article>
@@ -2845,7 +2704,7 @@ function App() {
                   <h3>Relatorio de eventos criticos</h3>
                 </div>
               </div>
-              <p className="panel-note">Relatorio operacional por periodo. Autenticacoes ficam ocultas por padrao e podem ser incluídas quando necessario.</p>
+              <p className="panel-note">Relatorio operacional por periodo. Autenticacoes ficam ocultas por padrao e podem ser incluÃ­das quando necessario.</p>
               <div className="audit-report-controls">
                 <div className="audit-period-row" role="tablist" aria-label="Periodo do relatorio">
                   {[7, 30, 90].map((days) => {
@@ -2903,7 +2762,7 @@ function App() {
                     <article className="telemetry-card">
                       <span>Registros do periodo</span>
                       <strong>{auditReport.totalRecords}</strong>
-                      <small>{auditReport.includeAuth ? 'Autenticacoes incluídas' : 'Autenticacoes ocultas'}</small>
+                      <small>{auditReport.includeAuth ? 'Autenticacoes incluÃ­das' : 'Autenticacoes ocultas'}</small>
                     </article>
                     <article className="telemetry-card">
                       <span>Registros visiveis</span>
@@ -2965,7 +2824,7 @@ function App() {
             </section>
             ) : null}
 
-            {activeDashboardSection === 'sec-acesso' || activeDashboardSection === 'sec-cadastro' || activeDashboardSection === 'sec-operacao' || activeDashboardSection === 'sec-evidencias' ? (
+            {activeDashboardSection === 'sec-acesso' || activeDashboardSection === 'sec-cadastro' || activeDashboardSection === 'sec-operacao' || activeDashboardSection === 'sec-evidências' ? (
             <section className="content-grid dashboard-section-shell" id="sec-gestao">
               {/* Area transacional do painel com cadastros e operacao diaria. */}
               {activeDashboardSection === 'sec-acesso' && canManageUsers ? (
@@ -2973,7 +2832,7 @@ function App() {
                   <div className="panel-header">
                     <div>
                       <p className="eyebrow">Acesso</p>
-                      <h3>{editingUserId === null ? 'Usuarios e perfis' : 'Editar usuario'}</h3>
+                      <h3>{editingUserId === null ? 'Usuários e perfis' : 'Editar usuário'}</h3>
                     </div>
                   </div>
                   <p className="panel-note">Apenas administradores podem criar, editar, ativar ou remover acessos do sistema.</p>
@@ -2981,21 +2840,21 @@ function App() {
                     <button className="secondary-button" onClick={() => setActiveDashboardSection('sec-rh')} type="button">Voltar ao RH</button>
                   </div>
                   <form className="form-grid" onSubmit={handleUserSubmit}>
-                    <input required placeholder="Nome de usuario" value={userForm.username} onChange={(event) => setUserForm((current) => ({ ...current, username: event.target.value }))} />
+                    <input required placeholder="Nome de usuário" value={userForm.username} onChange={(event) => setUserForm((current) => ({ ...current, username: event.target.value }))} />
                     <input required={editingUserId === null} type="password" placeholder={editingUserId === null ? 'Senha inicial' : 'Nova senha (opcional)'} value={userForm.password} onChange={(event) => setUserForm((current) => ({ ...current, password: event.target.value }))} />
                     <select value={userForm.role} onChange={(event) => setUserForm((current) => ({ ...current, role: event.target.value as AppUserRole }))}>
                       {appUserRoleOptions.map((role) => <option key={role} value={role}>{translateRole(role)}</option>)}
                     </select>
                     <select value={userForm.linkedAgentId} onChange={(event) => setUserForm((current) => ({ ...current, linkedAgentId: event.target.value }))}>
-                      <option value="">Sem vinculo com vigilante</option>
+                      <option value="">Sem vínculo com vigilante</option>
                       {(summary?.agents ?? []).map((agent) => <option key={agent.id} value={agent.id}>{agent.fullName}</option>)}
                     </select>
                     <label className="checkbox-field">
                       <input checked={userForm.enabled} type="checkbox" onChange={(event) => setUserForm((current) => ({ ...current, enabled: event.target.checked }))} />
-                      <span>Usuario ativo</span>
+                      <span>Usuário ativo</span>
                     </label>
                     <div className="button-row">
-                      <button type="submit">{editingUserId === null ? 'Cadastrar usuario' : 'Salvar usuario'}</button>
+                      <button type="submit">{editingUserId === null ? 'Cadastrar usuário' : 'Salvar usuário'}</button>
                       {editingUserId !== null ? <button className="secondary-button" onClick={resetUserForm} type="button">Cancelar</button> : null}
                     </div>
                   </form>
@@ -3010,7 +2869,7 @@ function App() {
                           <span className={`tag ${user.enabled ? 'active' : 'blocked'}`}>{user.enabled ? 'Ativo' : 'Bloqueado'}</span>
                           <button className="ghost-button" onClick={() => startUserEdit(user)} type="button">Editar</button>
                           {user.username !== 'admin' ? (
-                            <button className="ghost-button danger-button" onClick={() => void handleDelete(`/api/users/${user.id}`, 'Deseja remover este usuario?', resetUserForm)} type="button">Excluir</button>
+                            <button className="ghost-button danger-button" onClick={() => void handleDelete(`/api/users/${user.id}`, 'Deseja remover este usuário?', resetUserForm)} type="button">Excluir</button>
                           ) : null}
                         </div>
                       </article>
@@ -3045,7 +2904,7 @@ function App() {
                       <input type="date" value={agentForm.birthDate} onChange={(event) => setAgentForm((current) => ({ ...current, birthDate: event.target.value }))} />
                     </label>
                     <input placeholder="URL da foto do vigilante" value={agentForm.photoUrl} onChange={(event) => setAgentForm((current) => ({ ...current, photoUrl: event.target.value }))} />
-                    <input placeholder="Observacoes documentais" value={agentForm.documentNotes} onChange={(event) => setAgentForm((current) => ({ ...current, documentNotes: event.target.value }))} />
+                    <input placeholder="Observações documentais" value={agentForm.documentNotes} onChange={(event) => setAgentForm((current) => ({ ...current, documentNotes: event.target.value }))} />
                     <select value={agentForm.status} onChange={(event) => setAgentForm((current) => ({ ...current, status: event.target.value as AgentStatus }))}>
                       {agentStatusOptions.map((status) => <option key={status} value={status}>{translateAgentStatus(status)}</option>)}
                     </select>
@@ -3060,7 +2919,7 @@ function App() {
                       <article className="list-row" key={agent.id}>
                         <div>
                           <strong>{agent.fullName}</strong>
-                          <small>Cracha {agent.badgeCode} | CNH {agent.cnhCategory} ate {agent.cnhExpiry} | nascimento {agent.birthDate ?? 'nao informado'}</small>
+                          <small>Cracha {agent.badgeCode} | CNH {agent.cnhCategory} ate {agent.cnhExpiry} | nascimento {agent.birthDate ?? 'não informado'}</small>
                         </div>
                       <div className="row-actions">
                         <span className={`tag ${agent.status.toLowerCase()}`}>{translateAgentStatus(agent.status)}</span>
@@ -3081,7 +2940,7 @@ function App() {
                     <h3>{editingResidentId === null ? 'Cadastro de moradores' : 'Editar morador'}</h3>
                   </div>
                 </div>
-                <p className="panel-note">{canManageCatalog ? 'Cadastre moradores para agilizar o disparo de ocorrencias e o atendimento.' : 'Seu perfil possui apenas leitura neste bloco.'}</p>
+                <p className="panel-note">{canManageCatalog ? 'Cadastre moradores para agilizar o disparo de ocorrências e o atendimento.' : 'Seu perfil possui apenas leitura neste bloco.'}</p>
                 {canManageCatalog ? (
                   <form className="form-grid" onSubmit={handleResidentSubmit}>
                     <input required placeholder="Nome completo" value={residentForm.fullName} onChange={(event) => setResidentForm((current) => ({ ...current, fullName: event.target.value }))} />
@@ -3106,7 +2965,7 @@ function App() {
                       <article className="list-row" key={resident.id}>
                         <div>
                           <strong>{resident.fullName}</strong>
-                          <small>{resident.phoneNumber} | {resident.address} | CPF {resident.cpf ?? 'nao informado'} | contrato {resident.businessUnitId ?? 'nao informado'}</small>
+                          <small>{resident.phoneNumber} | {resident.address} | CPF {resident.cpf ?? 'não informado'} | contrato {resident.businessUnitId ?? 'não informado'}</small>
                           <small>acesso {resident.accessPinConfigured ? 'configurado' : 'pendente'}</small>
                         </div>
                       <div className="row-actions">
@@ -3125,7 +2984,7 @@ function App() {
                 <div className="panel-header">
                   <div>
                     <p className="eyebrow">Turnos</p>
-                    <h3>{editingShiftId === null ? 'Operacao de turno' : 'Editar turno'}</h3>
+                    <h3>{editingShiftId === null ? 'Operação de turno' : 'Editar turno'}</h3>
                   </div>
                 </div>
                 <p className="panel-note">
@@ -3162,9 +3021,9 @@ function App() {
                       {summary.agents.filter((agent) => String(agent.id) !== shiftForm.agentId).map((agent) => <option key={agent.id} value={agent.id}>{agent.fullName}</option>)}
                     </select>
                     {/* Checklist minimo para fechar jornada e registrar a condicao da viatura no turno. */}
-                    <input placeholder="Observacoes de escala / presenca" value={shiftForm.attendanceNotes} onChange={(event) => setShiftForm((current) => ({ ...current, attendanceNotes: event.target.value }))} />
-                    <input placeholder="Observacoes da troca de turno" value={shiftForm.handoffNotes} onChange={(event) => setShiftForm((current) => ({ ...current, handoffNotes: event.target.value }))} />
-                    <input placeholder="Observacoes do checklist" value={shiftForm.checklistNotes} onChange={(event) => setShiftForm((current) => ({ ...current, checklistNotes: event.target.value }))} />
+                    <input placeholder="Observações de escala / presenca" value={shiftForm.attendanceNotes} onChange={(event) => setShiftForm((current) => ({ ...current, attendanceNotes: event.target.value }))} />
+                    <input placeholder="Observações da troca de turno" value={shiftForm.handoffNotes} onChange={(event) => setShiftForm((current) => ({ ...current, handoffNotes: event.target.value }))} />
+                    <input placeholder="Observações do checklist" value={shiftForm.checklistNotes} onChange={(event) => setShiftForm((current) => ({ ...current, checklistNotes: event.target.value }))} />
                     <label className="checkbox-field">
                       <input checked={shiftForm.tiresChecked} type="checkbox" onChange={(event) => setShiftForm((current) => ({ ...current, tiresChecked: event.target.checked }))} />
                       <span>Pneus verificados</span>
@@ -3189,7 +3048,7 @@ function App() {
                     <article className="list-row" key={shift.id}>
                       <div>
                         <strong>{shift.agentName}</strong>
-                        <small>{shift.vehiclePlate} | escala {formatDate(shift.scheduledStartAt)} ate {formatDate(shift.scheduledEndAt)} | presenca {translateShiftAttendanceStatus(shift.attendanceStatus)}{shift.lateMinutes != null ? ` (${shift.lateMinutes} min)` : ''} | cobertura {shift.coverageForAgentName ?? 'nao aplicada'} | checklist {shift.documentsChecked ? 'ok' : 'pendente'}</small>
+                        <small>{shift.vehiclePlate} | escala {formatDate(shift.scheduledStartAt)} ate {formatDate(shift.scheduledEndAt)} | presenca {translateShiftAttendanceStatus(shift.attendanceStatus)}{shift.lateMinutes != null ? ` (${shift.lateMinutes} min)` : ''} | cobertura {shift.coverageForAgentName ?? 'não aplicada'} | checklist {shift.documentsChecked ? 'ok' : 'pendente'}</small>
                       </div>
                       <div className="row-actions">
                         <span className={`tag ${shift.status.toLowerCase().replace('_', '-')}`}>{translateShiftStatus(shift.status)}</span>
@@ -3232,13 +3091,13 @@ function App() {
                 <div className="panel-header">
                   <div>
                     <p className="eyebrow">Ocorrencias</p>
-                    <h3>{editingIncidentId === null ? 'Central de chamados' : 'Editar ocorrencia'}</h3>
+                    <h3>{editingIncidentId === null ? 'Central de chamados' : 'Editar ocorrência'}</h3>
                   </div>
                 </div>
                 <p className="panel-note">
                   {canCreateOperations
-                    ? 'Admin e supervisor podem registrar novas ocorrencias e encerrar o ciclo completo.'
-                    : 'A ronda pode atualizar status de ocorrencias ja abertas.'}
+                    ? 'Admin e supervisor podem registrar novas ocorrências e encerrar o ciclo completo.'
+                    : 'A ronda pode atualizar status de ocorrências ja abertas.'}
                 </p>
                 <div className="button-row">
                   <button className="secondary-button" onClick={() => setActiveDashboardSection('sec-rh')} type="button">Voltar ao RH</button>
@@ -3268,11 +3127,11 @@ function App() {
                     <select value={incidentForm.status} onChange={(event) => setIncidentForm((current) => ({ ...current, status: event.target.value as IncidentStatus }))}>
                       {incidentStatusOptions.map((status) => <option key={status} value={status}>{translateIncidentStatus(status)}</option>)}
                     </select>
-                    <input placeholder="Observacoes do despacho" value={incidentForm.dispatchNotes} onChange={(event) => setIncidentForm((current) => ({ ...current, dispatchNotes: event.target.value }))} />
-                    <input placeholder="Observacoes da chegada" value={incidentForm.arrivalNotes} onChange={(event) => setIncidentForm((current) => ({ ...current, arrivalNotes: event.target.value }))} />
-                    <input placeholder="Observacoes do encerramento" value={incidentForm.closureNotes} onChange={(event) => setIncidentForm((current) => ({ ...current, closureNotes: event.target.value }))} />
+                    <input placeholder="Observações do despacho" value={incidentForm.dispatchNotes} onChange={(event) => setIncidentForm((current) => ({ ...current, dispatchNotes: event.target.value }))} />
+                    <input placeholder="Observações da chegada" value={incidentForm.arrivalNotes} onChange={(event) => setIncidentForm((current) => ({ ...current, arrivalNotes: event.target.value }))} />
+                    <input placeholder="Observações do encerramento" value={incidentForm.closureNotes} onChange={(event) => setIncidentForm((current) => ({ ...current, closureNotes: event.target.value }))} />
                     <div className="button-row">
-                      <button disabled={incidentSubmitDisabled} type="submit">{editingIncidentId === null ? 'Cadastrar ocorrencia' : 'Salvar ocorrencia'}</button>
+                      <button disabled={incidentSubmitDisabled} type="submit">{editingIncidentId === null ? 'Cadastrar ocorrência' : 'Salvar ocorrência'}</button>
                       {editingIncidentId !== null && canUpdateOperations ? <button className="secondary-button" onClick={() => void handleIncidentDispatch(editingIncidentId)} type="button">Despachar</button> : null}
                       {editingIncidentId !== null && canUpdateOperations ? <button className="secondary-button" onClick={() => void handleIncidentOnSite(editingIncidentId)} type="button">Chegada no local</button> : null}
                       {editingIncidentId !== null && canUpdateOperations ? <button className="secondary-button" onClick={() => void handleIncidentClose(editingIncidentId)} type="button">Encerrar</button> : null}
@@ -3286,12 +3145,12 @@ function App() {
                       <div>
                         <strong>{translateIncidentType(incident.type)} | {incident.residentName}</strong>
                         <small>{incident.address} | {incident.assignedAgentName ?? 'Sem agente'} | {incident.vehiclePlate ?? 'Sem viatura'} | despacho {incident.dispatchedAt ? formatDate(incident.dispatchedAt) : 'pendente'} | chegada {incident.onSiteAt ? formatDate(incident.onSiteAt) : 'pendente'} | encerramento {incident.closedAt ? formatDate(incident.closedAt) : 'pendente'}</small>
-                        <small>{incident.dispatchNotes ?? incident.arrivalNotes ?? incident.closureNotes ?? 'Sem observacoes operacionais'}</small>
+                        <small>{incident.dispatchNotes ?? incident.arrivalNotes ?? incident.closureNotes ?? 'Sem observações operacionais'}</small>
                       </div>
                       <div className="row-actions">
                         <span className={`tag ${incident.priority.toLowerCase()}`}>{translateIncidentPriority(incident.priority)}</span>
                         {canUpdateOperations ? <button className="ghost-button" onClick={() => startIncidentEdit(incident)} type="button">Editar</button> : null}
-                        {canCreateOperations ? <button className="ghost-button danger-button" onClick={() => void handleDelete(`/api/incidents/${incident.id}`, 'Deseja remover esta ocorrencia?', resetIncidentForm)} type="button">Excluir</button> : null}
+                        {canCreateOperations ? <button className="ghost-button danger-button" onClick={() => void handleDelete(`/api/incidents/${incident.id}`, 'Deseja remover esta ocorrência?', resetIncidentForm)} type="button">Excluir</button> : null}
                       </div>
                     </article>
                   ))}
@@ -3299,130 +3158,31 @@ function App() {
               </section>
               ) : null}
 
-              {activeDashboardSection === 'sec-evidencias' && incidentEvidences.length > 0 ? (
+              {activeDashboardSection === 'sec-evidências' ? (
                 <section className="panel">
                   <div className="panel-header">
                     <div>
-                      <p className="eyebrow">Evidencias</p>
-                      <h3>Anexos de ocorrencias</h3>
+                      <p className="eyebrow">Evidências</p>
+                      <h3>Anexos de ocorrências</h3>
                     </div>
                   </div>
-                  <p className="panel-note">Arquivos enviados pela ronda mobile para comprovar o atendimento. Cada evidencia expira conforme a politica de retencao configurada.</p>
-                  <div className="list">
-                    {incidentEvidences.map((evidence) => (
-                      <article className="list-row" key={evidence.id}>
-                        <div>
-                          <strong>{evidence.originalFilename} | Ocorrencia #{evidence.incidentId} — {evidence.incidentResidentName}</strong>
-                          <small>{(evidence.fileSizeBytes / 1024).toFixed(1)} KB • enviado por {evidence.uploadedBy} em {formatDate(evidence.uploadedAt)} • expira {formatDate(evidence.retentionExpiresAt)}</small>
-                          {evidence.notes ? <small>{evidence.notes}</small> : null}
-                        </div>
-                        <div className="row-actions">
-                          <a className="ghost-button" href={`${API_BASE_URL}${evidence.downloadPath}`} rel="noreferrer" target="_blank">Download</a>
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                </section>
-              ) : null}
-
-              {activeDashboardSection === 'sec-evidencias' && canManagePrivacy ? (
-                <section className="panel">
-                  <div className="panel-header">
-                    <div>
-                      <p className="eyebrow">LGPD</p>
-                      <h3>Pedidos de privacidade e retencao de dados</h3>
-                    </div>
-                  </div>
-                  <p className="panel-note">Consolida pedidos LGPD de exportacao e exclusao sem misturar com a operacao normal da plataforma. Apenas administradores podem gerenciar esses fluxos.</p>
-                  <div className="compliance-callout">
-                    <strong>Limite objetivo</strong>
-                    <span>O sistema ja cobre abertura, exportacao, anonimização e registro de notificacao. O que nao existe aqui e revisao juridica externa. Marcar isso como concluido sem essa etapa seria mentira.</span>
-                  </div>
-                  {retentionStatus ? (
-                    <div className="subpanel-grid" style={{ marginBottom: 16 }}>
-                      <article className="telemetry-card">
-                        <span>Limpeza automatica</span>
-                        <strong>{retentionStatus.enabled ? 'Ativa' : 'Inativa'}</strong>
-                        <small>Cron: {retentionStatus.cleanupCron}</small>
-                      </article>
-                      <article className="telemetry-card">
-                        <span>Pedidos abertos</span>
-                        <strong>{retentionStatus.openRequests}</strong>
-                        <small>Em andamento: {retentionStatus.inProgressRequests} • Concluidos: {retentionStatus.completedRequests}</small>
-                      </article>
-                      <article className="telemetry-card">
-                        <span>Retencao de evidencias</span>
-                        <strong>{retentionStatus.incidentEvidenceRetentionDays}d</strong>
-                        <small>Sessoes moradores: {retentionStatus.residentSessionRetentionDays}d</small>
-                      </article>
-                      {retentionStatus.lastCleanupAt ? (
-                        <article className="telemetry-card">
-                          <span>Ultima limpeza</span>
-                          <strong>{formatDate(retentionStatus.lastCleanupAt)}</strong>
-                          <small>{retentionStatus.lastCleanupDescription ?? ''}</small>
-                        </article>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  <form className="form-grid" onSubmit={handlePrivacyRequestSubmit}>
-                    <select disabled={editingPrivacyRequestId !== null} value={privacyForm.requestType} onChange={(event) => setPrivacyForm((current) => ({ ...current, requestType: event.target.value as PrivacyRequestType }))}>
-                      {privacyRequestTypeOptions.map((type) => <option key={type} value={type}>{translatePrivacyRequestType(type)}</option>)}
-                    </select>
-                    <select disabled={editingPrivacyRequestId !== null} value={privacyForm.subjectType} onChange={(event) => setPrivacyForm((current) => ({ ...current, subjectType: event.target.value as PrivacySubjectType }))}>
-                      {privacySubjectTypeOptions.map((type) => <option key={type} value={type}>{translatePrivacySubjectType(type)}</option>)}
-                    </select>
-                    <input disabled={editingPrivacyRequestId !== null} required placeholder="ID do titular" inputMode="numeric" type="number" value={privacyForm.subjectId} onChange={(event) => setPrivacyForm((current) => ({ ...current, subjectId: normalizeDigitsInput(event.target.value) }))} />
-                    <input placeholder="Observacoes (opcional)" value={privacyForm.notes} onChange={(event) => setPrivacyForm((current) => ({ ...current, notes: event.target.value }))} />
-                    {editingPrivacyRequestId !== null ? (
-                      <>
-                        <select value={privacyForm.status} onChange={(event) => setPrivacyForm((current) => ({ ...current, status: event.target.value as PrivacyRequestStatus }))}>
-                          {(['IN_PROGRESS', 'COMPLETED', 'REJECTED'] as PrivacyRequestStatus[]).map((status) => (
-                            <option key={status} value={status}>{translatePrivacyRequestStatus(status)}</option>
-                          ))}
-                        </select>
-                        <input placeholder="Canal de notificacao do titular" value={privacyForm.notificationChannel} onChange={(event) => setPrivacyForm((current) => ({ ...current, notificationChannel: event.target.value }))} />
-                        <input placeholder="Observacao da notificacao" value={privacyForm.notificationNotes} onChange={(event) => setPrivacyForm((current) => ({ ...current, notificationNotes: event.target.value }))} />
-                        <label className="checkbox-field">
-                          <input checked={privacyForm.notifySubject} onChange={(event) => setPrivacyForm((current) => ({ ...current, notifySubject: event.target.checked }))} type="checkbox" />
-                          <span>Registrar notificacao formal ao titular neste passo</span>
-                        </label>
-                      </>
-                    ) : null}
-                    <div className="button-row">
-                      <button type="submit">{editingPrivacyRequestId === null ? 'Abrir pedido LGPD' : 'Atualizar fluxo LGPD'}</button>
-                      {editingPrivacyRequestId !== null ? <button className="secondary-button" onClick={resetPrivacyForm} type="button">Cancelar</button> : null}
-                    </div>
-                  </form>
-                  {privacyRequests.length > 0 ? (
-                    <div className="list" style={{ marginTop: 16 }}>
-                      {privacyRequests.map((request) => (
-                        <article className="list-row" key={request.id}>
+                  <p className="panel-note">Arquivos enviados pela ronda mobile para comprovar o atendimento. Cada evidência expira conforme a política de retenção configurada.</p>
+                  {incidentEvidences.length > 0 ? (
+                    <div className="list">
+                      {incidentEvidences.map((evidence) => (
+                        <article className="list-row" key={evidence.id}>
                           <div>
-                            <strong>{translatePrivacyRequestType(request.requestType)} | {translatePrivacySubjectType(request.subjectType)} #{request.subjectId} — {request.subjectLabel}</strong>
-                            <small>Solicitado por {request.requestedBy} em {formatDate(request.requestedAt)}{request.handledAt ? ` • atendido por ${request.handledBy ?? '?'} em ${formatDate(request.handledAt)}` : ''}</small>
-                            {request.notes ? <small>{request.notes}</small> : null}
-                            {request.subjectNotifiedAt ? <small>Titular notificado em {formatDate(request.subjectNotifiedAt)} via {request.subjectNotificationChannel ?? 'canal nao informado'}.</small> : null}
-                            {request.subjectNotificationNotes ? <small>{request.subjectNotificationNotes}</small> : null}
-                            {request.exportGeneratedAt ? <small>Exportacao gerada em {formatDate(request.exportGeneratedAt)}.</small> : null}
-                            {request.deletionAppliedAt ? <small>Anonimizacao aplicada em {formatDate(request.deletionAppliedAt)}.</small> : null}
+                            <strong>{evidence.originalFilename} | Ocorrência #{evidence.incidentId} — {evidence.incidentResidentName}</strong>
+                            <small>{(evidence.fileSizeBytes / 1024).toFixed(1)} KB • enviado por {evidence.uploadedBy} em {formatDate(evidence.uploadedAt)} • expira {formatDate(evidence.retentionExpiresAt)}</small>
+                            {evidence.notes ? <small>{evidence.notes}</small> : null}
                           </div>
                           <div className="row-actions">
-                            <span className={`tag ${request.status.toLowerCase().replace('_', '-')}`}>{translatePrivacyRequestStatus(request.status)}</span>
-                            {request.requestType === 'EXPORT' ? (
-                              <button className="ghost-button" onClick={() => void handlePrivacyExportDownload(request.subjectType, request.subjectId)} type="button">Baixar JSON</button>
-                            ) : null}
-                            <button className="ghost-button" onClick={() => void handlePrivacyNotificationDraftDownload(request.id)} type="button">Baixar notificacao</button>
-                            {request.status === 'OPEN' || request.status === 'IN_PROGRESS' ? (
-                              <>
-                                <button className="ghost-button" onClick={() => startPrivacyRequestEdit(request)} type="button">Editar fluxo</button>
-                                <button className="ghost-button" onClick={() => void handlePrivacyRequestComplete(request.id)} type="button">Concluir</button>
-                              </>
-                            ) : null}
+                            <a className="ghost-button" href={`${API_BASE_URL}${evidence.downloadPath}`} rel="noreferrer" target="_blank">Download</a>
                           </div>
                         </article>
                       ))}
                     </div>
-                  ) : <p className="panel-note">Nenhum pedido LGPD registrado.</p>}
+                  ) : <p className="panel-note">Nenhuma evidência registrada.</p>}
                 </section>
               ) : null}
             </section>
@@ -3436,5 +3196,7 @@ function App() {
 }
 
 export default App
+
+
 
 

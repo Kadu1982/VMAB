@@ -19,9 +19,6 @@ export type IncidentPriority = 'HIGH' | 'MEDIUM' | 'LOW'
 export type AppUserRole = 'ADMIN' | 'SUPERVISOR' | 'CLIENT' | 'RONDA'
 export type ResidentAlertType = 'PANIC' | 'COERCION' | 'ESCORT' | 'SUSPICIOUS_ACTIVITY' | 'MEDICAL'
 export type ResidentAlertStatus = 'OPEN' | 'ACKNOWLEDGED' | 'DISPATCHED' | 'ON_SITE' | 'RESOLVED' | 'CANCELLED'
-export type PrivacyRequestType = 'EXPORT' | 'DELETE'
-export type PrivacySubjectType = 'RESIDENT' | 'APP_USER' | 'AGENT'
-export type PrivacyRequestStatus = 'OPEN' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED'
 
 export interface Agent {
   id: number
@@ -522,41 +519,6 @@ export interface AppUser {
   createdAt: string
   linkedAgentId?: number | null
   linkedAgentName?: string | null
-}
-
-export interface PrivacyRequest {
-  id: number
-  requestType: PrivacyRequestType
-  subjectType: PrivacySubjectType
-  subjectId: number
-  subjectLabel: string
-  status: PrivacyRequestStatus
-  requestedBy: string
-  requestedAt: string
-  handledBy?: string | null
-  handledAt?: string | null
-  notes?: string | null
-  subjectNotifiedAt?: string | null
-  subjectNotificationChannel?: string | null
-  subjectNotificationNotes?: string | null
-  exportGeneratedAt?: string | null
-  deletionAppliedAt?: string | null
-}
-
-export interface PrivacyRetentionStatus {
-  enabled: boolean
-  cleanupCron: string
-  passwordResetTokenRetentionHours: number
-  residentSessionRetentionDays: number
-  incidentEvidenceRetentionDays: number
-  vehicleMaintenanceRetentionDays: number
-  hrAttendanceRetentionDays: number
-  removeOrphanEvidenceFiles: boolean
-  openRequests: number
-  inProgressRequests: number
-  completedRequests: number
-  lastCleanupAt?: string | null
-  lastCleanupDescription?: string | null
 }
 
 export interface OperationsStreamEvent {

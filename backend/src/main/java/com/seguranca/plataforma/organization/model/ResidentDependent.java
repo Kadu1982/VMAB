@@ -123,3 +123,5 @@ public class ResidentDependent {
         return notes;
     }
 }
+
+

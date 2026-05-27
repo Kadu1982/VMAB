@@ -18,3 +18,5 @@ public interface IncidentEvidenceRepository extends JpaRepository<IncidentEviden
 
     Optional<IncidentEvidence> findByIdAndIncidentIdAndDeletedAtIsNull(Long id, Long incidentId);
 }
+
+

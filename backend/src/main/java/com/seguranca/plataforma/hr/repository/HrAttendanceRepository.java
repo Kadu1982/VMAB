@@ -15,3 +15,5 @@ public interface HrAttendanceRepository extends JpaRepository<HrAttendance, Long
 
     List<HrAttendance> findByOccurredAtBeforeOrderByOccurredAtAsc(OffsetDateTime cutoff);
 }
+
+

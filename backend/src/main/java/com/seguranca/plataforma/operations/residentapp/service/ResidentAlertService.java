@@ -52,7 +52,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class ResidentAlertService {
-    // Mantem o fluxo do morador separado da operacao interna para evitar misturar dominios diferentes.
+    // Mantem o fluxo do morador separado da operação interna para evitar misturar dominios diferentes.
 
     private static final int SESSION_DAYS = 7;
 
@@ -102,7 +102,7 @@ public class ResidentAlertService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "O cadastro do morador esta inativo.");
         }
         if (!resident.isAccessPinConfigured()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O morador ainda nao possui PIN de acesso configurado.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O morador ainda não possui PIN de acesso configurado.");
         }
         if (!passwordEncoder.matches(normalizeResidentPin(request.accessPin()), resident.getAccessPinHash())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Morador ou PIN invalidos.");
@@ -135,7 +135,7 @@ public class ResidentAlertService {
 
     @Transactional
     public ResidentProfileResponse getProfile(String authorizationHeader) {
-        // Expõe apenas a ficha minima do morador autenticado para a tela inicial do app.
+        // ExpÃµe apenas a ficha minima do morador autenticado para a tela inicial do app.
         ResidentSession session = resolveActiveSession(authorizationHeader);
         Resident resident = getResident(session.getResidentId());
         return new ResidentProfileResponse(
@@ -266,10 +266,10 @@ public class ResidentAlertService {
         ResidentSession session = resolveActiveSession(authorizationHeader);
         ResidentAlert alert = getResidentAlert(alertId, session.getResidentId());
         if (alert.getStatus() == ResidentAlertStatus.DISPATCHED || alert.getStatus() == ResidentAlertStatus.ON_SITE || alert.getStatus() == ResidentAlertStatus.RESOLVED) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nao e possivel cancelar um alerta ja despachado ou resolvido.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Não e possivel cancelar um alerta ja despachado ou resolvido.");
         }
         if ((alert.getType() == ResidentAlertType.PANICO || alert.getType() == ResidentAlertType.COACAO) && alert.getStatus() == ResidentAlertStatus.ACKNOWLEDGED) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Alertas criticos recebidos pela central nao podem ser cancelados pelo app.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Alertas criticos recebidos pela central não podem ser cancelados pelo app.");
         }
 
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
@@ -312,7 +312,7 @@ public class ResidentAlertService {
         Agent agent = getAgent(request.assignedAgentId());
         Vehicle vehicle = getVehicle(request.vehicleId());
         if (vehicle.getStatus() == VehicleStatus.MAINTENANCE || vehicle.getStatus() == VehicleStatus.BLOCKED) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A viatura selecionada nao esta disponivel para despacho.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A viatura selecionada não esta disponível para despacho.");
         }
 
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
@@ -349,7 +349,7 @@ public class ResidentAlertService {
         ResidentAlert alert = getResidentAlert(alertId);
         validateAlertTransition(alert.getStatus(), ResidentAlertStatus.RESOLVED);
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        alert.resolve(now, normalizeNotes(request == null ? null : request.notes(), "Alerta resolvido pela operacao."));
+        alert.resolve(now, normalizeNotes(request == null ? null : request.notes(), "Alerta resolvido pela operação."));
         ResidentAlert savedAlert = residentAlertRepository.save(alert);
         recordAudit(AuditActionType.RESIDENT_ALERT, "ResidentAlert", savedAlert.getId(), "Resolucao do alerta " + savedAlert.getId());
         residentPushNotificationService.notifyResidentAlertStatusChanged(savedAlert);
@@ -377,33 +377,33 @@ public class ResidentAlertService {
 
     private ResidentAlert getResidentAlert(Long alertId, Long residentId) {
         return residentAlertRepository.findByIdAndResidentId(alertId, residentId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Alerta do morador nao encontrado."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Alerta do morador não encontrado."));
     }
 
     private ResidentAlert getResidentAlert(Long alertId) {
         return residentAlertRepository.findById(alertId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Alerta do morador nao encontrado."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Alerta do morador não encontrado."));
     }
 
     private Resident getResident(Long id) {
         return residentRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Morador nao encontrado."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Morador não encontrado."));
     }
 
     private Agent getAgent(Long id) {
         return agentRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Agente nao encontrado."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Agente não encontrado."));
     }
 
     private Vehicle getVehicle(Long id) {
         return vehicleRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Viatura nao encontrada."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Viatura não encontrada."));
     }
 
     private void validateAlertTransition(ResidentAlertStatus currentStatus, ResidentAlertStatus requestedStatus) {
         // Impede regressao ou saltos inconsistentes no ciclo do alerta.
         if (currentStatus == ResidentAlertStatus.CANCELLED || currentStatus == ResidentAlertStatus.RESOLVED) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O alerta ja foi finalizado e nao pode mudar de status.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O alerta ja foi finalizado e não pode mudar de status.");
         }
 
         if (currentStatus == ResidentAlertStatus.OPEN && (requestedStatus == ResidentAlertStatus.DISPATCHED || requestedStatus == ResidentAlertStatus.ON_SITE || requestedStatus == ResidentAlertStatus.RESOLVED)) {
@@ -418,7 +418,7 @@ public class ResidentAlertService {
     }
 
     private void ensureResidentHasNoActiveAlert(Long residentId) {
-        // O morador nao pode abrir varios alertas ativos ao mesmo tempo porque isso quebra o atendimento.
+        // O morador não pode abrir varios alertas ativos ao mesmo tempo porque isso quebra o atendimento.
         residentAlertRepository.findFirstByResidentIdAndStatusInOrderByOpenedAtDesc(
                         residentId,
                         List.of(
@@ -498,7 +498,7 @@ public class ResidentAlertService {
 
     private void validateCoercionPin(Resident resident, String coercionPin) {
         if (!resident.isCoercionPinConfigured()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O morador nao possui PIN de coacao configurado.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O morador não possui PIN de coacao configurado.");
         }
         if (!passwordEncoder.matches(normalizeResidentPin(coercionPin), resident.getCoercionPinHash())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "PIN de coacao invalido.");
@@ -523,12 +523,12 @@ public class ResidentAlertService {
             byte[] hashedBytes = digest.digest(token.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(hashedBytes);
         } catch (NoSuchAlgorithmException ex) {
-            throw new IllegalStateException("Nao foi possivel gerar o hash do token do morador.", ex);
+            throw new IllegalStateException("Não foi possivel gerar o hash do token do morador.", ex);
         }
     }
 
     private void recordAudit(AuditActionType actionType, String entityName, Long entityId, String description) {
-        // Mantem a trilha de auditoria no mesmo padrao da operacao administrativa.
+        // Mantem a trilha de auditoria no mesmo padrao da operação administrativa.
         AuditRecord record = new AuditRecord(
                 actionType,
                 entityName,
@@ -549,3 +549,5 @@ public class ResidentAlertService {
         return authentication.getName();
     }
 }
+
+

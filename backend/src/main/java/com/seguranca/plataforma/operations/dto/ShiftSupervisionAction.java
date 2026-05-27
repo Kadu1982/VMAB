@@ -7,3 +7,5 @@ public enum ShiftSupervisionAction {
     APPLY_COVERAGE,
     CLEAR_COVERAGE
 }
+
+

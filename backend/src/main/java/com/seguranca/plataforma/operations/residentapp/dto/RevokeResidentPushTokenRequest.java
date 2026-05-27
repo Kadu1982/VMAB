@@ -7,3 +7,5 @@ public record RevokeResidentPushTokenRequest(
         @NotBlank @Size(max = 255) String expoPushToken
 ) {
 }
+
+

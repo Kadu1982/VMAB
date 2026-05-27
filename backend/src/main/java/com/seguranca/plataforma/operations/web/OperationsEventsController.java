@@ -43,7 +43,7 @@ public class OperationsEventsController {
             String username = jwtTokenService.extractUsername(token);
             int tokenVersion = jwtTokenService.extractTokenVersion(token);
             AppUser user = appUserRepository.findByUsername(username)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Usuario do stream nao encontrado."));
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Usuario do stream não encontrado."));
 
             if (!user.isEnabled() || !jwtTokenService.isValid(token, username) || user.getTokenVersion() != tokenVersion) {
                 throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Token do stream invalido.");
@@ -55,3 +55,5 @@ public class OperationsEventsController {
         }
     }
 }
+
+

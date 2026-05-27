@@ -7,3 +7,5 @@ public enum HrEmployeeCategory {
     OPERACIONAL,
     OUTRO
 }
+
+

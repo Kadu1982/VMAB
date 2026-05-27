@@ -11,3 +11,5 @@ public record ResidentProfileResponse(
         OffsetDateTime sessionExpiresAt
 ) {
 }
+
+

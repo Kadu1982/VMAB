@@ -4,3 +4,5 @@ public enum ResidentStatus {
     ACTIVE,
     INACTIVE
 }
+
+

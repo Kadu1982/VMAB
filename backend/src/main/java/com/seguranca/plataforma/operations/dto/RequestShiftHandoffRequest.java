@@ -8,3 +8,5 @@ public record RequestShiftHandoffRequest(
         @Size(max = 500) String notes
 ) {
 }
+
+

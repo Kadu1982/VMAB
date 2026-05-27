@@ -13,3 +13,5 @@ public record ResidentSessionResponse(
         String referenceNote
 ) {
 }
+
+

@@ -7,3 +7,5 @@ public record RespondShiftHandoffRequest(
         @Size(max = 500) String rejectionReason
 ) {
 }
+
+

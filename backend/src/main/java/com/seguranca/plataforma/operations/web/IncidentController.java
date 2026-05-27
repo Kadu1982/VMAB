@@ -25,7 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/incidents")
 public class IncidentController {
-    // Centraliza tanto o fluxo administrativo da central quanto o fluxo mobile da ronda sobre ocorrencias.
+    // Centraliza tanto o fluxo administrativo da central quanto o fluxo mobile da ronda sobre ocorrências.
 
     private final OperationsService operationsService;
 
@@ -56,7 +56,7 @@ public class IncidentController {
 
     @PostMapping("/{id}/dispatch/me")
     public Incident dispatchForCurrentRonda(@PathVariable Long id, @RequestBody(required = false) RondaDispatchIncidentRequest request) {
-        // Permite que a ronda assuma a ocorrencia usando o proprio turno e a propria viatura vinculada.
+        // Permite que a ronda assuma a ocorrência usando o proprio turno e a propria viatura vinculada.
         return operationsService.dispatchIncidentForCurrentRonda(id, request);
     }
 
@@ -68,13 +68,13 @@ public class IncidentController {
 
     @PostMapping("/{id}/onsite/me")
     public Incident onsiteForCurrentRonda(@PathVariable Long id, @RequestBody(required = false) OnSiteIncidentRequest request) {
-        // Permite que a ronda confirme a chegada apenas na ocorrencia atribuida a ela.
+        // Permite que a ronda confirme a chegada apenas na ocorrência atribuida a ela.
         return operationsService.markIncidentOnSiteForCurrentRonda(id, request);
     }
 
     @PostMapping("/{id}/close")
     public Incident close(@PathVariable Long id, @Valid @RequestBody CloseIncidentRequest request) {
-        // Encerramento administrativo da ocorrencia para fluxos operados diretamente pela central.
+        // Encerramento administrativo da ocorrência para fluxos operados diretamente pela central.
         return operationsService.closeIncident(id, request);
     }
 
@@ -90,3 +90,5 @@ public class IncidentController {
         operationsService.deleteIncident(id);
     }
 }
+
+

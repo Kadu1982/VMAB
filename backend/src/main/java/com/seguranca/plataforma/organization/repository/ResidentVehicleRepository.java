@@ -7,3 +7,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface ResidentVehicleRepository extends JpaRepository<ResidentVehicle, Long> {
     List<ResidentVehicle> findAllByResidentIdOrderByIdAsc(Long residentId);
 }
+
+

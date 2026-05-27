@@ -13,3 +13,5 @@ public interface AuditRecordRepository extends JpaRepository<AuditRecord, Long> 
 
     Optional<AuditRecord> findTopByEntityNameOrderByOccurredAtDesc(String entityName);
 }
+
+

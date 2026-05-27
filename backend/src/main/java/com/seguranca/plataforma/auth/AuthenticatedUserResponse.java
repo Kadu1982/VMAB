@@ -9,3 +9,5 @@ public record AuthenticatedUserResponse(
         String linkedAgentName
 ) {
 }
+
+

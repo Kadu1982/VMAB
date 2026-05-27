@@ -25,3 +25,5 @@ public record ActivePatrolResponse(
         List<TelemetryTrailPointResponse> telemetryTrail
 ) {
 }
+
+

@@ -24,3 +24,5 @@ public class DashboardController {
         return operationsService.summary();
     }
 }
+
+

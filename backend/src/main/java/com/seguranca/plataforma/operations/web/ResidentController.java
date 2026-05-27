@@ -49,3 +49,5 @@ public class ResidentController {
         operationsService.deleteResident(id);
     }
 }
+
+

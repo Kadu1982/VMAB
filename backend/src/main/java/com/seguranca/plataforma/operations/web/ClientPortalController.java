@@ -37,7 +37,7 @@ public class ClientPortalController {
     public ResponseEntity<ByteArrayResource> exportReportCsv() {
         ClientOperationalReportResponse report = operationsService.clientOperationalReport();
         StringBuilder csv = new StringBuilder();
-        csv.append("gerado_em,turnos_ativos,ocorrencias_abertas,viaturas_disponiveis,alertas_manutencao,os_abertas,os_criticas,turnos_atrasados,faltas,media_despacho_min,media_resolucao_min\n");
+        csv.append("gerado_em,turnos_ativos,ocorrências_abertas,viaturas_disponiveis,alertas_manutenção,os_abertas,os_críticas,turnos_atrasados,faltas,média_despacho_min,média_resolucao_min\n");
         csv.append(report.generatedAt()).append(',')
                 .append(report.activeShifts()).append(',')
                 .append(report.openIncidents()).append(',')
@@ -94,3 +94,5 @@ public class ClientPortalController {
         return '"' + value.replace("\"", "\"\"") + '"';
     }
 }
+
+

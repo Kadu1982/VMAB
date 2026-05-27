@@ -206,7 +206,7 @@ public class Incident {
             OffsetDateTime dispatchedAt,
             String dispatchNotes
     ) {
-        // Formaliza o despacho da ocorrencia com quem recebeu a ordem e qual viatura foi enviada.
+        // Formaliza o despacho da ocorrência com quem recebeu a ordem e qual viatura foi enviada.
         this.assignedAgentId = assignedAgentId;
         this.assignedAgentName = assignedAgentName;
         this.vehicleId = vehicleId;
@@ -224,9 +224,11 @@ public class Incident {
     }
 
     public void close(OffsetDateTime closedAt, String closureNotes) {
-        // Encerra a ocorrencia com trilha temporal e observacao de fechamento.
+        // Encerra a ocorrência com trilha temporal e observacao de fechamento.
         this.closedAt = closedAt;
         this.closureNotes = closureNotes;
         this.status = IncidentStatus.CLOSED;
     }
 }
+
+

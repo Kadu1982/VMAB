@@ -7,3 +7,5 @@ public record RegisterAppPushTokenRequest(
         String deviceLabel
 ) {
 }
+
+

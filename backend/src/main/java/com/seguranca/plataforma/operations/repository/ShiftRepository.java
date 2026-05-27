@@ -9,3 +9,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface ShiftRepository extends JpaRepository<Shift, Long> {
     Optional<Shift> findFirstByAgentIdAndStatusInOrderByStartedAtDesc(Long agentId, List<ShiftStatus> statuses);
 }
+
+

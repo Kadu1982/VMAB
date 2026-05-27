@@ -64,7 +64,7 @@ class AuthServiceTest {
     private AuthService authService;
 
     @Test
-    void loginDeveGerarTokenEResetarEstadoDeSeguranca() {
+    void loginDeveGerarTokenEResetarEstadoDeSegurança() {
         // Valida o contrato principal do login: autenticar, limpar estado antigo e emitir novo JWT.
         AppUser user = new AppUser(
                 "admin",
@@ -236,3 +236,5 @@ class AuthServiceTest {
         verify(auditRecordRepository).save(any(AuditRecord.class));
     }
 }
+
+

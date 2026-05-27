@@ -188,3 +188,5 @@ class SectorizationServiceTests {
         assertFalse(captor.getValue().isActive() && captor.getValue().getEndDate() != null);
     }
 }
+
+

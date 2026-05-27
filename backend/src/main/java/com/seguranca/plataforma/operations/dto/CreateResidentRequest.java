@@ -15,3 +15,5 @@ public record CreateResidentRequest(
         @Pattern(regexp = "^\\d{4,6}$", message = "O PIN de coacao deve ter entre 4 e 6 digitos.") String coercionPin
 ) {
 }
+
+

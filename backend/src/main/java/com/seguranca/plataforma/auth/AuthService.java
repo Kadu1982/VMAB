@@ -83,7 +83,7 @@ public class AuthService {
         user.resetSecurityState();
         user.bumpTokenVersion();
         appUserRepository.save(user);
-        recordAudit(AuditActionType.AUTH, "Auth", user.getId(), "Login realizado para o usuario " + user.getUsername());
+        recordAudit(AuditActionType.AUTH, "Auth", user.getId(), "Login realizado para o usuário " + user.getUsername());
 
         List<String> roles = authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
@@ -96,36 +96,36 @@ public class AuthService {
 
     @Transactional
     public SessionActionResponse logout(String username) {
-        // Logout em JWT nao derruba um token especifico; invalida a versao de todos os tokens daquele usuario.
+        // Logout em JWT não derruba um token especifico; invalida a versao de todos os tokens daquele usuário.
         AppUser user = getActiveUser(username.trim());
         user.bumpTokenVersion();
         appUserRepository.save(user);
-        recordAudit(AuditActionType.AUTH, "Auth", user.getId(), "Logout realizado para o usuario " + user.getUsername());
+        recordAudit(AuditActionType.AUTH, "Auth", user.getId(), "Logout realizado para o usuário " + user.getUsername());
         return new SessionActionResponse("Sessao encerrada com sucesso.");
     }
 
     @Transactional
     public SessionActionResponse registerPushDevice(String username, RegisterAppPushTokenRequest request) {
-        // Registra o dispositivo Expo do usuario interno para notificacoes operacionais fora do painel web.
+        // Registra o dispositivo Expo do usuário interno para notificacoes operacionais fora do painel web.
         AppUser user = getActiveUser(username.trim());
         appUserPushNotificationService.registerDevice(user, request.expoPushToken(), request.deviceLabel());
-        recordAudit(AuditActionType.AUTH, "AuthPushDevice", user.getId(), "Dispositivo push registrado para o usuario " + user.getUsername());
+        recordAudit(AuditActionType.AUTH, "AuthPushDevice", user.getId(), "Dispositivo push registrado para o usuário " + user.getUsername());
         return new SessionActionResponse("Dispositivo operacional registrado com sucesso.");
     }
 
     @Transactional
     public SessionActionResponse revokePushDevice(String username, RevokeAppPushTokenRequest request) {
-        // Revoga um token especifico para evitar push em aparelho que saiu de operacao.
+        // Revoga um token especifico para evitar push em aparelho que saiu de operação.
         AppUser user = getActiveUser(username.trim());
         appUserPushNotificationService.revokeDevice(user, request.expoPushToken());
-        recordAudit(AuditActionType.AUTH, "AuthPushDevice", user.getId(), "Dispositivo push revogado para o usuario " + user.getUsername());
+        recordAudit(AuditActionType.AUTH, "AuthPushDevice", user.getId(), "Dispositivo push revogado para o usuário " + user.getUsername());
         return new SessionActionResponse("Dispositivo operacional revogado com sucesso.");
     }
 
     @Transactional
     public PasswordResetRequestResponse requestPasswordReset(String username) {
         AppUser user = appUserRepository.findByUsername(username.trim())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario nao encontrado."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario não encontrado."));
 
         String resetCode = generateResetCode();
         String tokenHash = hashResetCode(resetCode);
@@ -134,7 +134,7 @@ public class AuthService {
 
         passwordResetTokenRepository.consumeActiveTokensByUserId(user.getId(), now);
         passwordResetTokenRepository.save(new PasswordResetToken(user.getId(), user.getUsername(), tokenHash, now, expiresAt));
-        recordAudit(AuditActionType.AUTH, "Auth", user.getId(), "Solicitacao de reset de senha para o usuario " + user.getUsername());
+        recordAudit(AuditActionType.AUTH, "Auth", user.getId(), "Solicitacao de reset de senha para o usuário " + user.getUsername());
 
         // O codigo retorna apenas para suporte/ambiente controlado; em producao isso deve ir por canal seguro.
         return new PasswordResetRequestResponse(user.getUsername(), resetCode, expiresAt);
@@ -143,7 +143,7 @@ public class AuthService {
     @Transactional
     public SessionActionResponse confirmPasswordReset(PasswordResetConfirmRequest request) {
         AppUser user = appUserRepository.findByUsername(request.username().trim())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario nao encontrado."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario não encontrado."));
 
         String tokenHash = hashResetCode(request.resetCode().trim());
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
@@ -158,16 +158,16 @@ public class AuthService {
 
         resetToken.consume(now);
         passwordResetTokenRepository.save(resetToken);
-        recordAudit(AuditActionType.AUTH, "Auth", user.getId(), "Senha redefinida para o usuario " + user.getUsername());
+        recordAudit(AuditActionType.AUTH, "Auth", user.getId(), "Senha redefinida para o usuário " + user.getUsername());
 
         return new SessionActionResponse("Senha redefinida com sucesso.");
     }
 
     @Transactional(readOnly = true)
     public AuthenticatedUserResponse getAuthenticatedUser(String username, List<String> roles) {
-        // Retorna o contexto autenticado com o eventual vinculo operacional da conta.
+        // Retorna o contexto autenticado com o eventual vínculo operacional da conta.
         AppUser user = appUserRepository.findByUsername(username.trim())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario nao encontrado."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario não encontrado."));
         String linkedAgentName = user.getLinkedAgentId() == null
                 ? null
                 : agentRepository.findById(user.getLinkedAgentId()).map(agent -> agent.getFullName()).orElse(null);
@@ -185,7 +185,7 @@ public class AuthService {
 
     private AppUser getActiveUser(String username) {
         AppUser user = appUserRepository.findByUsername(username)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario nao encontrado."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario não encontrado."));
         if (!user.isEnabled()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Usuario desativado.");
         }
@@ -221,3 +221,5 @@ public class AuthService {
         auditRecordRepository.save(record);
     }
 }
+
+

@@ -300,3 +300,5 @@ public class ResidentAlert {
         this.residentAddress = residentAddress;
     }
 }
+
+

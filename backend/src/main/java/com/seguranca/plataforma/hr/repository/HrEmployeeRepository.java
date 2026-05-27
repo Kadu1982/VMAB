@@ -12,3 +12,5 @@ public interface HrEmployeeRepository extends JpaRepository<HrEmployee, Long> {
 
     List<HrEmployee> findAllByOrderByIdAsc();
 }
+
+

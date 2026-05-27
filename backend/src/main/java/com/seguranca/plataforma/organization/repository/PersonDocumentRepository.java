@@ -11,3 +11,5 @@ public interface PersonDocumentRepository extends JpaRepository<PersonDocument, 
 
     Optional<PersonDocument> findByIdAndOwnerTypeAndOwnerId(Long id, PersonDocumentOwnerType ownerType, Long ownerId);
 }
+
+

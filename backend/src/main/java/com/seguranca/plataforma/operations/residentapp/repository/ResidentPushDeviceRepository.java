@@ -14,3 +14,5 @@ public interface ResidentPushDeviceRepository extends JpaRepository<ResidentPush
 
     Optional<ResidentPushDevice> findByExpoPushToken(String expoPushToken);
 }
+
+

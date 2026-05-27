@@ -32,3 +32,5 @@ public class ShiftTelemetryController {
         return operationsService.getShiftTelemetry(shiftId);
     }
 }
+
+

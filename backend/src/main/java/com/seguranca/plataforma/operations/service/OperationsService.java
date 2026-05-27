@@ -95,7 +95,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class OperationsService {
-    // Orquestra o dominio operacional: cadastros, turnos, ocorrencias, dashboard e telemetria.
+    // Orquestra o dominio operacional: cadastros, turnos, ocorrências, dashboard e telemetria.
 
     private final AgentRepository agentRepository;
     private final AppUserRepository appUserRepository;
@@ -203,7 +203,7 @@ public class OperationsService {
                 62000L,
                 new java.math.BigDecimal("850.00"),
                 "Oficina Central",
-                "Servico concluido sem pendencias.",
+                "Servico concluído sem pendencias.",
                 "Troca de oleo, filtros e alinhamento preventivo.",
                 true
         ));
@@ -354,7 +354,7 @@ public class OperationsService {
 
     @Transactional(readOnly = true)
     public List<VehicleMaintenanceOrderResponse> listVehicleMaintenanceOrders() {
-        // Expõe a frota em formato de ordem de servico legivel para relatorios e paines externos.
+        // ExpÃµe a frota em formato de ordem de servico legivel para relatorios e paines externos.
         List<Vehicle> vehicles = listVehicles();
         Map<Long, Vehicle> vehiclesById = vehicles.stream().collect(java.util.stream.Collectors.toMap(Vehicle::getId, vehicle -> vehicle));
         return listVehicleMaintenanceRecords().stream()
@@ -472,7 +472,7 @@ public class OperationsService {
 
     @Transactional
     public VehicleMaintenanceRecord addVehicleMaintenance(Long vehicleId, CreateVehicleMaintenanceRequest request) {
-        // Registra manutencao com historico, custo e efeito operacional na viatura.
+        // Registra manutenção com historico, custo e efeito operacional na viatura.
         Vehicle vehicle = getVehicle(vehicleId);
         validateVehicleMaintenanceRequest(request.kmAtService(), request.nextMaintenanceKm(), request.costAmount(), request.serviceDate(), request.dueDate(), request.status(), request.resolved());
 
@@ -508,7 +508,7 @@ public class OperationsService {
         );
         vehicleRepository.save(vehicle);
         VehicleMaintenanceRecord savedRecord = vehicleMaintenanceRecordRepository.save(record);
-        recordAudit(AuditActionType.MAINTENANCE, "VehicleMaintenance", savedRecord.getId(), "Registro de manutencao " + savedRecord.getType() + " para a viatura " + savedRecord.getVehiclePlate());
+        recordAudit(AuditActionType.MAINTENANCE, "VehicleMaintenance", savedRecord.getId(), "Registro de manutenção " + savedRecord.getType() + " para a viatura " + savedRecord.getVehiclePlate());
         return savedRecord;
     }
 
@@ -546,7 +546,7 @@ public class OperationsService {
         );
         vehicleRepository.save(vehicle);
         VehicleMaintenanceRecord savedRecord = vehicleMaintenanceRecordRepository.save(record);
-        recordAudit(AuditActionType.MAINTENANCE, "VehicleMaintenance", savedRecord.getId(), "Atualizacao da manutencao " + savedRecord.getType() + " da viatura " + savedRecord.getVehiclePlate());
+        recordAudit(AuditActionType.MAINTENANCE, "VehicleMaintenance", savedRecord.getId(), "Atualizacao da manutenção " + savedRecord.getType() + " da viatura " + savedRecord.getVehiclePlate());
         return savedRecord;
     }
 
@@ -566,7 +566,7 @@ public class OperationsService {
 
     @Transactional
     public Shift addShift(CreateShiftRequest request) {
-        // Um turno planejado nao pode nascer com ponto iniciado nem KM de saida preenchido.
+        // Um turno planejado não pode nascer com ponto iniciado nem KM de saida preenchido.
         Agent agent = getAgent(request.agentId());
         Vehicle vehicle = getVehicle(request.vehicleId());
         validateFuelLevelPercent(request.fuelLevelPercent());
@@ -615,7 +615,7 @@ public class OperationsService {
 
         if (request.attendanceStatus() == ShiftAttendanceStatus.ABSENT
                 && (request.status() == ShiftStatus.ACTIVE || request.status() == ShiftStatus.HANDOFF || request.status() == ShiftStatus.CLOSED)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Um turno marcado como falta nao pode entrar em operacao sem cobertura.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Um turno marcado como falta não pode entrar em operação sem cobertura.");
         }
 
         if (request.status() == ShiftStatus.ACTIVE || request.status() == ShiftStatus.HANDOFF || request.status() == ShiftStatus.CLOSED) {
@@ -706,7 +706,7 @@ public class OperationsService {
         // Conclui a troca apenas quando o vigilante de destino aceita formalmente assumir o turno.
         Shift shift = getShift(id);
         if (shift.getStatus() != ShiftStatus.HANDOFF_PENDING) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nao existe troca pendente para este turno.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Não existe troca pendente para este turno.");
         }
         Long currentAgentId = resolveCurrentOperationalAgentId(true);
         if (!currentAgentId.equals(shift.getHandoffToAgentId())) {
@@ -724,7 +724,7 @@ public class OperationsService {
         // Permite recusar a troca sem perder a trilha de quem recusou e por qual motivo.
         Shift shift = getShift(id);
         if (shift.getStatus() != ShiftStatus.HANDOFF_PENDING) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nao existe troca pendente para este turno.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Não existe troca pendente para este turno.");
         }
         Long currentAgentId = resolveCurrentOperationalAgentId(true);
         if (!currentAgentId.equals(shift.getHandoffToAgentId())) {
@@ -753,7 +753,7 @@ public class OperationsService {
         switch (action) {
             case MARK_ON_TIME -> {
                 if (shift.getStatus() == ShiftStatus.CLOSED) {
-                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nao e possivel supervisionar presenca em turno encerrado.");
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Não e possivel supervisionar presenca em turno encerrado.");
                 }
                 shift.setAttendanceManually(ShiftAttendanceStatus.ON_TIME, 0, normalizeOptionalText(request.notes(), 500));
                 if (shift.getStatus() == ShiftStatus.PLANNED) {
@@ -776,17 +776,17 @@ public class OperationsService {
             }
             case MARK_LATE -> {
                 if (shift.getStatus() == ShiftStatus.CLOSED) {
-                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nao e possivel marcar atraso em turno encerrado.");
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Não e possivel marcar atraso em turno encerrado.");
                 }
                 int lateMinutes = request.lateMinutes() == null || request.lateMinutes() <= 0 ? 1 : request.lateMinutes();
                 shift.setAttendanceManually(ShiftAttendanceStatus.LATE, lateMinutes, normalizeOptionalText(request.notes(), 500));
             }
             case MARK_ABSENT -> {
                 if (shift.getStatus() == ShiftStatus.CLOSED) {
-                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nao e possivel marcar falta em turno encerrado.");
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Não e possivel marcar falta em turno encerrado.");
                 }
                 if (shift.getCheckInAt() != null) {
-                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Um turno com check-in registrado nao pode ser tratado como falta.");
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Um turno com check-in registrado não pode ser tratado como falta.");
                 }
                 shift.setAttendanceManually(ShiftAttendanceStatus.ABSENT, null, normalizeOptionalText(request.notes(), 500));
             }
@@ -805,7 +805,7 @@ public class OperationsService {
             }
             case CLEAR_COVERAGE -> {
                 if (shift.getAttendanceStatus() != ShiftAttendanceStatus.COVERED) {
-                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nao existe cobertura aplicada para limpar neste turno.");
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Não existe cobertura aplicada para limpar neste turno.");
                 }
                 applyAttendanceState(shift, ShiftAttendanceStatus.PENDING, null, normalizeOptionalText(request.notes(), 500));
             }
@@ -851,7 +851,7 @@ public class OperationsService {
     public ShiftTelemetry getShiftTelemetry(Long shiftId) {
         getShift(shiftId);
         return shiftTelemetryRepository.findTopByShiftIdOrderByRecordedAtDesc(shiftId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Telemetria nao encontrada para o turno"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Telemetria não encontrada para o turno"));
     }
 
     @Transactional(readOnly = true)
@@ -903,7 +903,7 @@ public class OperationsService {
                 null
         );
         Incident savedIncident = incidentRepository.save(incident);
-        recordAudit(AuditActionType.CREATE, "Incident", savedIncident.getId(), "Abertura da ocorrencia para " + savedIncident.getResidentName());
+        recordAudit(AuditActionType.CREATE, "Incident", savedIncident.getId(), "Abertura da ocorrência para " + savedIncident.getResidentName());
         appUserPushNotificationService.notifyIncidentWorkflowUpdated(savedIncident);
         return savedIncident;
     }
@@ -931,22 +931,22 @@ public class OperationsService {
                 vehiclePlate
         );
         Incident savedIncident = incidentRepository.save(incident);
-        recordAudit(AuditActionType.INCIDENT_WORKFLOW, "Incident", savedIncident.getId(), "Atualizacao da ocorrencia " + savedIncident.getId() + " para status " + savedIncident.getStatus());
+        recordAudit(AuditActionType.INCIDENT_WORKFLOW, "Incident", savedIncident.getId(), "Atualizacao da ocorrência " + savedIncident.getId() + " para status " + savedIncident.getStatus());
         return savedIncident;
     }
 
     @Transactional
     public void deleteIncident(Long id) {
         Incident incident = getIncident(id);
-        // Remove os arquivos fisicos antes de apagar a ocorrencia para nao deixar evidencia solta no disco.
+        // Remove os arquivos fisicos antes de apagar a ocorrência para não deixar evidência solta no disco.
         deleteIncidentEvidenceFiles(id);
         incidentRepository.delete(incident);
-        recordAudit(AuditActionType.DELETE, "Incident", id, "Exclusao da ocorrencia " + incident.getId());
+        recordAudit(AuditActionType.DELETE, "Incident", id, "Exclusao da ocorrência " + incident.getId());
     }
 
     @Transactional
     public Incident dispatchIncident(Long id, DispatchIncidentRequest request) {
-        // Formaliza o despacho da equipe para a ocorrencia com trilha de quem foi enviado.
+        // Formaliza o despacho da equipe para a ocorrência com trilha de quem foi enviado.
         Incident incident = getIncident(id);
         ensureIncidentCanBeDispatched(incident);
 
@@ -964,14 +964,14 @@ public class OperationsService {
                 request.dispatchNotes() != null ? request.dispatchNotes().trim() : null
         );
         Incident savedIncident = incidentRepository.save(incident);
-        recordAudit(AuditActionType.INCIDENT_WORKFLOW, "Incident", savedIncident.getId(), "Despacho da ocorrencia " + savedIncident.getId() + " para " + savedIncident.getAssignedAgentName());
+        recordAudit(AuditActionType.INCIDENT_WORKFLOW, "Incident", savedIncident.getId(), "Despacho da ocorrência " + savedIncident.getId() + " para " + savedIncident.getAssignedAgentName());
         appUserPushNotificationService.notifyIncidentWorkflowUpdated(savedIncident);
         return savedIncident;
     }
 
     @Transactional
     public Incident dispatchIncidentForCurrentRonda(Long id, RondaDispatchIncidentRequest request) {
-        // A ronda assume e despacha a ocorrencia usando o proprio vinculo autenticado e a viatura do turno ativo.
+        // A ronda assume e despacha a ocorrência usando o proprio vínculo autenticado e a viatura do turno ativo.
         Long agentId = resolveCurrentOperationalAgentId(true);
         Incident incident = getIncident(id);
         ensureIncidentCanBeDispatched(incident);
@@ -993,17 +993,17 @@ public class OperationsService {
                 normalizeOptionalText(request == null ? null : request.dispatchNotes(), 500)
         );
         Incident savedIncident = incidentRepository.save(incident);
-        recordAudit(AuditActionType.INCIDENT_WORKFLOW, "Incident", savedIncident.getId(), "Despacho mobile da ocorrencia " + savedIncident.getId() + " pela ronda " + savedIncident.getAssignedAgentName());
+        recordAudit(AuditActionType.INCIDENT_WORKFLOW, "Incident", savedIncident.getId(), "Despacho mobile da ocorrência " + savedIncident.getId() + " pela ronda " + savedIncident.getAssignedAgentName());
         appUserPushNotificationService.notifyIncidentWorkflowUpdated(savedIncident);
         return savedIncident;
     }
 
     @Transactional
     public Incident markIncidentOnSite(Long id, OnSiteIncidentRequest request) {
-        // Registra a chegada da equipe no local da ocorrencia.
+        // Registra a chegada da equipe no local da ocorrência.
         Incident incident = getIncident(id);
         if (incident.getStatus() != IncidentStatus.DISPATCHED) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A ocorrencia precisa estar despachada para registrar chegada.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A ocorrência precisa estar despachada para registrar chegada.");
         }
 
         incident.markOnSite(
@@ -1011,19 +1011,19 @@ public class OperationsService {
                 request.arrivalNotes() != null ? request.arrivalNotes().trim() : null
         );
         Incident savedIncident = incidentRepository.save(incident);
-        recordAudit(AuditActionType.INCIDENT_WORKFLOW, "Incident", savedIncident.getId(), "Chegada ao local da ocorrencia " + savedIncident.getId());
+        recordAudit(AuditActionType.INCIDENT_WORKFLOW, "Incident", savedIncident.getId(), "Chegada ao local da ocorrência " + savedIncident.getId());
         appUserPushNotificationService.notifyIncidentWorkflowUpdated(savedIncident);
         return savedIncident;
     }
 
     @Transactional
     public Incident markIncidentOnSiteForCurrentRonda(Long id, OnSiteIncidentRequest request) {
-        // A chegada no local so pode ser confirmada pela ronda responsavel por aquela ocorrencia.
+        // A chegada no local so pode ser confirmada pela ronda responsavel por aquela ocorrência.
         Long agentId = resolveCurrentOperationalAgentId(true);
         Incident incident = getIncident(id);
         ensureIncidentBelongsToCurrentRonda(incident, agentId);
         if (incident.getStatus() != IncidentStatus.DISPATCHED) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A ocorrencia precisa estar despachada para registrar chegada.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A ocorrência precisa estar despachada para registrar chegada.");
         }
 
         incident.markOnSite(
@@ -1031,17 +1031,17 @@ public class OperationsService {
                 normalizeOptionalText(request == null ? null : request.arrivalNotes(), 500)
         );
         Incident savedIncident = incidentRepository.save(incident);
-        recordAudit(AuditActionType.INCIDENT_WORKFLOW, "Incident", savedIncident.getId(), "Chegada mobile ao local da ocorrencia " + savedIncident.getId());
+        recordAudit(AuditActionType.INCIDENT_WORKFLOW, "Incident", savedIncident.getId(), "Chegada mobile ao local da ocorrência " + savedIncident.getId());
         appUserPushNotificationService.notifyIncidentWorkflowUpdated(savedIncident);
         return savedIncident;
     }
 
     @Transactional
     public Incident closeIncident(Long id, CloseIncidentRequest request) {
-        // Encerra a ocorrencia quando o atendimento foi concluido e documentado.
+        // Encerra a ocorrência quando o atendimento foi concluído e documentado.
         Incident incident = getIncident(id);
         if (incident.getStatus() != IncidentStatus.ON_SITE) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A ocorrencia precisa estar no local antes do encerramento.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A ocorrência precisa estar no local antes do encerramento.");
         }
 
         incident.close(
@@ -1049,19 +1049,19 @@ public class OperationsService {
                 normalizeOptionalText(request.closureNotes(), 1000)
         );
         Incident savedIncident = incidentRepository.save(incident);
-        recordAudit(AuditActionType.INCIDENT_WORKFLOW, "Incident", savedIncident.getId(), "Encerramento da ocorrencia " + savedIncident.getId());
+        recordAudit(AuditActionType.INCIDENT_WORKFLOW, "Incident", savedIncident.getId(), "Encerramento da ocorrência " + savedIncident.getId());
         appUserPushNotificationService.notifyIncidentWorkflowUpdated(savedIncident);
         return savedIncident;
     }
 
     @Transactional
     public Incident closeIncidentForCurrentRonda(Long id, RondaCloseIncidentRequest request) {
-        // O encerramento mobile exige que a ronda esteja vinculada a ocorrencia e registre observacao final.
+        // O encerramento mobile exige que a ronda esteja vinculada a ocorrência e registre observacao final.
         Long agentId = resolveCurrentOperationalAgentId(true);
         Incident incident = getIncident(id);
         ensureIncidentBelongsToCurrentRonda(incident, agentId);
         if (incident.getStatus() != IncidentStatus.ON_SITE) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A ocorrencia precisa estar no local antes do encerramento.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A ocorrência precisa estar no local antes do encerramento.");
         }
 
         incident.close(
@@ -1069,14 +1069,14 @@ public class OperationsService {
                 normalizeRequiredText(request.closureNotes(), "Informe a observacao final do atendimento.", 1000)
         );
         Incident savedIncident = incidentRepository.save(incident);
-        recordAudit(AuditActionType.INCIDENT_WORKFLOW, "Incident", savedIncident.getId(), "Encerramento mobile da ocorrencia " + savedIncident.getId());
+        recordAudit(AuditActionType.INCIDENT_WORKFLOW, "Incident", savedIncident.getId(), "Encerramento mobile da ocorrência " + savedIncident.getId());
         appUserPushNotificationService.notifyIncidentWorkflowUpdated(savedIncident);
         return savedIncident;
     }
 
     @Transactional
     public IncidentEvidenceResponse addIncidentEvidence(Long incidentId, MultipartFile file, String notes) {
-        // Persiste metadados e arquivo fisico da evidencia ligada a uma ocorrencia.
+        // Persiste metadados e arquivo fisico da evidência ligada a uma ocorrência.
         Incident incident = getIncident(incidentId);
         validateEvidenceFile(file);
 
@@ -1091,7 +1091,7 @@ public class OperationsService {
                 Files.copy(inputStream, destination, StandardCopyOption.REPLACE_EXISTING);
             }
         } catch (IOException exception) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Nao foi possivel armazenar a evidencia.");
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Não foi possivel armazenar a evidência.");
         }
 
         IncidentEvidence evidence = new IncidentEvidence(
@@ -1105,7 +1105,7 @@ public class OperationsService {
                 OffsetDateTime.now(ZoneOffset.UTC)
         );
         IncidentEvidence savedEvidence = incidentEvidenceRepository.save(evidence);
-        recordAudit(AuditActionType.UPDATE, "IncidentEvidence", savedEvidence.getId(), "Envio de evidencia para a ocorrencia " + incident.getId());
+        recordAudit(AuditActionType.UPDATE, "IncidentEvidence", savedEvidence.getId(), "Envio de evidência para a ocorrência " + incident.getId());
         return toIncidentEvidenceResponse(savedEvidence);
     }
 
@@ -1113,10 +1113,10 @@ public class OperationsService {
     public IncidentEvidenceResponse deleteIncidentEvidence(Long incidentId, Long evidenceId, String reason) {
         // A exclusao e controlada: apaga o arquivo fisico, mas preserva trilha de quem removeu e por qual motivo.
         IncidentEvidence evidence = incidentEvidenceRepository.findByIdAndIncidentIdAndDeletedAtIsNull(evidenceId, incidentId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Evidencia da ocorrencia nao encontrada."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Evidencia da ocorrência não encontrada."));
 
         if (evidence.isDeleted()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A evidencia ja foi removida anteriormente.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A evidência ja foi removida anteriormente.");
         }
 
         Path evidencePath = storageRoot
@@ -1128,7 +1128,7 @@ public class OperationsService {
             Files.deleteIfExists(evidencePath);
             pruneIncidentDirectory(evidencePath.getParent());
         } catch (IOException exception) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Nao foi possivel remover o arquivo da evidencia.");
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Não foi possivel remover o arquivo da evidência.");
         }
 
         evidence.markDeleted(
@@ -1137,24 +1137,24 @@ public class OperationsService {
                 normalizeOptionalText(reason, 1000)
         );
         IncidentEvidence savedEvidence = incidentEvidenceRepository.save(evidence);
-        recordAudit(AuditActionType.DELETE, "IncidentEvidence", savedEvidence.getId(), "Exclusao controlada da evidencia da ocorrencia " + incidentId);
+        recordAudit(AuditActionType.DELETE, "IncidentEvidence", savedEvidence.getId(), "Exclusao controlada da evidência da ocorrência " + incidentId);
         return toIncidentEvidenceResponse(savedEvidence);
     }
 
     @Transactional(readOnly = true)
     public IncidentEvidenceDownload downloadIncidentEvidence(Long incidentId, Long evidenceId) {
         IncidentEvidence evidence = incidentEvidenceRepository.findByIdAndIncidentIdAndDeletedAtIsNull(evidenceId, incidentId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Evidencia da ocorrencia nao encontrada."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Evidencia da ocorrência não encontrada."));
 
         if (evidence.isDeleted()) {
-            throw new ResponseStatusException(HttpStatus.GONE, "A evidencia foi removida e nao pode mais ser baixada.");
+            throw new ResponseStatusException(HttpStatus.GONE, "A evidência foi removida e não pode mais ser baixada.");
         }
 
         Path resourcePath = storageRoot.resolve("incidents").resolve(String.valueOf(incidentId)).resolve(evidence.getStoredFilename());
         Resource resource = new FileSystemResource(resourcePath);
 
         if (!resource.exists()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Arquivo fisico da evidencia nao encontrado.");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Arquivo fisico da evidência não encontrado.");
         }
 
         return new IncidentEvidenceDownload(
@@ -1335,26 +1335,26 @@ public class OperationsService {
 
     private Agent getAgent(Long id) {
         return agentRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Agente nao encontrado"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Agente não encontrado"));
     }
 
     private Resident getResident(Long id) {
         return residentRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Morador nao encontrado"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Morador não encontrado"));
     }
 
     private Vehicle getVehicle(Long id) {
         return vehicleRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Viatura nao encontrada"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Viatura não encontrada"));
     }
 
     private VehicleMaintenanceRecord getVehicleMaintenanceRecord(Long id) {
         return vehicleMaintenanceRecordRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Registro de manutencao nao encontrado"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Registro de manutenção não encontrado"));
     }
 
     private boolean hasVehicleAlert(Vehicle vehicle) {
-        // Concentra os alertas de manutencao e vencimento documental da viatura no dashboard.
+        // Concentra os alertas de manutenção e vencimento documental da viatura no dashboard.
         boolean hasOpenCriticalOrder = vehicleMaintenanceRecordRepository.findByVehicleIdOrderByOpenedAtDesc(vehicle.getId()).stream()
                 .anyMatch(record -> record.getStatus() != VehicleMaintenanceStatus.COMPLETED
                         && record.getStatus() != VehicleMaintenanceStatus.CANCELLED
@@ -1364,7 +1364,7 @@ public class OperationsService {
 
     private Shift getShift(Long id) {
         return shiftRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Turno nao encontrado"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Turno não encontrado"));
     }
 
     private void validateFuelLevelPercent(Integer fuelLevelPercent) {
@@ -1393,14 +1393,14 @@ public class OperationsService {
     }
 
     private void validateVehicleOperationalReadiness(Vehicle vehicle, OffsetDateTime scheduledStartAt, OffsetDateTime scheduledEndAt, Long currentShiftId) {
-        // Impede uso de viatura bloqueada, com documento vencido ou manutencao estourada em novos turnos.
+        // Impede uso de viatura bloqueada, com documento vencido ou manutenção estourada em novos turnos.
         if (!vehicle.isOperationallyReady()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A viatura selecionada nao esta liberada para operacao.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A viatura selecionada não esta liberada para operação.");
         }
 
         LocalDate referenceDate = scheduledStartAt.toLocalDate();
         if (vehicle.isMaintenanceDue()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A viatura selecionada esta com manutencao vencida e nao pode receber novo turno.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A viatura selecionada esta com manutenção vencida e não pode receber novo turno.");
         }
 
         if (vehicle.getIpvaExpiry() != null && vehicle.getIpvaExpiry().isBefore(referenceDate)) {
@@ -1439,23 +1439,23 @@ public class OperationsService {
     ) {
         // Impede historico financeiro e de quilometragem inconsistente na ordem de servico.
         if (kmAtService != null && kmAtService < 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A quilometragem da manutencao nao pode ser negativa.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A quilometragem da manutenção não pode ser negativa.");
         }
 
         if (nextMaintenanceKm != null && nextMaintenanceKm < 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A proxima manutencao nao pode ter quilometragem negativa.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A proxima manutenção não pode ter quilometragem negativa.");
         }
 
         if (costAmount != null && costAmount.signum() < 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O custo da manutencao nao pode ser negativo.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O custo da manutenção não pode ser negativo.");
         }
 
         if (plannedServiceDate != null && dueDate != null && dueDate.isBefore(plannedServiceDate)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A data de vencimento da OS nao pode ser anterior a data do servico.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A data de vencimento da OS não pode ser anterior a data do servico.");
         }
 
         if (resolved && status != VehicleMaintenanceStatus.COMPLETED) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Uma manutencao marcada como resolvida precisa estar com status concluido.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Uma manutenção marcada como resolvida precisa estar com status concluído.");
         }
     }
 
@@ -1469,7 +1469,7 @@ public class OperationsService {
             String description,
             boolean resolved
     ) {
-        // Reflete o andamento da manutencao no cadastro principal da viatura.
+        // Reflete o andamento da manutenção no cadastro principal da viatura.
         long updatedCurrentKm = kmAtService != null ? Math.max(vehicle.getCurrentKm(), kmAtService) : vehicle.getCurrentKm();
         long updatedNextMaintenanceKm = nextMaintenanceKm != null ? nextMaintenanceKm : vehicle.getNextMaintenanceKm();
         LocalDate updatedLastMaintenanceAt = serviceDate != null ? serviceDate : vehicle.getLastMaintenanceAt();
@@ -1498,7 +1498,7 @@ public class OperationsService {
     }
 
     private String generateMaintenanceCode(Vehicle vehicle) {
-        // Gera um identificador curto de OS que a operacao consegue citar por telefone, radio e relatorio.
+        // Gera um identificador curto de OS que a operação consegue citar por telefone, radio e relatorio.
         String prefix = vehicle.getPlate().replaceAll("[^A-Z0-9]", "").toUpperCase(Locale.ROOT);
         String suffix = UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT);
         return "OS-" + prefix + "-" + suffix;
@@ -1518,7 +1518,7 @@ public class OperationsService {
     }
 
     private void activateShiftIfNeeded(Shift shift, Vehicle vehicle) {
-        // Marca check-in e KM inicial apenas quando o turno efetivamente entra em operacao.
+        // Marca check-in e KM inicial apenas quando o turno efetivamente entra em operação.
         if (shift.getCheckInAt() == null) {
             shift.beginOperationalTracking(OffsetDateTime.now(ZoneOffset.UTC), vehicle.getCurrentKm());
         }
@@ -1528,11 +1528,11 @@ public class OperationsService {
         // Impede retrocesso de odometro e fechamento incoerente do turno.
         Long startKm = shift.getStartKm();
         if (startKm != null && endKm < startKm) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A quilometragem final nao pode ser menor que a quilometragem inicial do turno.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A quilometragem final não pode ser menor que a quilometragem inicial do turno.");
         }
 
         if (endKm < vehicle.getCurrentKm()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A quilometragem final nao pode ser menor que a quilometragem atual da viatura.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A quilometragem final não pode ser menor que a quilometragem atual da viatura.");
         }
     }
 
@@ -1582,63 +1582,63 @@ public class OperationsService {
 
     private Incident getIncident(Long id) {
         return incidentRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ocorrencia nao encontrada"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ocorrencia não encontrada"));
     }
 
     private void ensureIncidentCanBeDispatched(Incident incident) {
-        // O despacho parte apenas de ocorrencia aberta; estados posteriores exigem outro fluxo.
+        // O despacho parte apenas de ocorrência aberta; estados posteriores exigem outro fluxo.
         if (incident.getStatus() == IncidentStatus.CLOSED) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nao e possivel despachar uma ocorrencia encerrada.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Não e possivel despachar uma ocorrência encerrada.");
         }
         if (incident.getStatus() == IncidentStatus.DISPATCHED || incident.getStatus() == IncidentStatus.ON_SITE) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A ocorrencia ja esta em atendimento operacional.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A ocorrência ja esta em atendimento operacional.");
         }
     }
 
     private void ensureIncidentNotAssignedToAnotherAgent(Incident incident, Long currentAgentId) {
-        // A ronda mobile nao pode sequestrar uma ocorrencia que ja foi atribuida para outro vigilante.
+        // A ronda mobile não pode sequestrar uma ocorrência que ja foi atribuida para outro vigilante.
         if (incident.getAssignedAgentId() != null && !incident.getAssignedAgentId().equals(currentAgentId)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "A ocorrencia ja esta atribuida a outro vigilante.");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "A ocorrência ja esta atribuida a outro vigilante.");
         }
     }
 
     private void ensureIncidentBelongsToCurrentRonda(Incident incident, Long currentAgentId) {
         // Chegada e encerramento exigem que a conta autenticada represente a mesma ronda despachada.
         if (incident.getAssignedAgentId() == null || !incident.getAssignedAgentId().equals(currentAgentId)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "A ocorrencia nao esta atribuida ao vigilante autenticado.");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "A ocorrência não esta atribuida ao vigilante autenticado.");
         }
     }
 
     private void ensureAgentEligibleForDispatch(Agent agent) {
-        // So vigias ativos ou em servico podem assumir uma ocorrencia.
+        // So vigias ativos ou em servico podem assumir uma ocorrência.
         if (agent.getStatus() != AgentStatus.ACTIVE && agent.getStatus() != AgentStatus.ON_DUTY) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O vigilante precisa estar ativo para assumir a ocorrencia.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O vigilante precisa estar ativo para assumir a ocorrência.");
         }
     }
 
     private void ensureVehicleEligibleForDispatch(Vehicle vehicle) {
-        // O despacho nao pode usar viatura bloqueada, em manutencao ou com documento vencido.
+        // O despacho não pode usar viatura bloqueada, em manutenção ou com documento vencido.
         if (vehicle.getStatus() == VehicleStatus.MAINTENANCE || vehicle.getStatus() == VehicleStatus.BLOCKED) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A viatura selecionada nao esta disponivel para despacho.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A viatura selecionada não esta disponível para despacho.");
         }
 
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
         if ((vehicle.getIpvaExpiry() != null && vehicle.getIpvaExpiry().isBefore(today))
                 || (vehicle.getLicensingExpiry() != null && vehicle.getLicensingExpiry().isBefore(today))
                 || (vehicle.getInsuranceExpiry() != null && vehicle.getInsuranceExpiry().isBefore(today))) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A viatura possui documentacao vencida e nao pode ser enviada para atendimento.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A viatura possui documentação vencida e não pode ser enviada para atendimento.");
         }
     }
 
     private void ensureAgentHasNoOtherActiveIncident(Long agentId, Long currentIncidentId) {
-        // A mesma ronda nao deve assumir dois atendimentos simultaneos pelo mobile sem supervisao.
+        // A mesma ronda não deve assumir dois atendimentos simultaneos pelo mobile sem supervisao.
         boolean hasAnotherActiveIncident = incidentRepository.findAll().stream()
                 .anyMatch(incident -> incident.getAssignedAgentId() != null
                         && incident.getAssignedAgentId().equals(agentId)
                         && !incident.getId().equals(currentIncidentId)
                         && incident.getStatus() != IncidentStatus.CLOSED);
         if (hasAnotherActiveIncident) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Ja existe outra ocorrencia em atendimento para este vigilante.");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Ja existe outra ocorrência em atendimento para este vigilante.");
         }
     }
 
@@ -1648,21 +1648,21 @@ public class OperationsService {
                         agentId,
                         List.of(ShiftStatus.ACTIVE, ShiftStatus.HANDOFF, ShiftStatus.HANDOFF_PENDING)
                 )
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nao existe turno operacional ativo vinculado ao vigilante autenticado."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Não existe turno operacional ativo vinculado ao vigilante autenticado."));
     }
 
     private void validateIncidentTransition(IncidentStatus currentStatus, IncidentStatus requestedStatus) {
         // Evita regressao de estado e saltos incoerentes no fluxo de atendimento.
         if (currentStatus == IncidentStatus.CLOSED && requestedStatus != IncidentStatus.CLOSED) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Uma ocorrencia encerrada nao pode voltar para outro status.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Uma ocorrência encerrada não pode voltar para outro status.");
         }
 
         if (currentStatus == IncidentStatus.OPEN && requestedStatus == IncidentStatus.ON_SITE) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A ocorrencia precisa ser despachada antes de chegar ao local.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A ocorrência precisa ser despachada antes de chegar ao local.");
         }
 
         if (currentStatus == IncidentStatus.OPEN && requestedStatus == IncidentStatus.CLOSED) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A ocorrencia nao pode ser encerrada sem despacho.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A ocorrência não pode ser encerrada sem despacho.");
         }
     }
 
@@ -1717,7 +1717,7 @@ public class OperationsService {
                 agent != null ? agent.getBadgeCode() : "SEM-CRACHA",
                 agent != null ? agent.getPhotoUrl() : null,
                 vehicle != null ? vehicle.getPlate() : activeShift.getVehiclePlate(),
-                vehicle != null ? vehicle.getModel() : "Viatura em operacao",
+                vehicle != null ? vehicle.getModel() : "Viatura em operação",
                 vehicle != null ? vehicle.getCurrentKm() : 0,
                 vehicle != null ? vehicle.getStatus().name() : VehicleStatus.IN_OPERATION.name(),
                 telemetry != null ? telemetry.getLatitude() : -23.56390,
@@ -1772,14 +1772,14 @@ public class OperationsService {
         }
 
         if (!StringUtils.hasText(residentName) || !StringUtils.hasText(address)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Morador e endereco sao obrigatorios quando nao houver cadastro selecionado");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Morador e endereco sao obrigatorios quando não houver cadastro selecionado");
         }
 
         return null;
     }
 
     private void recordAudit(AuditActionType actionType, String entityName, Long entityId, String description) {
-        // Registra a trilha minima das acoes criticas com o usuario autenticado quando houver contexto.
+        // Registra a trilha minima das acoes críticas com o usuário autenticado quando houver contexto.
         AuditRecord record = new AuditRecord(
                 actionType,
                 entityName,
@@ -1811,11 +1811,11 @@ public class OperationsService {
 
     private void validateEvidenceFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selecione um arquivo de evidencia.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selecione um arquivo de evidência.");
         }
 
         if (file.getSize() > 15L * 1024 * 1024) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A evidencia excede o limite de 15 MB.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A evidência excede o limite de 15 MB.");
         }
     }
 
@@ -1823,12 +1823,12 @@ public class OperationsService {
         try {
             Files.createDirectories(storageRoot.resolve("incidents"));
         } catch (IOException exception) {
-            throw new IllegalStateException("Nao foi possivel inicializar o diretorio de evidencias.", exception);
+            throw new IllegalStateException("Não foi possivel inicializar o diretorio de evidências.", exception);
         }
     }
 
     private void deleteIncidentEvidenceFiles(Long incidentId) {
-        // Faz a limpeza local do diretorio de anexos ligado a uma ocorrencia removida.
+        // Faz a limpeza local do diretorio de anexos ligado a uma ocorrência removida.
         List<IncidentEvidence> evidences = incidentEvidenceRepository.findByIncidentIdAndDeletedAtIsNullOrderByUploadedAtDesc(incidentId);
         for (IncidentEvidence evidence : evidences) {
             Path evidencePath = storageRoot
@@ -1838,7 +1838,7 @@ public class OperationsService {
             try {
                 Files.deleteIfExists(evidencePath);
             } catch (IOException exception) {
-                // A limpeza e best effort; a varredura agendada de retencao remove sobras se algo falhar.
+                // A limpeza e best effort; a varredura agendada de retenção remove sobras se algo falhar.
             }
         }
 
@@ -1848,7 +1848,7 @@ public class OperationsService {
                 Files.deleteIfExists(incidentDirectory);
             }
         } catch (IOException exception) {
-            // O diretorio vazio nao precisa bloquear a exclusao funcional da ocorrencia.
+            // O diretorio vazio não precisa bloquear a exclusao funcional da ocorrência.
         }
     }
 
@@ -1876,7 +1876,7 @@ public class OperationsService {
     private String deriveResidentPinFromPhone(String phoneNumber, boolean coercionMode) {
         String digitsOnly = phoneNumber == null ? "" : phoneNumber.replaceAll("\\D+", "");
         if (digitsOnly.length() < 4) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nao foi possivel derivar o PIN padrao do morador a partir do telefone.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Não foi possivel derivar o PIN padrao do morador a partir do telefone.");
         }
 
         String lastFourDigits = digitsOnly.substring(digitsOnly.length() - 4);
@@ -1892,16 +1892,16 @@ public class OperationsService {
 
         Long linkedAgentId = resolveCurrentOperationalAgentId(true);
         if (!linkedAgentId.equals(shift.getAgentId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "A conta autenticada nao representa o vigilante atual deste turno.");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "A conta autenticada não representa o vigilante atual deste turno.");
         }
     }
 
     private Long resolveCurrentOperationalAgentId(boolean required) {
-        // Acoes sensiveis da ronda precisam sair do usuario autenticado, nao de IDs enviados pelo cliente.
+        // Ações sensiveis da ronda precisam sair do usuário autenticado, não de IDs enviados pelo cliente.
         AppUser currentUser = resolveCurrentAppUser();
         if (currentUser.getRole() != AppUserRole.RONDA) {
             if (required) {
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Somente um usuario de ronda vinculado a vigilante pode executar esta acao.");
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Somente um usuário de ronda vinculado a vigilante pode executar esta acao.");
             }
             return null;
         }
@@ -1915,11 +1915,11 @@ public class OperationsService {
     private AppUser resolveCurrentAppUser() {
         String username = resolveCurrentActorUsername();
         return appUserRepository.findByUsername(username)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Usuario autenticado nao encontrado."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Usuario autenticado não encontrado."));
     }
 
     private String sanitizeFilename(String originalFilename) {
-        String fallback = "evidencia.bin";
+        String fallback = "evidência.bin";
         if (!StringUtils.hasText(originalFilename)) {
             return fallback;
         }
@@ -1929,7 +1929,7 @@ public class OperationsService {
     }
 
     private void pruneIncidentDirectory(Path directory) {
-        // Remove diretorios vazios deixados pela exclusao para nao acumular lixo no storage.
+        // Remove diretorios vazios deixados pela exclusao para não acumular lixo no storage.
         if (directory == null) {
             return;
         }
@@ -1999,3 +1999,5 @@ public class OperationsService {
     ) {
     }
 }
+
+

@@ -10,3 +10,5 @@ public record CreateResidentVehicleRequest(
         String notes
 ) {
 }
+
+

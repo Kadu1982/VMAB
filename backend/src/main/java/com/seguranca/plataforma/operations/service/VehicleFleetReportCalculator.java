@@ -112,7 +112,7 @@ public class VehicleFleetReportCalculator {
                 record.getWorkOrderCode(),
                 record.getVehicleId(),
                 record.getVehiclePlate(),
-                vehicle != null ? vehicle.getModel() : "Veiculo nao encontrado",
+                vehicle != null ? vehicle.getModel() : "Veiculo não encontrado",
                 record.getType(),
                 record.getPriority(),
                 record.getStatus(),
@@ -136,3 +136,5 @@ public class VehicleFleetReportCalculator {
         );
     }
 }
+
+

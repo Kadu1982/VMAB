@@ -6,3 +6,5 @@ public record ResidentAlertActionNotesRequest(
         @Size(max = 1000) String notes
 ) {
 }
+
+

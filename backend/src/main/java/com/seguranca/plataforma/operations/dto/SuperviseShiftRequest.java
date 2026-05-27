@@ -9,3 +9,5 @@ public record SuperviseShiftRequest(
         @Size(max = 500) String notes
 ) {
 }
+
+

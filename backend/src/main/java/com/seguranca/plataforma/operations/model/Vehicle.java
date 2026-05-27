@@ -121,17 +121,17 @@ public class Vehicle {
     }
 
     public long getRemainingMaintenanceKm() {
-        // Expõe a distancia ate a proxima revisao para relatorios e regras operacionais.
+        // ExpÃµe a distancia ate a proxima revisao para relatorios e regras operacionais.
         return nextMaintenanceKm - currentKm;
     }
 
     public boolean isMaintenanceDue() {
-        // Quando a margem zera ou fica negativa, a viatura ja nao pode ser tratada como pronta.
+        // Quando a margem zera ou fica negativa, a viatura ja não pode ser tratada como pronta.
         return getRemainingMaintenanceKm() <= 0;
     }
 
     public boolean isMaintenanceDueSoon(long alertThresholdKm) {
-        // Usa uma margem objetiva para alertar a base antes da manutencao vencer de fato.
+        // Usa uma margem objetiva para alertar a base antes da manutenção vencer de fato.
         return getRemainingMaintenanceKm() <= alertThresholdKm;
     }
 
@@ -144,7 +144,7 @@ public class Vehicle {
     }
 
     public boolean isOperationallyReady() {
-        // Apenas status liberados para uso em turno sao considerados prontos para operacao.
+        // Apenas status liberados para uso em turno sao considerados prontos para operação.
         return status == VehicleStatus.AVAILABLE || status == VehicleStatus.IN_OPERATION;
     }
 
@@ -172,3 +172,5 @@ public class Vehicle {
         this.maintenanceNotes = maintenanceNotes;
     }
 }
+
+

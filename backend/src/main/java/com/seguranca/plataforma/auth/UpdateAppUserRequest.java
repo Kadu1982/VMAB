@@ -12,3 +12,5 @@ public record UpdateAppUserRequest(
         Long linkedAgentId
 ) {
 }
+
+

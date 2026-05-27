@@ -11,7 +11,7 @@ import java.time.OffsetDateTime;
 @Entity
 @Table(name = "resident_push_devices")
 public class ResidentPushDevice {
-    // Guarda os dispositivos Expo do morador para que o backend consiga avisar mudancas criticas do alerta.
+    // Guarda os dispositivos Expo do morador para que o backend consiga avisar mudancas críticas do alerta.
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -90,3 +90,5 @@ public class ResidentPushDevice {
         this.updatedAt = revokedAt;
     }
 }
+
+

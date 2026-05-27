@@ -7,3 +7,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface ResidentDependentRepository extends JpaRepository<ResidentDependent, Long> {
     List<ResidentDependent> findAllByResidentIdOrderByIdAsc(Long residentId);
 }
+
+

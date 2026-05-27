@@ -6,3 +6,5 @@ public record RevokeAppPushTokenRequest(
         @NotBlank String expoPushToken
 ) {
 }
+
+

@@ -7,3 +7,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface BusinessSectorRepository extends JpaRepository<BusinessSector, Long> {
     List<BusinessSector> findAllByBusinessUnitIdOrderByIdAsc(Long businessUnitId);
 }
+
+

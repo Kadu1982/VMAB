@@ -35,13 +35,13 @@ class JwtAuthenticationFilterTest {
     private FilterChain filterChain;
 
     @AfterEach
-    void limparContextoDeSeguranca() {
+    void limparContextoDeSegurança() {
         SecurityContextHolder.clearContext();
     }
 
     @Test
-    void deveSeguirFluxoQuandoNaoHouverBearerToken() throws Exception {
-        // Sem cabecalho Authorization o filtro nao pode interferir no restante da cadeia.
+    void deveSeguirFluxoQuandoNãoHouverBearerToken() throws Exception {
+        // Sem cabecalho Authorization o filtro não pode interferir no restante da cadeia.
         JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtTokenService, appUserRepository);
         MockHttpServletRequest request = new MockHttpServletRequest();
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -114,3 +114,5 @@ class JwtAuthenticationFilterTest {
         verify(jwtTokenService, never()).extractRoles("token-antigo");
     }
 }
+
+

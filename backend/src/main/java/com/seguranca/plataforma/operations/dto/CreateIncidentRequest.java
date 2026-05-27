@@ -14,3 +14,5 @@ public record CreateIncidentRequest(
         Long vehicleId
 ) {
 }
+
+

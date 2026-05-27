@@ -125,9 +125,11 @@ public class IncidentEvidence {
     }
 
     public void markDeleted(OffsetDateTime deletedAt, String deletedBy, String deletionReason) {
-        // Mantem a trilha da exclusao sem apagar o contexto da evidencia no banco.
+        // Mantem a trilha da exclusao sem apagar o contexto da evidência no banco.
         this.deletedAt = deletedAt;
         this.deletedBy = deletedBy;
         this.deletionReason = deletionReason;
     }
 }
+
+

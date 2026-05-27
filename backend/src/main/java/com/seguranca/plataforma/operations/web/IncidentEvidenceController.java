@@ -22,7 +22,7 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping("/api/incidents")
 public class IncidentEvidenceController {
-    // Exponibiliza upload e leitura de evidencias ligadas a ocorrencias.
+    // Exponibiliza upload e leitura de evidências ligadas a ocorrências.
 
     private final OperationsService operationsService;
 
@@ -68,7 +68,9 @@ public class IncidentEvidenceController {
             @PathVariable Long evidenceId,
             @Valid @RequestBody(required = false) DeleteIncidentEvidenceRequest request
     ) {
-        // Remove a evidencia de forma controlada e auditavel.
+        // Remove a evidência de forma controlada e auditavel.
         return operationsService.deleteIncidentEvidence(incidentId, evidenceId, request == null ? null : request.reason());
     }
 }
+
+

@@ -13,3 +13,5 @@ public record HrSummaryResponse(
         List<HrAttendanceResponse> attendance
 ) {
 }
+
+

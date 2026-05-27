@@ -5,3 +5,5 @@ public record SessionActionResponse(
 ) {
     // Resposta padrao para logout e confirmacoes de operacoes de sessao.
 }
+
+

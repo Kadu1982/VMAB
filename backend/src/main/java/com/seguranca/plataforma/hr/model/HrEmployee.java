@@ -465,3 +465,5 @@ public class HrEmployee {
         this.lastPointNotes = note;
     }
 }
+
+

@@ -15,3 +15,5 @@ public record RecordHrAttendanceRequest(
         String anomalyReason
 ) {
 }
+
+

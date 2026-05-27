@@ -48,3 +48,5 @@ class AppUserPushNotificationServiceTest {
         assertTrue(message.body().contains("Morador VMAB"));
     }
 }
+
+

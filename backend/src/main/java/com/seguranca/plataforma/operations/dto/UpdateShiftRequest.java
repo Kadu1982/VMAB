@@ -25,3 +25,5 @@ public record UpdateShiftRequest(
         String attendanceNotes
 ) {
 }
+
+

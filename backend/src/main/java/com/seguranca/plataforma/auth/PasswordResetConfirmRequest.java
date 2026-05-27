@@ -10,3 +10,5 @@ public record PasswordResetConfirmRequest(
 ) {
     // DTO que conclui a troca de senha com o codigo temporario gerado no suporte.
 }
+
+

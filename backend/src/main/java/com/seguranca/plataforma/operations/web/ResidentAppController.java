@@ -103,3 +103,5 @@ public class ResidentAppController {
         return residentAlertService.cancelAlert(authorization, id, request);
     }
 }
+
+

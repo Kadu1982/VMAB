@@ -9,3 +9,5 @@ public record ResidentLoginRequest(
         @NotBlank @Pattern(regexp = "^\\d{4,6}$", message = "O PIN deve ter entre 4 e 6 digitos.") String accessPin
 ) {
 }
+
+

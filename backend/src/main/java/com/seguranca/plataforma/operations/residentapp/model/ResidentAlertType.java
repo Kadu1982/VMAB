@@ -7,3 +7,5 @@ public enum ResidentAlertType {
     SUSPEITA,
     MEDICA
 }
+
+

@@ -244,7 +244,7 @@ public class VehicleMaintenanceRecord {
             String description,
             boolean resolved
     ) {
-        // Mantem o historico auditavel da manutencao sem perder a referencia original de abertura.
+        // Mantem o historico auditavel da manutenção sem perder a referencia original de abertura.
         this.type = type;
         this.priority = priority;
         this.status = status;
@@ -260,3 +260,5 @@ public class VehicleMaintenanceRecord {
         this.resolved = resolved;
     }
 }
+
+

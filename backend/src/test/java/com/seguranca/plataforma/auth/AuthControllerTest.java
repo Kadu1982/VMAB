@@ -66,7 +66,7 @@ class AuthControllerTest {
 
     @Test
     void logoutDeveInvalidarAversaoDaSessaoAtual() {
-        // O logout invalida a versao dos tokens do usuario atual, nao um JWT isolado.
+        // O logout invalida a versao dos tokens do usuário atual, não um JWT isolado.
         Authentication authentication = mock(Authentication.class);
         when(authentication.getName()).thenReturn("admin");
         when(authService.logout("admin")).thenReturn(new SessionActionResponse("Sessao encerrada com sucesso."));
@@ -121,3 +121,5 @@ class AuthControllerTest {
         assertEquals(7L, response.linkedAgentId());
     }
 }
+
+

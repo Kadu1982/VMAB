@@ -12,3 +12,5 @@ public record ClientPortalResponse(
         List<Incident> recentIncidents
 ) {
 }
+
+

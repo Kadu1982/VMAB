@@ -8,3 +8,5 @@ public record JwtProperties(
         long expirationHours
 ) {
 }
+
+

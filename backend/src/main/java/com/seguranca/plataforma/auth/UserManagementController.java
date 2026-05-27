@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/users")
 public class UserManagementController {
-    // Disponibiliza a gestao de usuarios e perfis para o painel administrativo.
+    // Disponibiliza a gestao de usuários e perfis para o painel administrativo.
 
     private final UserManagementService userManagementService;
 
@@ -46,3 +46,5 @@ public class UserManagementController {
         userManagementService.deleteUser(id);
     }
 }
+
+

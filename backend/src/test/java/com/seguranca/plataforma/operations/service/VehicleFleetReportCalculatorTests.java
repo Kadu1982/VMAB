@@ -22,7 +22,7 @@ class VehicleFleetReportCalculatorTests {
 
     @Test
     void deveMontarRelatorioDaFrotaComIndicadoresCoerentes() {
-        // O calculo do relatorio fica isolado para garantir que os indicadores da frota nao dependam do dashboard.
+        // O calculo do relatorio fica isolado para garantir que os indicadores da frota não dependam do dashboard.
         Vehicle availableVehicle = new Vehicle(
                 "ABC1D23",
                 "Renault Duster",
@@ -66,7 +66,7 @@ class VehicleFleetReportCalculatorTests {
                 11_200L,
                 new BigDecimal("450.00"),
                 "Oficina Central",
-                "Manutencao concluida sem ocorrencias.",
+                "Manutencao concluida sem ocorrências.",
                 "Troca de oleo e filtros.",
                 true
         );
@@ -122,7 +122,7 @@ class VehicleFleetReportCalculatorTests {
 
     @Test
     void deveExporCodigoFormalDaOrdemMesmoAntesDaPersistencia() {
-        // Em memoria, a OS ainda nao tem id; o codigo nao pode quebrar o relatorio por isso.
+        // Em memoria, a OS ainda não tem id; o codigo não pode quebrar o relatorio por isso.
         VehicleMaintenanceRecord draftOrder = new VehicleMaintenanceRecord(
                 3L,
                 "JKL9M87",
@@ -148,3 +148,5 @@ class VehicleFleetReportCalculatorTests {
         assertFalse(draftOrder.isBlockingOrder());
     }
 }
+
+

@@ -7,3 +7,5 @@ public record PasswordResetRequest(
 ) {
     // DTO minimo para solicitar um codigo temporario de recuperacao de senha.
 }
+
+

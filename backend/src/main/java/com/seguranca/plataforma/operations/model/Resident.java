@@ -180,3 +180,5 @@ public class Resident {
         this.coercionPinHash = coercionPinHash;
     }
 }
+
+

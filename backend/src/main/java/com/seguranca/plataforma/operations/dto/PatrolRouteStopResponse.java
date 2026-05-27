@@ -6,3 +6,5 @@ public record PatrolRouteStopResponse(
         String status
 ) {
 }
+
+

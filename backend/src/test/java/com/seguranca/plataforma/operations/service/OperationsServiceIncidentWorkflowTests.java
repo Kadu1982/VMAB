@@ -183,7 +183,7 @@ class OperationsServiceIncidentWorkflowTests {
     }
 
     @Test
-    void naoDeveEncerrarOcorrenciaSemChegadaNoLocal() {
+    void nãoDeveEncerrarOcorrenciaSemChegadaNoLocal() {
         AppUser currentUser = new AppUser("ronda.mobile", "{noop}senha", AppUserRole.RONDA, true, OffsetDateTime.now(ZoneOffset.UTC));
         currentUser.update("ronda.mobile", AppUserRole.RONDA, true, 7L);
         ReflectionTestUtils.setField(currentUser, "linkedAgentId", 7L);
@@ -212,12 +212,12 @@ class OperationsServiceIncidentWorkflowTests {
 
         assertThrows(
                 ResponseStatusException.class,
-                () -> operationsService.closeIncidentForCurrentRonda(12L, new RondaCloseIncidentRequest("Atendimento concluido"))
+                () -> operationsService.closeIncidentForCurrentRonda(12L, new RondaCloseIncidentRequest("Atendimento concluído"))
         );
     }
 
     @Test
-    void naoDeveAplicarCoberturaSemFaltaOuAtraso() {
+    void nãoDeveAplicarCoberturaSemFaltaOuAtraso() {
         Shift shift = new Shift(
                 7L,
                 "Carlos",
@@ -269,9 +269,11 @@ class OperationsServiceIncidentWorkflowTests {
         when(shiftRepository.findById(22L)).thenReturn(Optional.of(shift));
         when(shiftRepository.save(any(Shift.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Shift savedShift = operationsService.superviseShift(22L, new SuperviseShiftRequest(ShiftSupervisionAction.MARK_ABSENT, null, null, "Nao compareceu"));
+        Shift savedShift = operationsService.superviseShift(22L, new SuperviseShiftRequest(ShiftSupervisionAction.MARK_ABSENT, null, null, "Não compareceu"));
 
         assertEquals(ShiftAttendanceStatus.ABSENT, savedShift.getAttendanceStatus());
         verify(appUserPushNotificationService).notifyShiftSupervisionUpdated(savedShift, "Falta registrada");
     }
 }
+
+

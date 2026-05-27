@@ -37,8 +37,8 @@ class ResidentPushNotificationServiceTests {
     }
 
     @Test
-    void naoDeveFalharSemDispositivoAtivo() {
-        // Quando nao existe token ativo, o fluxo precisa encerrar sem tentar notificar nada.
+    void nãoDeveFalharSemDispositivoAtivo() {
+        // Quando não existe token ativo, o fluxo precisa encerrar sem tentar notificar nada.
         when(residentPushDeviceRepository.findByResidentIdAndRevokedAtIsNullOrderByUpdatedAtDesc(1L)).thenReturn(List.of());
 
         assertDoesNotThrow(() -> residentPushNotificationService.notifyResidentAlertStatusChanged(buildAlert(true, ResidentAlertStatus.ACKNOWLEDGED)));
@@ -71,3 +71,5 @@ class ResidentPushNotificationServiceTests {
         );
     }
 }
+
+

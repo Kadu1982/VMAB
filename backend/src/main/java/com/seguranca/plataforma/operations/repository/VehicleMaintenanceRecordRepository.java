@@ -22,3 +22,5 @@ public interface VehicleMaintenanceRecordRepository extends JpaRepository<Vehicl
             """)
     List<VehicleMaintenanceRecord> findRetainableRecordsBefore(@Param("cutoff") OffsetDateTime cutoff);
 }
+
+

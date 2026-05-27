@@ -67,3 +67,5 @@ public class HrController {
         return hrService.recordAttendance(id, request);
     }
 }
+
+
