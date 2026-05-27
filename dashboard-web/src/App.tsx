@@ -1997,7 +1997,7 @@ function App() {
         <h1>Operação Comunitaria</h1>
         <p className="sidebar-copy">Sessao autenticada como {currentUsername}. O conteudo abaixo respeita o perfil logado e as permissoes do backend.</p>
         <div className="sidebar-block">
-          <span className="sidebar-label">SeÃ§Ãµes</span>
+          <span className="sidebar-label">Seções</span>
           <div className="sidebar-section-list">
             {dashboardSectionLinks.map((section) => (
               <button
@@ -2105,12 +2105,12 @@ function App() {
 
                       <div className="map-overlay overlay-top">
                         <strong>{summary.activePatrol.agentName}</strong>
-                        <small>{summary.activePatrol.vehiclePlate} Ã¢â‚¬Â¢ {summary.activePatrol.vehicleModel}</small>
+                        <small>{summary.activePatrol.vehiclePlate} • {summary.activePatrol.vehicleModel}</small>
                       </div>
 
                       <div className="map-overlay overlay-bottom">
                         <strong>{summary.activePatrol.speedKmh.toFixed(0)} km/h</strong>
-                        <small>Precisao {summary.activePatrol.accuracyMeters.toFixed(0)} m Ã¢â‚¬Â¢ turno {summary.activePatrol.shiftId}</small>
+                        <small>Precisão {summary.activePatrol.accuracyMeters.toFixed(0)} m • turno {summary.activePatrol.shiftId}</small>
                       </div>
                     </div>
                   </div>
@@ -2151,7 +2151,7 @@ function App() {
                   <h3>Resumo operacional consolidado</h3>
                 </div>
               </div>
-              <p className="panel-note">VisÃ£o Ãºnica da operaÃ§Ã£o, com indicadores que ajudam a decidir agora e nÃ£o sÃ³ a olhar o histÃ³rico.</p>
+              <p className="panel-note">Visão única da operação, com indicadores que ajudam a decidir agora e não só a olhar o histórico.</p>
               <div className="report-summary-grid">
                 <article className="report-insight-card">
                   <span>Ocorrencias em aberto</span>
@@ -2240,19 +2240,19 @@ function App() {
                 </button>
                 <button className="hub-card" onClick={() => setActiveDashboardSection('sec-acesso')} type="button">
                   <strong>Acessos</strong>
-                  <small>Usuários, perfis e permissÃµes</small>
+                  <small>Usuários, perfis e permissões</small>
                 </button>
                 <button className="hub-card" onClick={() => setActiveDashboardSection('sec-operacao')} type="button">
                   <strong>Turnos e ponto</strong>
-                  <small>Jornada, cobertura e ocorrÃªncias</small>
+                  <small>Jornada, cobertura e ocorrências</small>
                 </button>
                 <button className="hub-card" onClick={() => setActiveDashboardSection('sec-rh')} type="button">
                   <strong>Alertas</strong>
                   <small>CNH, exames e treinamentos</small>
                 </button>
                 <button className="hub-card" onClick={() => setActiveDashboardSection('sec-setorizacao')} type="button">
-                  <strong>SetorizaÃ§Ã£o</strong>
-                  <small>Contratos, setores e vÃ­nculos</small>
+                  <strong>Setorização</strong>
+                  <small>Contratos, setores e vínculos</small>
                 </button>
               </div>
               <div className="subpanel-grid">
@@ -2298,7 +2298,7 @@ function App() {
                         <div className="row-actions">
                           <span className={`tag ${hrStatusTagClass(employee.status)}`}>{translateHrEmployeeStatus(employee.status)}</span>
                           <span className={`tag ${employee.pointEnabled ? 'active' : 'blocked'}`}>{employee.pointEnabled ? 'Ponto liberado' : 'Ponto bloqueado'}</span>
-                          <button className="ghost-button" onClick={() => { setSelectedEmployeeId(String(employee.id)); setActiveDashboardSection('sec-rh') }} type="button">VÃ­nculos</button>
+                          <button className="ghost-button" onClick={() => { setSelectedEmployeeId(String(employee.id)); setActiveDashboardSection('sec-rh') }} type="button">Vínculos</button>
                         </div>
                       </article>
                     ))}
@@ -2479,11 +2479,11 @@ function App() {
               <section className="panel dashboard-section-shell" id="sec-setorizacao">
                 <div className="panel-header">
                   <div>
-                    <p className="eyebrow">SetorizaÃ§Ã£o</p>
-                    <h3>Contratos, setores e vÃ­nculos sem ID manual</h3>
+                    <p className="eyebrow">Setorização</p>
+                    <h3>Contratos, setores e vínculos sem ID manual</h3>
                   </div>
                 </div>
-                <p className="panel-note">Aqui vocÃª administra os contratos e a divisÃ£o interna por setores. Os vÃ­nculos de funcionÃ¡rio usam seleÃ§Ã£o por nome/cÃ³digo, nÃ£o IDs.</p>
+                <p className="panel-note">Aqui você administra os contratos e a divisão interna por setores. Os vínculos de funcionário usam seleção por nome/código, não IDs.</p>
                 <div className="subpanel-grid hr-summary-grid">
                   <div>
                     <div className="panel-header">
@@ -2658,7 +2658,7 @@ function App() {
                   <article className="telemetry-card">
                     <span>Operacionais</span>
                     <strong>{fleetReport.operationalVehicles}/{fleetReport.totalVehicles}</strong>
-                    <small>{fleetReport.availableVehicles} disponÃ­veis â€¢ {fleetReport.inOperationVehicles} em rota</small>
+                    <small>{fleetReport.availableVehicles} disponíveis • {fleetReport.inOperationVehicles} em rota</small>
                   </article>
                   <article className="telemetry-card">
                     <span>Manutencao / Bloqueadas</span>
@@ -2704,7 +2704,7 @@ function App() {
                   <h3>Relatorio de eventos criticos</h3>
                 </div>
               </div>
-              <p className="panel-note">Relatorio operacional por periodo. Autenticacoes ficam ocultas por padrao e podem ser incluÃ­das quando necessario.</p>
+              <p className="panel-note">Relatório operacional por período. Autenticações ficam ocultas por padrão e podem ser incluídas quando necessário.</p>
               <div className="audit-report-controls">
                 <div className="audit-period-row" role="tablist" aria-label="Periodo do relatorio">
                   {[7, 30, 90].map((days) => {
@@ -2762,7 +2762,7 @@ function App() {
                     <article className="telemetry-card">
                       <span>Registros do periodo</span>
                       <strong>{auditReport.totalRecords}</strong>
-                      <small>{auditReport.includeAuth ? 'Autenticacoes incluÃ­das' : 'Autenticacoes ocultas'}</small>
+                      <small>{auditReport.includeAuth ? 'Autenticações incluídas' : 'Autenticações ocultas'}</small>
                     </article>
                     <article className="telemetry-card">
                       <span>Registros visiveis</span>
